@@ -1,5 +1,5 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { afterEach, beforeEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App.vue'
 import { openRecord } from './navigation'
 import { closeNotebook } from './notebook'
@@ -19,7 +19,10 @@ beforeEach(async () => {
   await app.findAll('button').find((b) => b.text() === 'Create new Notebook')!.trigger('click')
   await expect.poll(() => app.find('[data-testid="sidebar"]').exists()).toBe(true)
 })
-afterEach(() => app.unmount())
+afterEach(() => {
+  app.unmount()
+  vi.restoreAllMocks()
+})
 
 const boxes = () => app.findAll('[data-testid="notes"] input[type="checkbox"]')
 
@@ -49,4 +52,29 @@ test("ticking a task in an Open question's answer saves the answer", async () =>
   await app.get('[data-testid="field-answer"] input[type="checkbox"]').setValue(true)
 
   expect(getRecord('open_question', id)!.answer).toBe('- [x] ask Ana')
+})
+
+test('the Copy button of a code block puts its code on the clipboard', async () => {
+  const written: string[] = []
+  vi.spyOn(navigator.clipboard, 'writeText').mockImplementation(async (t) => void written.push(t))
+  openRecord('system', createRecord('system', 'SAP', { notes: 'Find orders:\n\n```sql\nselect ebeln\nfrom ekko\n```' }))
+  await flushPromises()
+
+  await app.get('[data-testid="notes"] [data-copy]').trigger('click')
+  await flushPromises()
+
+  expect(written).toEqual(['select ebeln\nfrom ekko'])
+  expect(app.get('[data-testid="notes"] [data-copy]').text()).toBe('Copied')
+})
+
+test('when the clipboard refuses, the code is selected and the button says which key copies it', async () => {
+  vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('NotAllowedError'))
+  openRecord('system', createRecord('system', 'SAP', { notes: 'Query:\n\n```\nselect 1\n```' }))
+  await flushPromises()
+
+  await app.get('[data-testid="notes"] [data-copy]').trigger('click')
+  await flushPromises()
+
+  expect(app.get('[data-testid="notes"] [data-copy]').text()).toBe('Press Ctrl C')
+  expect(getSelection()!.toString()).toContain('select 1')
 })

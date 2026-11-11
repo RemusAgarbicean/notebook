@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { caretSpot, placePopup } from './caret'
+import { copyText } from './clipboard'
 import {
   applyEdit,
   continueList,
@@ -16,7 +17,7 @@ import {
 import FormatBar, { type FormatAction } from './FormatBar.vue'
 import { renderMarkdown, toggleTask } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
-import { isMac } from './platform'
+import { isMac, shortcut } from './platform'
 import { untouched } from './templates'
 import type { Titled } from './records'
 import { RECORD_FIELDS } from './record-fields'
@@ -98,6 +99,20 @@ function onTick(e: Event) {
   emit('update:modelValue', toggleTask(props.modelValue, Number(n)))
   // The view is rendered anew, so the focus goes back to the box for the keyboard to go on.
   nextTick(() => view.value?.querySelector<HTMLElement>(`[data-task="${n}"]`)?.focus())
+}
+
+// A click in the rendered view: a code block's Copy button, else maybe a Mention.
+async function onViewClick(e: MouseEvent) {
+  const button = (e.target as Element).closest?.('[data-copy]')
+  if (!button) return openMention(e)
+  const code = button.parentElement!.querySelector('pre')!
+  if (await copyText((code.textContent ?? '').replace(/\n$/, ''))) button.textContent = 'Copied'
+  else {
+    // The clipboard refused: select the code, so the copy key finishes the job.
+    getSelection()?.selectAllChildren(code)
+    button.textContent = `Press ${shortcut('C')}`
+  }
+  setTimeout(() => (button.textContent = 'Copy'), 2000)
 }
 
 function onPaste(e: ClipboardEvent) {
@@ -197,7 +212,7 @@ function onKeydown(e: KeyboardEvent) {
       ref="view"
       data-testid="markdown-view"
       class="markdown min-w-0"
-      @click="openMention"
+      @click="onViewClick"
       @change="onTick"
       v-html="renderMarkdown(modelValue)"
     />
@@ -206,11 +221,56 @@ function onKeydown(e: KeyboardEvent) {
 
 <style>
 /* Tailwind's reset strips these; rendered markdown needs them back. */
-.markdown :is(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4) {
+.markdown :is(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4, h5, h6, .code-block) {
   margin-bottom: 0.5rem;
 }
-.markdown :is(h1, h2, h3, h4) {
+/* A calm, compact scale: the page title above is 1.5rem and the text 0.875rem. */
+.markdown :is(h1, h2, h3, h4, h5, h6) {
   font-weight: 600;
+  line-height: 1.3;
+}
+.markdown > :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
+  margin-top: 1rem;
+}
+.markdown h3 {
+  font-size: 1rem;
+}
+.markdown :is(h5, h6) {
+  color: var(--muted-foreground);
+}
+.markdown .code-block {
+  position: relative;
+}
+.markdown .code-block pre {
+  margin-bottom: 0;
+}
+/* Shown when the block is pointed at or the button has the keyboard's focus. */
+.markdown .copy-code {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  opacity: 0;
+}
+.markdown .code-block:hover .copy-code,
+.markdown .copy-code:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .markdown .copy-code {
+    opacity: 1;
+  }
+}
+@media print {
+  .markdown .copy-code {
+    display: none;
+  }
 }
 /* Long words, wide tables and code scroll or wrap inside the notes instead of widening the page. */
 .markdown {

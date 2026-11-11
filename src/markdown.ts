@@ -61,6 +61,16 @@ export function renderMarkdown(source: string): string {
     Object.assign(a, { href: src, target: '_blank', rel: 'noopener noreferrer', textContent: text })
     img.replaceWith(a)
   }
+  // Every code block gets a Copy button; whoever shows the HTML handles the click (`data-copy`).
+  for (const pre of body.querySelectorAll('pre')) {
+    const block = document.createElement('div')
+    block.className = 'code-block'
+    const copy = document.createElement('button')
+    Object.assign(copy, { type: 'button', className: 'copy-code', textContent: 'Copy' })
+    copy.setAttribute('data-copy', '')
+    pre.replaceWith(block)
+    block.append(pre, copy)
+  }
   // A task item's checkbox can be ticked in place: `data-task` is its place among `taskLines(source)`.
   // That holds only while the boxes on the page and the task lines in the text pair up one to one
   // (an indented code block or a typed <input> breaks it); otherwise they all stay read-only.

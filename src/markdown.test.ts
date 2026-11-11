@@ -147,3 +147,12 @@ test('when the boxes and the task lines do not pair up, every box stays read-onl
     expect(found.every((b) => b.disabled && b.task === null)).toBe(true)
   }
 })
+
+test('a code block gets a Copy button beside it, and inline code does not', () => {
+  const el = dom('Run `ME21N`:\n\n```sql\nselect 1\n```')
+
+  const block = el.querySelector('.code-block')!
+  expect(block.querySelector('pre')!.textContent).toBe('select 1\n')
+  expect(block.querySelector('button[data-copy]')!.textContent).toBe('Copy')
+  expect(el.querySelectorAll('button')).toHaveLength(1)
+})
