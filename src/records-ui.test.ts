@@ -32,7 +32,7 @@ const change = (id: string, value: string) => {
 }
 const rowsText = () => app.findAll('[data-testid="list-row"]').map((r) => r.text())
 const showType = (label: string) =>
-  app.findAll('[data-testid="record-type"]').find((b) => b.text() === label)!.trigger('click')
+  app.findAll('[data-testid="record-type"]').find((b) => b.text().startsWith(label))!.trigger('click')
 
 test('+ New creates a Record, lists it and opens its page', async () => {
   await showType('Systems')
@@ -137,7 +137,7 @@ test('a Tag added on a page shows in the sidebar, and clicking it lists its Reco
 
   expect(app.findAll('[data-testid="record-tag"]').map((t) => t.text())).toEqual(['S2P'])
   const tags = app.findAll('[data-testid="tag"]')
-  expect(tags.map((t) => t.text())).toEqual(['S2P'])
+  expect(tags.map((t) => t.text())).toEqual(['S2P2'])
 
   await tags[0].trigger('click')
   expect(rowsText()).toEqual(['CoupaSystem', 'Maria LopezPerson'])
@@ -212,4 +212,24 @@ test('opening another Notebook goes back to Home', async () => {
 
   expect(list.value).toBe('home')
   expect(current.value).toBeNull()
+})
+
+test('the sidebar counts each type and each Tag, live', async () => {
+  const count = (testid: string, label: string) =>
+    app
+      .findAll(`[data-testid="${testid}"]`)
+      .find((b) => b.text().startsWith(label))!
+      .find('[data-testid="count"]')
+  expect(count('record-type', 'Tasks').exists()).toBe(false)
+
+  const task = createRecord('task', 'Call Ana')
+  createRecord('task', 'Book room')
+  addTag('task', task, 'S2P')
+  await flushPromises()
+  expect(count('record-type', 'Tasks').text()).toBe('2')
+  expect(count('tag', 'S2P').text()).toBe('1')
+
+  updateRecord('task', task, { done: true })
+  await flushPromises()
+  expect(count('record-type', 'Tasks').text()).toBe('1')
 })

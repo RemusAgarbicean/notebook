@@ -16,6 +16,7 @@ export function memoryFolder(file: Uint8Array | null = null, name = 'My Notebook
     async writeBackup(fileName: string, bytes: Uint8Array): Promise<void> {
       folder.backups.set(fileName, bytes)
     },
+    readBackup: async (fileName: string) => folder.backups.get(fileName) ?? null,
     listBackups: async () => [...folder.backups.keys()],
     async deleteBackup(fileName: string): Promise<void> {
       folder.backups.delete(fileName)

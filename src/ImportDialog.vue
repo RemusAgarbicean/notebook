@@ -6,6 +6,7 @@ import { importTargets, matchColumns, parseTable, planImport, runImport, type Du
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
 import { listRecords } from './records'
+import { manualSave } from './save-status'
 
 // The list's "Import…" button and the dialog it opens: paste or pick a file, check the preview, save.
 const props = defineProps<{ type: RecordType }>()
@@ -191,7 +192,13 @@ async function save() {
 
       <p v-if="error" role="alert" class="text-destructive">{{ error }}</p>
       <footer class="flex items-center justify-end gap-2 border-t pt-3">
-        <span class="flex-1 text-xs text-muted-foreground">A Backup is taken first. Restoring it is the only undo.</span>
+        <span class="flex-1 text-xs text-muted-foreground">
+          {{
+            manualSave
+              ? 'The Notebook as it is now is downloaded first. That file is the only undo.'
+              : 'A Backup is taken first. Restoring it is the only undo.'
+          }}
+        </span>
         <button type="button" class="h-7 rounded-md border px-3 font-medium hover:bg-accent" @click="open = false">
           Cancel
         </button>

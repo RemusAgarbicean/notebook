@@ -4,7 +4,7 @@ import { db } from '../notebook'
 import { createRecord, deleteRecord, getRecord, updateRecord } from '../records'
 import { loadSqlite } from '../sqlite'
 import { parseCanvas, type NodeData } from './canvas'
-import { inDiagrams, withLiveTitles } from './links'
+import { inDiagrams, unlinked, withLiveTitles } from './links'
 
 beforeEach(async () => {
   const fresh = new (await loadSqlite()).Database()
@@ -65,4 +65,12 @@ test('a save carries the live title as the snapshot, and keeps the snapshot of a
   ]
 
   expect(withLiveTitles(nodes).map((n) => n.data.label)).toEqual(['Coupa P2P', 'Gone', 'free'])
+})
+
+test('an unlinked Node keeps its fill and holds the title it is given, or its snapshot without one', () => {
+  const data: NodeData = { label: 'Coupa', fill: 'green', recordType: 'system', recordId: 7 }
+
+  expect(unlinked(data, 'Coupa P2P')).toEqual({ label: 'Coupa P2P', fill: 'green' })
+  expect(unlinked(data, undefined)).toEqual({ label: 'Coupa', fill: 'green' })
+  expect(data.recordId).toBe(7)
 })

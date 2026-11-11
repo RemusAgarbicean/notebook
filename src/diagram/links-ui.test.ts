@@ -118,3 +118,25 @@ test('a Record page lists the Diagrams it is in, and deleting it warns how many'
   await app.findAll('[data-testid="in-diagrams"]')[1].trigger('click')
   expect(current.value).toEqual({ type: 'diagram', id })
 })
+
+test("Unlink turns a linked Node into a free-text Node holding the Record's title now, and keeps the Record", async () => {
+  const coupa = createRecord('system', 'Coupa')
+  draw(id, { label: 'Coupa', fill: 'green', recordType: 'system', recordId: coupa })
+  updateRecord('system', coupa, { title: 'Coupa P2P' })
+  await open()
+
+  await (await menu()).get('[data-testid="unlink-node"]').trigger('click')
+
+  await expect.poll(savedData).toEqual([{ label: 'Coupa P2P', fill: 'green' }])
+  expect(nodeTexts()).toEqual(['Coupa P2P'])
+  expect(nodes()[0].classes()).not.toContain('linked')
+  expect(app.find('[role="menu"]').exists()).toBe(false)
+  expect(getRecord('system', coupa)).not.toBeNull()
+})
+
+test('a free-text Node offers no Unlink', async () => {
+  draw(id, { label: 'Coupa' })
+  await open()
+
+  expect((await menu()).find('[data-testid="unlink-node"]').exists()).toBe(false)
+})

@@ -81,5 +81,5 @@ _Avoid_: Link, arrow, connector
 ## Storage
 
 **Backup**:
-A dated copy of the whole Notebook, taken automatically once a day and before upgrades and imports, and kept next to it.
+A dated copy of the whole Notebook, taken automatically once a day and before upgrades, imports and restores, or by hand, and kept next to it. Restoring a Backup replaces the Notebook with that copy.
 _Avoid_: Snapshot, version
