@@ -2,7 +2,7 @@
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { caretSpot, placePopup } from './caret'
 import { applyEdit, continueList, indentLines, pasteLink, pasteTable, toggleWrap, type Edit } from './editing'
-import { renderMarkdown } from './markdown'
+import { renderMarkdown, toggleTask } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
 import { isMac } from './platform'
 import type { Titled } from './records'
@@ -62,6 +62,16 @@ function editorKey(e: KeyboardEvent): boolean {
   if (e.key === 'Tab') return edit((s) => indentLines(s, e.shiftKey))
   if (e.key === 'Escape') toggle()
   return e.key === 'Escape'
+}
+
+// Ticking a task item in the rendered view rewrites its line and saves, without entering edit mode.
+const view = useTemplateRef('view')
+function onTick(e: Event) {
+  const n = (e.target as HTMLElement).dataset.task
+  if (n === undefined) return
+  emit('update:modelValue', toggleTask(props.modelValue, Number(n)))
+  // The view is rendered anew, so the focus goes back to the box for the keyboard to go on.
+  nextTick(() => view.value?.querySelector<HTMLElement>(`[data-task="${n}"]`)?.focus())
 }
 
 function onPaste(e: ClipboardEvent) {
@@ -155,7 +165,15 @@ function onKeydown(e: KeyboardEvent) {
       </ul>
     </div>
     <!-- renderMarkdown sanitizes its output. -->
-    <div v-else data-testid="markdown-view" class="markdown min-w-0" @click="openMention" v-html="renderMarkdown(modelValue)" />
+    <div
+      v-else
+      ref="view"
+      data-testid="markdown-view"
+      class="markdown min-w-0"
+      @click="openMention"
+      @change="onTick"
+      v-html="renderMarkdown(modelValue)"
+    />
   </section>
 </template>
 
@@ -203,6 +221,22 @@ function onKeydown(e: KeyboardEvent) {
 .markdown ol {
   list-style: decimal;
   padding-left: 1.25rem;
+}
+/* A task item's box takes the place of its bullet; in a numbered list it follows the number. */
+.markdown ul > li:has(> input[type='checkbox'], > p > input[type='checkbox']) {
+  list-style: none;
+}
+.markdown li input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.25rem;
+  vertical-align: -0.15em;
+}
+.markdown ul > li :is(input[type='checkbox']) {
+  margin-left: -1.25rem;
+}
+.markdown li input[type='checkbox']:not(:disabled) {
+  cursor: pointer;
 }
 .markdown a {
   text-decoration: underline;

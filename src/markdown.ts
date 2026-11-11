@@ -12,6 +12,29 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   }
 })
 
+const TASK = /^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[([ xX])\]\s+\S/
+
+/** The task items (`- [ ]`, `- [x]`) of a markdown text, in order: the line each is on and whether it is ticked. */
+export function taskLines(source: string): { line: number; checked: boolean }[] {
+  const tasks: { line: number; checked: boolean }[] = []
+  let fenced = false
+  source.split('\n').forEach((text, line) => {
+    if (/^\s*(```|~~~)/.test(text)) fenced = !fenced
+    const task = fenced ? null : TASK.exec(text)
+    if (task) tasks.push({ line, checked: task[1] !== ' ' })
+  })
+  return tasks
+}
+
+/** The text with its nth task item ticked or unticked; unchanged when there is no such item. */
+export function toggleTask(source: string, n: number): string {
+  const task = taskLines(source)[n]
+  if (!task) return source
+  const lines = source.split('\n')
+  lines[task.line] = lines[task.line].replace(/\[([ xX])\]/, (_, mark) => (mark === ' ' ? '[x]' : '[ ]'))
+  return lines.join('\n')
+}
+
 /**
  * Markdown to sanitized HTML, safe for `v-html`. The only way notes reach the page.
  * Nothing in the result makes a network request: no styles, media or SVG, and
@@ -38,5 +61,20 @@ export function renderMarkdown(source: string): string {
     Object.assign(a, { href: src, target: '_blank', rel: 'noopener noreferrer', textContent: text })
     img.replaceWith(a)
   }
+  // A task item's checkbox can be ticked in place: `data-task` is its place among `taskLines(source)`.
+  // That holds only while the boxes on the page and the task lines in the text pair up one to one
+  // (an indented code block or a typed <input> breaks it); otherwise they all stay read-only.
+  const tasks = taskLines(source)
+  const boxes = [...body.querySelectorAll('input[type="checkbox"]')]
+  if (boxes.length === tasks.length && boxes.every((box, i) => box.hasAttribute('checked') === tasks[i].checked))
+    boxes.forEach((box, i) => {
+      const item = box.closest('li')?.cloneNode(true) as HTMLElement | undefined
+      // The item's own text names the box, without the items nested in it.
+      item?.querySelectorAll('ul, ol').forEach((nested) => nested.remove())
+      box.removeAttribute('disabled')
+      box.setAttribute('data-task', String(i))
+      box.setAttribute('aria-label', item?.textContent?.trim() || 'Task')
+    })
+  else for (const box of boxes) box.setAttribute('disabled', '')
   return body.innerHTML
 }
