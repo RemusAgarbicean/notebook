@@ -30,8 +30,10 @@ watch(lastDeleted, (now) => {
 })
 
 async function undo() {
-  if (!lastDeleted()) return
+  const last = lastDeleted()
+  if (!last) return
   undoing = true
+  const was = current.value
   try {
     // An open Diagram saves its canvas as it closes: that must not land on top of the Nodes linked again.
     current.value = null
@@ -41,8 +43,11 @@ async function undo() {
     if (back) openRecord(back.type, back.id)
     await nextTick()
   } catch (e) {
+    // Nothing came back: the user stays where they were and the notice says why, until dismissed.
+    current.value = was
     clearTimeout(timer)
-    error.value = `Could not undo: ${e instanceof Error ? e.message : String(e)}`
+    notice.value = last
+    error.value = `Can't undo: ${e instanceof Error ? e.message : String(e)}`
   } finally {
     undoing = false
   }
@@ -71,7 +76,7 @@ onBeforeUnmount(() => {
     role="status"
     class="fixed bottom-4 left-1/2 z-20 flex max-w-md -translate-x-1/2 items-center gap-2 rounded-lg border bg-popover py-1.5 pr-1.5 pl-3 text-sm text-popover-foreground shadow-lg"
   >
-    <span class="min-w-0 truncate" :title="notice.title">{{ error || `Deleted ${notice.title}.` }}</span>
+    <span class="min-w-0 truncate" :title="error || notice.title">{{ error || `Deleted ${notice.title}.` }}</span>
     <button
       type="button"
       data-testid="undo-delete"

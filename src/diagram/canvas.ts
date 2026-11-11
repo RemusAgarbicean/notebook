@@ -125,23 +125,24 @@ export const MIN_ZOOM = 0.1
 export const MAX_ZOOM = 2
 
 type Box = { x: number; y: number; width: number; height: number }
-const OPPOSITE = {
-  [Position.Top]: Position.Bottom,
-  [Position.Bottom]: Position.Top,
-  [Position.Left]: Position.Right,
-  [Position.Right]: Position.Left,
-}
-
 /**
- * Where an Edge meets `node`: the middle of the side its handle is on, or of the
- * opposite side when the `other` Node lies behind the handle. Without the swap
- * an Edge to a Node above its source ran down, behind both Nodes and in from above.
+ * Where an Edge meets `node`: the middle of the side that faces the `other` Node, by the longer
+ * way (across or down) between their centres. The stored `handle` side only decides when the two
+ * centres coincide. An Edge between stacked Nodes with left and right handles used to curl around them.
  */
 export function edgeEnd(node: Box, handle: Position, other: Box): { x: number; y: number; position: Position } {
   const dx = other.x + other.width / 2 - (node.x + node.width / 2)
   const dy = other.y + other.height / 2 - (node.y + node.height / 2)
-  const behind = { [Position.Top]: dy > 0, [Position.Bottom]: dy < 0, [Position.Left]: dx > 0, [Position.Right]: dx < 0 }
-  const position = behind[handle] ? OPPOSITE[handle] : handle
+  const position =
+    !dx && !dy
+      ? handle
+      : Math.abs(dx) >= Math.abs(dy)
+        ? dx > 0
+          ? Position.Right
+          : Position.Left
+        : dy > 0
+          ? Position.Bottom
+          : Position.Top
   return {
     position,
     x: node.x + (position === Position.Left ? 0 : position === Position.Right ? node.width : node.width / 2),

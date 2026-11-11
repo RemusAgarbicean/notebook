@@ -80,3 +80,10 @@ export const withLiveTitles = <N extends { data?: NodeData }>(nodes: N[]): N[] =
     const title = link && getRecord(link.type, link.id)?.title
     return title ? { ...n, data: { ...n.data, label: title } } : n
   })
+
+/** Nodes with each one linked to a Record that no longer exists turned into a free-text Node (a clipboard outlives a delete). */
+export const withoutDeadLinks = <N extends { data?: NodeData }>(nodes: N[]): N[] =>
+  nodes.map((n) => {
+    const link = linkOf(n.data)
+    return n.data && link && !getRecord(link.type, link.id) ? { ...n, data: unlinked(n.data, undefined) } : n
+  })

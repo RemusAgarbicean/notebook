@@ -24,7 +24,7 @@ import { ArrowDown, ArrowRight, ClipboardCopy, Frame, ImageDown, Maximize2, Mini
 import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
-import { db } from '../notebook'
+import { db, markDirty } from '../notebook'
 import { shortcut } from '../platform'
 import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
@@ -56,7 +56,7 @@ import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
 import { fullScreen } from './full-screen'
 import { editRequest, gestures } from './interaction'
-import { linkOf, unlinked, withLiveTitles } from './links'
+import { linkOf, unlinked, withLiveTitles, withoutDeadLinks } from './links'
 import ShapePicker from './ShapePicker.vue'
 import type { ShapeName } from './shapes'
 import { tidy, type Direction } from './layout'
@@ -149,7 +149,18 @@ onPaneReady(() => {
 })
 
 // Every change to Nodes, Edges or the viewport ends up here; a drag is saved when it pauses.
-watch(() => ready.value && snapshot(), useDebounceFn(save, 300))
+const saveSoon = useDebounceFn(save, 300)
+watch(
+  () => ready.value && snapshot(),
+  (now) => {
+    // Not saved from this moment, not only once the pause is over: closing the tab then still asks.
+    if (now && now !== last && db.value === loadedFrom) markDirty()
+    saveSoon()
+  },
+)
+// A tab closed or hidden within the pause: the canvas goes into the database now, in time for the Notebook's own save.
+useEventListener(window, ['pagehide', 'beforeunload'], save)
+useEventListener(document, 'visibilitychange', () => document.visibilityState === 'hidden' && save())
 onBeforeUnmount(() => {
   // Its timer would otherwise end a gesture of the next Diagram opened.
   endNudge()
@@ -340,8 +351,10 @@ function cut() {
 // Each paste of the same clip lands a step further on.
 let pastes = 0
 function paste() {
-  const clip = held(loadedFrom)
-  if (!clip?.nodes.length) return
+  const copied = held(loadedFrom)
+  if (!copied?.nodes.length) return
+  // A Record deleted since the copy must not get a Node pointing at its id.
+  const clip = { ...copied, nodes: withoutDeadLinks(copied.nodes as (Clip['nodes'][number] & { data?: NodeData })[]) }
   // Its top-left Node goes near the middle of the view.
   const { x, y } = spot()
   const step = pastes++ * 16 - 60

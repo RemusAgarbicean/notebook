@@ -2,7 +2,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App.vue'
 import { current, openRecord } from './navigation'
-import { closeNotebook } from './notebook'
+import { closeNotebook, db } from './notebook'
 import { addTag, createRecord, getRecord, recordTags } from './records'
 import { memoryFolder } from './storage-memory'
 
@@ -95,4 +95,19 @@ test('Ctrl+Z anywhere in a Diagram, its toolbar included, is the Diagram\'s undo
 
   expect(getRecord('system', id)).toBeNull()
   expect(current.value?.type).toBe('diagram')
+})
+
+test('an Undo that fails says why and leaves the user on the page they were on', async () => {
+  await deleteOpen('Coupa')
+  const sap = createRecord('system', 'SAP')
+  openRecord('system', sap)
+  await flushPromises()
+  db.value!.run("create trigger refuse before insert on system begin select raise(abort, 'the disk said no'); end")
+
+  await get('undo-delete').trigger('click')
+  await flushPromises()
+
+  expect(get('undo-notice').text()).toContain("Can't undo: the disk said no")
+  expect(current.value).toEqual({ type: 'system', id: sap })
+  expect((get('record-title').element as HTMLInputElement).value).toBe('SAP')
 })

@@ -5,7 +5,7 @@ import { migrate } from './migrations'
 import { db } from './notebook'
 import { addTag, createRecord, deleteRecord, getRecord, listTags, recordTags, updateRecord } from './records'
 import { LABEL } from './relation-slots'
-import { addLabel, addRelation, deleteLabel, listLabels, recordRelations } from './relations'
+import { addLabel, addRelation, deleteLabel, listLabels, recordRelations, renameLabel } from './relations'
 import { loadSqlite } from './sqlite'
 import { lastDeleted, undoDelete } from './undo-delete'
 
@@ -137,6 +137,62 @@ test('a Relation whose label was deleted meanwhile comes back with its label', (
 
   expect(relationsOf('system', coupa)).toEqual(['feeds SAP'])
   expect(listLabels().filter((l) => l.forward === 'feeds')).toHaveLength(1)
+})
+
+test("Undo still works when the deleted label's reading was taken by a new label: the Relation joins that label", () => {
+  const coupa = createRecord('system', 'Coupa')
+  const sap = createRecord('system', 'SAP')
+  addRelation({ type: 'system', id: coupa }, 5, { type: 'system', id: sap })
+
+  deleteRecord('system', coupa)
+  deleteLabel(5)
+  addLabel('uses', 'utilised by')
+  undoDelete()
+
+  expect(getRecord('system', coupa)!.title).toBe('Coupa')
+  expect(relationsOf('system', coupa)).toEqual(['uses SAP'])
+  expect(listLabels().filter((l) => l.forward === 'uses')).toHaveLength(1)
+})
+
+test("Undo comes through even when the deleted label's readings now belong to a label that reads the other way round", () => {
+  const coupa = createRecord('system', 'Coupa')
+  const sap = createRecord('system', 'SAP')
+  addRelation({ type: 'system', id: coupa }, 5, { type: 'system', id: sap })
+
+  deleteRecord('system', coupa)
+  deleteLabel(5)
+  addLabel('used by', 'uses')
+  undoDelete()
+
+  expect(relationsOf('system', coupa)).toEqual(['uses SAP'])
+  expect(relationsOf('system', sap)).toEqual(['used by Coupa'])
+})
+
+test('a label renamed since the delete keeps its new readings: Undo does not bring the old label back', () => {
+  const coupa = createRecord('system', 'Coupa')
+  const sap = createRecord('system', 'SAP')
+  addRelation({ type: 'system', id: coupa }, 5, { type: 'system', id: sap })
+
+  deleteRecord('system', coupa)
+  renameLabel(5, 'depends on', 'needed by')
+  undoDelete()
+
+  expect(relationsOf('system', coupa)).toEqual(['depends on SAP'])
+  expect(listLabels()).toHaveLength(8)
+})
+
+test("a new label that took a deleted label's id does not take its Relations", () => {
+  const coupa = createRecord('system', 'Coupa')
+  const sap = createRecord('system', 'SAP')
+  const feeds = addLabel('feeds', 'fed by')
+  addRelation({ type: 'system', id: coupa }, feeds, { type: 'system', id: sap })
+
+  deleteRecord('system', coupa)
+  deleteLabel(feeds)
+  expect(addLabel('replaces', 'replaced by')).toBe(feeds)
+  undoDelete()
+
+  expect(relationsOf('system', coupa)).toEqual(['feeds SAP'])
 })
 
 test('a bare Mention of another Record with the same title is not taken over by the Record put back', () => {

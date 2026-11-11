@@ -41,7 +41,8 @@ export const listLabels = (): Label[] =>
      from label l order by l.id`,
   ).map((l) => ({ ...l, deletable: !l.protected && !l.uses }))
 
-const fold = (reading: string) => reading.trim().toLocaleLowerCase()
+/** A reading as it is compared: trimmed, ignoring case. */
+export const fold = (reading: string) => reading.trim().toLocaleLowerCase()
 
 // Trims the readings and refuses one that another label already has, ignoring case: the "+ Relation" list
 // would show it twice. A label's own two readings may be the same, like the seeded "related to".
@@ -76,6 +77,9 @@ export function renameLabel(id: number, forward: string, reverse: string) {
   changed()
 }
 
+/** The id of every label deleted this session, in order: SQLite may hand such an id to a new label. */
+export const deletedLabels: number[] = []
+
 /** Deletes an unused, unprotected label. Throws with a message fit for the user otherwise. */
 export function deleteLabel(id: number) {
   const label = listLabels().find((l) => l.id === id)
@@ -85,6 +89,7 @@ export function deleteLabel(id: number) {
   if (label.uses)
     throw new Error(`${label.uses} ${label.uses === 1 ? 'Relation uses' : 'Relations use'} this label`)
   db.value!.run('delete from label where id = ?', [id])
+  deletedLabels.push(id)
   changed()
 }
 
