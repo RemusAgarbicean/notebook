@@ -180,6 +180,9 @@
   ::placeholder {
     color: transparent;
   }
+  ::-webkit-calendar-picker-indicator {
+    display: none;
+  }
   /* Paper can't scroll: code wraps, and a table takes the page's width in equal columns. */
   .markdown pre {
     overflow: visible;
