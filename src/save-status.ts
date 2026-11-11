@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 export type SaveStatus = 'saved' | 'saving' | 'unsaved'
 
@@ -9,3 +9,16 @@ export const SAVE_STATUS_LABELS: Record<SaveStatus, string> = {
 }
 
 export const saveStatus = ref<SaveStatus>('saved')
+
+/** True while the open Notebook is saved by downloading it (no File System Access API). */
+export const manualSave = ref(false)
+
+const MANUAL_LABELS: Record<SaveStatus, string> = {
+  saved: 'Nothing new to download',
+  saving: 'Downloading…',
+  unsaved: 'Changes not downloaded',
+}
+
+export const saveStatusLabel = computed(
+  () => (manualSave.value ? MANUAL_LABELS : SAVE_STATUS_LABELS)[saveStatus.value],
+)

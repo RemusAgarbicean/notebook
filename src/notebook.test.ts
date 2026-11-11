@@ -146,3 +146,9 @@ test('a failed save keeps the edit, reads Not saved, and the next save retries',
   expect(await onDisk(folder.file, 'select title from team')).toEqual([['Procurement']])
   expect(saveStatus.value).toBe('saved')
 })
+
+test('a file that is not a SQLite database is refused in plain words', async () => {
+  const folder = memoryFolder(new TextEncoder().encode('just some text, long enough to be read as a file header'))
+
+  await expect(openNotebook(folder)).rejects.toThrow('not a Notebook')
+})

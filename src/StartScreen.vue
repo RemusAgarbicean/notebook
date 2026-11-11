@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NotebookText } from 'lucide-vue-next'
+import { FilePlus, FolderOpen, NotebookText } from 'lucide-vue-next'
 import { onMounted, ref } from 'vue'
 import { openNotebook } from './notebook'
 import type { NotebookFolder, NotebookStorage } from './storage'
@@ -20,6 +20,7 @@ async function open(getFolder: () => Promise<NotebookFolder | null>, create = fa
     const folder = await getFolder()
     if (!folder) error.value = refused
     else if (!(await openNotebook(folder, create))) {
+      // Not reached on the fallback: a picked file always has bytes.
       error.value = `Can't find it: there is no notebook.sqlite in the folder "${folder.name}".`
       lastName.value = null
     }
@@ -31,7 +32,7 @@ async function open(getFolder: () => Promise<NotebookFolder | null>, create = fa
 }
 
 const button =
-  'h-8 rounded-md border px-3 font-medium hover:bg-accent hover:text-accent-foreground disabled:opacity-50'
+  'flex h-8 items-center justify-center gap-2 rounded-md border px-3 font-medium hover:bg-accent hover:text-accent-foreground disabled:opacity-50'
 </script>
 
 <template>
@@ -44,30 +45,51 @@ const button =
 
       <p v-if="error" role="alert" class="text-destructive">{{ error }}</p>
 
-      <template v-if="lastName">
+      <template v-if="storage.blank">
         <p class="text-muted-foreground">
-          Last opened: <span class="font-medium text-foreground">{{ lastName }}</span>
+          This browser cannot open folders, so nothing is saved automatically and there are no
+          Backups: after editing you download notebook.sqlite yourself, as a new file each time.
         </p>
-        <button
-          type="button"
-          :disabled="busy"
-          :class="[button, 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground']"
-          @click="open(storage.reopen, false, 'The browser did not give permission to open the folder. Click Reopen and allow it, or pick the folder again.')"
-        >
-          Reopen
+        <p class="text-muted-foreground">
+          Chrome or Edge give the full experience. In Brave, enable
+          <code class="rounded bg-muted px-1 text-foreground select-all">brave://flags/#file-system-access-api</code>
+          and restart it.
+        </p>
+        <button type="button" :disabled="busy" :class="button" @click="open(storage.pick)">
+          <FolderOpen class="size-4" />
+          Open notebook.sqlite
+        </button>
+        <button type="button" :disabled="busy" :class="button" @click="open(async () => storage.blank!(), true)">
+          <FilePlus class="size-4" />
+          Create new Notebook
         </button>
       </template>
-      <p v-else class="text-muted-foreground">
-        Pick the folder that holds your notebook.sqlite, or create a new Notebook in an empty
-        folder.
-      </p>
+      <template v-else>
+        <template v-if="lastName">
+          <p class="text-muted-foreground">
+            Last opened: <span class="font-medium text-foreground">{{ lastName }}</span>
+          </p>
+          <button
+            type="button"
+            :disabled="busy"
+            :class="[button, 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground']"
+            @click="open(storage.reopen, false, 'The browser did not give permission to open the folder. Click Reopen and allow it, or pick the folder again.')"
+          >
+            Reopen
+          </button>
+        </template>
+        <p v-else class="text-muted-foreground">
+          Pick the folder that holds your notebook.sqlite, or create a new Notebook in an empty
+          folder.
+        </p>
 
-      <button type="button" :disabled="busy" :class="button" @click="open(storage.pick)">
-        Pick folder
-      </button>
-      <button type="button" :disabled="busy" :class="button" @click="open(storage.pick, true)">
-        Create new Notebook
-      </button>
+        <button type="button" :disabled="busy" :class="button" @click="open(storage.pick)">
+          Pick folder
+        </button>
+        <button type="button" :disabled="busy" :class="button" @click="open(storage.pick, true)">
+          Create new Notebook
+        </button>
+      </template>
     </div>
   </main>
 </template>

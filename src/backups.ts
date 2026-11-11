@@ -22,6 +22,14 @@ export function backupsToDelete(names: string[], keep = 14) {
   )
 }
 
+export function backupName(reason?: string) {
+  const now = new Date()
+  const extra = reason
+    ? `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${reason.replace(/[^\w-]+/g, '-')}`
+    : ''
+  return `notebook-${day(now)}${extra}.sqlite`
+}
+
 /**
  * Copies notebook.sqlite as it is on disk into backups/, then rotates.
  * Without a reason the name is the day's Backup, `notebook-YYYY-MM-DD.sqlite`;
@@ -30,11 +38,7 @@ export function backupsToDelete(names: string[], keep = 14) {
 export async function writeBackup(folder: NotebookFolder, reason?: string) {
   const bytes = await folder.read()
   if (!bytes) return
-  const now = new Date()
-  const extra = reason
-    ? `-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}-${reason.replace(/[^\w-]+/g, '-')}`
-    : ''
-  await folder.writeBackup(`notebook-${day(now)}${extra}.sqlite`, bytes)
+  await folder.writeBackup(backupName(reason), bytes)
   for (const old of backupsToDelete(await folder.listBackups())) await folder.deleteBackup(old)
 }
 

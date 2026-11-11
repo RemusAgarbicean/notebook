@@ -12,17 +12,21 @@ import RecordList from './RecordList.vue'
 import RecordPage from './RecordPage.vue'
 import { RECORD_TYPES } from './record-types'
 import { listTags } from './records'
-import { SAVE_STATUS_LABELS, saveStatus } from './save-status'
+import DownloadNotebook from './DownloadNotebook.vue'
+import { saveStatusLabel } from './save-status'
 import StartScreen from './StartScreen.vue'
 import type { NotebookStorage } from './storage'
+import { downloadStorage } from './storage-download'
 import { fsaStorage } from './storage-fsa'
 import OtherTabScreen from './OtherTabScreen.vue'
 import SaveGuards from './SaveGuards.vue'
 import { tabLock } from './tab-lock'
 import ThemeSwitch from './ThemeSwitch.vue'
 
-// A prop so tests, and later the file-input fallback, can swap the storage.
-const { storage = fsaStorage } = defineProps<{ storage?: NotebookStorage }>()
+// A prop so tests can swap the storage. Brave ships without the folder picker.
+const { storage = window.showDirectoryPicker ? fsaStorage : downloadStorage } = defineProps<{
+  storage?: NotebookStorage
+}>()
 
 const tags = computed(() => (db.value ? listTags() : []))
 
@@ -109,8 +113,9 @@ const item =
         <LabelsSettings />
         <ThemeSwitch />
         <div data-testid="save-status" role="status" class="px-2 pt-2">
-          {{ SAVE_STATUS_LABELS[saveStatus] }}
+          {{ saveStatusLabel }}
         </div>
+        <DownloadNotebook />
       </footer>
     </aside>
 
