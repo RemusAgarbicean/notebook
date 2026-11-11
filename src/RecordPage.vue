@@ -3,6 +3,7 @@ import { CircleAlert, ExternalLink, Trash2, X } from 'lucide-vue-next'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DiagramCanvas from './diagram/DiagramCanvas.vue'
+import DuplicateButton from './DuplicateButton.vue'
 import { inDiagrams } from './diagram/links'
 import MarkdownField from './MarkdownField.vue'
 import { current } from './navigation'
@@ -97,6 +98,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       <component :is="info.icon" class="size-4" />
       <span class="flex-1">{{ info.singular }}</span>
       <PinToggle :type="type" :id="id" />
+      <DuplicateButton :type="type" :id="id" />
       <button
         type="button"
         data-testid="delete-record"

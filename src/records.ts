@@ -174,6 +174,27 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
   })
 }
 
+/**
+ * Creates "<title> copy" with the Record's fields, notes and Tags, and returns its id.
+ * The copy starts open (not done, not answered, no answer) and has no Relations and no pin.
+ * A Diagram's canvas is copied as it is: its linked Nodes point at the same Records, which is what a link is.
+ */
+export function duplicateRecord(type: RecordType, id: number): number {
+  const source = getRecord(type, id)
+  if (!source) throw new Error('That Record no longer exists')
+  const rule = CLOSED[type]
+  const skip = [isClosed(type, source) && rule!.field, type === 'open_question' && 'answer']
+  const fields: Patch = { notes: source.notes }
+  // An empty field stays out: a required one would be refused, and the copy starts as empty anyway.
+  for (const f of RECORD_FIELDS[type].fields)
+    if (!skip.includes(f.name) && source[f.name] !== null && source[f.name] !== '') fields[f.name] = source[f.name]
+  return transaction(() => {
+    const copy = createRecord(type, `${source.title} copy`, fields)
+    for (const tag of recordTags(type, id)) addTag(type, copy, tag.name)
+    return copy
+  })
+}
+
 /** The id of today's Journal entry of kind log (the earliest, if there are several), started now if there is none. */
 export const todaysLog = (): number =>
   rows<{ id: number }>("select id from journal_entry where date = ? and kind = 'log' order by id limit 1", [today()])[0]

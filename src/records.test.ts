@@ -7,6 +7,7 @@ import {
   addTag,
   createRecord,
   deleteRecord,
+  duplicateRecord,
   getRecord,
   listRecords,
   listTags,
@@ -284,4 +285,50 @@ test("todaysLog starts today's Journal entry of kind log once, and finds it agai
   updateRecord('journal_entry', id, { title: 'What I learned' })
   expect(todaysLog()).toBe(id)
   expect(listRecords('journal_entry')).toHaveLength(3)
+})
+
+test('duplicating a Record copies its fields, notes and Tags under "<title> copy"', () => {
+  const id = createRecord('system', 'Coupa', { summary: 'Procure-to-pay', url: 'https://coupa.example', notes: 'See [[SAP]]' })
+  addTag('system', id, 'finance')
+
+  const copy = duplicateRecord('system', id)
+
+  expect(copy).not.toBe(id)
+  expect(getRecord('system', copy)).toMatchObject({
+    title: 'Coupa copy',
+    summary: 'Procure-to-pay',
+    url: 'https://coupa.example',
+    notes: 'See [[SAP]]',
+  })
+  expect(recordTags('system', copy).map((t) => t.name)).toEqual(['finance'])
+  expect(listTags()).toMatchObject([{ name: 'finance', count: 2 }])
+})
+
+test('a copy starts open: not done, not answered, without the answer', () => {
+  const task = duplicateRecord('task', createRecord('task', 'File expenses', { done: true, due: '2026-12-01' }))
+  expect(getRecord('task', task)).toMatchObject({ done: 0, done_at: null, due: '2026-12-01' })
+
+  const question = duplicateRecord(
+    'open_question',
+    createRecord('open_question', 'Who approves?', { status: 'answered', answer: 'Finance' }),
+  )
+  expect(getRecord('open_question', question)).toMatchObject({ status: 'open', answer: null, answered_at: null })
+
+  const project = duplicateRecord('project', createRecord('project', 'ERP', { status: 'done', summary: 'Phase 1' }))
+  expect(getRecord('project', project)).toMatchObject({ status: 'active', done_at: null, summary: 'Phase 1' })
+  expect(getRecord('acronym', duplicateRecord('acronym', createRecord('acronym', 'PO')))).toMatchObject({ expansion: '' })
+  const held = duplicateRecord('project', createRecord('project', 'CRM', { status: 'on hold' }))
+  expect(getRecord('project', held)).toMatchObject({ status: 'on hold' })
+})
+
+test('a copy has none of the Relations, and a Diagram copy keeps its canvas', () => {
+  const coupa = createRecord('system', 'Coupa')
+  const maria = createRecord('person', 'Maria')
+  db.value!.run("insert into relation (from_type, from_id, label_id, to_type, to_id) values ('person', ?, 1, 'system', ?)", [maria, coupa])
+  duplicateRecord('system', coupa)
+  expect(count('select count(*) from relation')).toBe(1)
+
+  const canvas = JSON.stringify({ nodes: [{ id: '1', data: { label: 'Coupa', recordType: 'system', recordId: coupa } }], edges: [] })
+  const map = createRecord('diagram', 'Map', { canvas })
+  expect(getRecord('diagram', duplicateRecord('diagram', map))).toMatchObject({ title: 'Map copy', canvas })
 })

@@ -233,3 +233,17 @@ test('the sidebar counts each type and each Tag, live', async () => {
   await flushPromises()
   expect(count('record-type', 'Tasks').text()).toBe('1')
 })
+
+test('Duplicate on the Record page makes a copy and opens it', async () => {
+  const id = createRecord('system', 'Coupa', { summary: 'Procure-to-pay' })
+  openRecord('system', id)
+  await flushPromises()
+
+  await get('duplicate-record').trigger('click')
+  await flushPromises()
+
+  expect(current.value).not.toEqual({ type: 'system', id })
+  expect((get('record-title').element as HTMLInputElement).value).toBe('Coupa copy')
+  expect((get('field-summary').element as HTMLInputElement).value).toBe('Procure-to-pay')
+  expect(rowsText()).toEqual(['CoupaProcure-to-pay', 'Coupa copyProcure-to-pay'])
+})
