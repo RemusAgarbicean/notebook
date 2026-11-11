@@ -9,7 +9,7 @@ import { current, list, openRecord } from './navigation'
 import { pinnedRecords } from './pins'
 import { RECORD_FIELDS } from './record-fields'
 import { recordsName, recordType, type RecordType } from './record-types'
-import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag } from './records'
+import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag, rows as query } from './records'
 
 const type = computed(() => (typeof list.value === 'string' && list.value !== 'home' ? list.value : null))
 const tagId = computed(() => (typeof list.value === 'object' ? list.value.tag : null))
@@ -25,8 +25,19 @@ const items = computed(() => {
   const pins = new Set(pinnedRecords().map((r) => `${r.type}:${r.id}`))
   // Pinned Records come first, otherwise in the list's own order.
   return unpinned.value
-    .map((r) => ({ ...r, pinned: pins.has(`${r.type}:${r.id}`) }))
+    .map((r) => ({ ...r, pinned: pins.has(`${r.type}:${r.id}`), tags: tagNames.value.get(`${r.type}:${r.id}`) }))
     .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+})
+// Each Record's Tag names, for `#tag` in the filter box.
+const tagNames = computed(() => {
+  const names = new Map<string, string[]>()
+  for (const r of query<{ type: string; id: number; name: string }>(
+    'select rt.type, rt.id, t.name from record_tag rt join tag t on t.id = rt.tag_id',
+  )) {
+    const key = `${r.type}:${r.id}`
+    names.set(key, [...(names.get(key) ?? []), r.name])
+  }
+  return names
 })
 const unpinned = computed(() => {
   const t = type.value
@@ -98,7 +109,8 @@ function add() {
           v-model="text"
           data-testid="list-filter"
           :aria-label="`Filter ${heading}`"
-          placeholder="Filter"
+          title="Type to filter by title; #name narrows to a Tag"
+          placeholder="Filter, or #tag"
           class="h-7 w-full rounded-md border bg-background pr-2 pl-8 placeholder:text-muted-foreground"
           @keydown.esc="text = ''"
           @keydown.enter="shown[0] && open(shown[0])"
