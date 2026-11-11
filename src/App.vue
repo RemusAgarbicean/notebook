@@ -10,6 +10,7 @@ import { fsaStorage } from './storage-fsa'
 import OtherTabScreen from './OtherTabScreen.vue'
 import SaveGuards from './SaveGuards.vue'
 import { tabLock } from './tab-lock'
+import ThemeSwitch from './ThemeSwitch.vue'
 
 // A prop so tests, and later the file-input fallback, can swap the storage.
 const { storage = fsaStorage } = defineProps<{ storage?: NotebookStorage }>()
@@ -76,12 +77,11 @@ const item =
         <p class="px-2 text-muted-foreground">No Tags yet</p>
       </nav>
 
-      <footer
-        data-testid="save-status"
-        role="status"
-        class="border-t border-sidebar-border px-4 py-2 text-xs text-muted-foreground"
-      >
-        {{ SAVE_STATUS_LABELS[saveStatus] }}
+      <footer class="border-t border-sidebar-border px-2 py-2 text-xs text-muted-foreground">
+        <ThemeSwitch />
+        <div data-testid="save-status" role="status" class="px-2 pt-2">
+          {{ SAVE_STATUS_LABELS[saveStatus] }}
+        </div>
       </footer>
     </aside>
 
