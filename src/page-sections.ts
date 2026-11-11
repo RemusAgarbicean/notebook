@@ -1,6 +1,9 @@
 import type { Component } from 'vue'
 import MentionedIn from './MentionedIn.vue'
 import type { RecordType } from './record-types'
+import { RELATION_SLOTS } from './relation-slots'
+import RelationSlots from './RelationSlots.vue'
+import RelationsSection from './RelationsSection.vue'
 
 /**
  * A part of the Record page added by a feature. The component gets the props
@@ -15,4 +18,8 @@ export type PageSection = {
 }
 
 // Shown in array order within each slot.
-export const PAGE_SECTIONS: PageSection[] = [{ slot: 'below', component: MentionedIn }]
+export const PAGE_SECTIONS: PageSection[] = [
+  { slot: 'fields', component: RelationSlots, types: [...new Set(RELATION_SLOTS.map((s) => s.type))] },
+  { slot: 'below', component: RelationsSection },
+  { slot: 'below', component: MentionedIn },
+]
