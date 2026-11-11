@@ -123,6 +123,17 @@ test('after a reload, Reopen returns to the place in the hash', async () => {
   expect(location.hash).toBe(hash)
 })
 
+test('the hash change of the app\'s own navigation leaves the focus where it is', async () => {
+  openRecord('system', createRecord('system', 'Coupa'))
+  await flushPromises()
+  const field = get('record-title').element as HTMLInputElement
+  field.focus()
+
+  window.dispatchEvent(new Event('hashchange'))
+
+  expect(document.activeElement).toBe(field)
+})
+
 test('the tab is named after the open Record, the list, or just Notebook', async () => {
   const coupa = createRecord('system', 'Coupa')
   expect(document.title).toBe('Notebook')

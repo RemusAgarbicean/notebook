@@ -29,7 +29,8 @@ export function useHistory() {
 
   // Back, Forward or a hand-edited hash: go where it says, and correct it if that is gone.
   function follow() {
-    if (!db.value) return
+    // Our own navigation also lands here, with nothing left to do.
+    if (!db.value || location.hash === here()) return
     // A field being typed in saves when it loses the focus; leaving the page must not skip that.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur()
     go(existing(decodePlace(location.hash)))
