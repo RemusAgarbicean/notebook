@@ -36,3 +36,11 @@ export const vImages: Directive<HTMLElement> = {
   updated: (el) => fill(el),
   unmounted: (el) => fill(el, false),
 }
+
+// A file dropped beside the textarea must not make the browser open it in place of the app.
+for (const type of ['dragover', 'drop'] as const)
+  window.addEventListener(type, (e) => {
+    if (!e.dataTransfer?.types.includes('Files')) return
+    e.preventDefault()
+    if (!(e.target as Element).closest?.('textarea')) e.dataTransfer.dropEffect = 'none'
+  })
