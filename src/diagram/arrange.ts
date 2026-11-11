@@ -80,3 +80,36 @@ export function frameAround(boxes: Box[]): Box {
   const { top, side, bottom } = FRAME_PADDING
   return { x: x - side, y: y - top, width: width + 2 * side, height: height + top + bottom }
 }
+
+export type Alignment = 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom'
+
+/** New top-left corners, by id, that line the boxes up: on the edge of the outermost one, or on the middle of them all. */
+export function align(boxes: Placed[], how: Alignment): Record<string, Point> {
+  const all = around(boxes)
+  const to: Record<Alignment, (b: Box) => Point> = {
+    left: (b) => ({ x: all.x, y: b.y }),
+    center: (b) => ({ x: all.x + (all.width - b.width) / 2, y: b.y }),
+    right: (b) => ({ x: all.x + all.width - b.width, y: b.y }),
+    top: (b) => ({ x: b.x, y: all.y }),
+    middle: (b) => ({ x: b.x, y: all.y + (all.height - b.height) / 2 }),
+    bottom: (b) => ({ x: b.x, y: all.y + all.height - b.height }),
+  }
+  return Object.fromEntries(boxes.map((b) => [b.id, to[how](b)]))
+}
+
+/** New top-left corners, by id, with the same gap between each box and the next along the axis; the outermost two stay. */
+export function distribute(boxes: Placed[], axis: 'x' | 'y'): Record<string, Point> {
+  const size = axis === 'x' ? 'width' : 'height'
+  const sorted = [...boxes].sort((a, b) => a[axis] - b[axis])
+  const [first, last] = [sorted[0], sorted.at(-1)!]
+  const free = last[axis] + last[size] - first[axis] - sorted.reduce((sum, b) => sum + b[size], 0)
+  const gap = free / Math.max(sorted.length - 1, 1)
+  let at = first[axis]
+  return Object.fromEntries(
+    sorted.map((b) => {
+      const corner = { x: b.x, y: b.y, [axis]: at }
+      at += b[size] + gap
+      return [b.id, corner]
+    }),
+  )
+}

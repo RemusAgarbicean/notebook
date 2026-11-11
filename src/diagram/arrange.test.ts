@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { childPosition, frameAround, parentsOf, resize, within } from './arrange'
+import { align, childPosition, distribute, frameAround, parentsOf, resize, within } from './arrange'
 
 const box = (x: number, y: number, width = 100, height = 40) => ({ x, y, width, height })
 
@@ -54,4 +54,22 @@ test('two Frames of the same size on top of each other are not in each other', (
 
 test('a Frame around Nodes leaves room on every side and for its title', () => {
   expect(frameAround([box(100, 100), box(300, 200)])).toEqual({ x: 80, y: 60, width: 340, height: 200 })
+})
+
+const three = [placed('a', 0, 0, 100, 40), placed('b', 50, 100, 60, 20), placed('c', 300, 30, 100, 60)]
+
+test('aligning lines boxes up on an edge of the outermost one or on the middle of them all', () => {
+  expect(align(three, 'left')).toEqual({ a: { x: 0, y: 0 }, b: { x: 0, y: 100 }, c: { x: 0, y: 30 } })
+  expect(align(three, 'right')).toEqual({ a: { x: 300, y: 0 }, b: { x: 340, y: 100 }, c: { x: 300, y: 30 } })
+  expect(align(three, 'center')).toEqual({ a: { x: 150, y: 0 }, b: { x: 170, y: 100 }, c: { x: 150, y: 30 } })
+  expect(align(three, 'top')).toEqual({ a: { x: 0, y: 0 }, b: { x: 50, y: 0 }, c: { x: 300, y: 0 } })
+  expect(align(three, 'bottom')).toEqual({ a: { x: 0, y: 80 }, b: { x: 50, y: 100 }, c: { x: 300, y: 60 } })
+  expect(align(three, 'middle')).toEqual({ a: { x: 0, y: 40 }, b: { x: 50, y: 50 }, c: { x: 300, y: 30 } })
+})
+
+test('distributing leaves the outermost boxes and makes the gaps between all of them equal', () => {
+  // Across: 400 wide, 260 of it boxes, so two gaps of 70.
+  expect(distribute(three, 'x')).toEqual({ a: { x: 0, y: 0 }, b: { x: 170, y: 100 }, c: { x: 300, y: 30 } })
+  // Down, in the order a, c, b: 120 high, 120 of it boxes, so no gaps.
+  expect(distribute(three, 'y')).toEqual({ a: { x: 0, y: 0 }, c: { x: 300, y: 40 }, b: { x: 50, y: 100 } })
 })

@@ -9,6 +9,17 @@ import { Position, useVueFlow, VueFlow, type Edge, type EdgeComponent, type Grap
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
+import {
+  AlignCenterHorizontal,
+  AlignCenterVertical,
+  AlignEndHorizontal,
+  AlignEndVertical,
+  AlignHorizontalDistributeCenter,
+  AlignStartHorizontal,
+  AlignStartVertical,
+  AlignVerticalDistributeCenter,
+  Grid3x3,
+} from 'lucide-vue-next'
 import { ArrowDown, ArrowRight, Frame, ImageDown, Maximize2, Minimize2, Plus, Redo2, SquareMenu, Undo2, Unlink } from 'lucide-vue-next'
 import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
@@ -19,13 +30,14 @@ import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
 import { createRecord, getRecord, updateRecord, type Rec, type Titled } from '../records'
-import { childPosition, frameAround, parentsOf, within, type Box } from './arrange'
+import { align, childPosition, distribute, frameAround, parentsOf, within, type Alignment, type Box } from './arrange'
 import { clipOf, held, hold, pasted, type Clip } from './clipboard'
 import {
   edgeData,
   edgeOptions,
   FRAME_TYPE,
   greyEdge,
+  GRID,
   MAX_ZOOM,
   MIN_ZOOM,
   NEW_EDGE_DATA,
@@ -107,8 +119,10 @@ const ready = ref(false)
 // Each save refreshes the title snapshot of the linked Nodes.
 const snapshot = () => {
   const canvas = toObject()
-  return serialiseCanvas({ ...canvas, nodes: withLiveTitles(canvas.nodes) })
+  return serialiseCanvas({ ...canvas, nodes: withLiveTitles(canvas.nodes), snap: snap.value })
 }
+// Snap to grid: a choice per Diagram, saved in its canvas. Not an undo step.
+const snap = ref(false)
 let last = ''
 // A restore or a reload swaps the database while this is still mounted: its canvas belongs to the old one.
 const loadedFrom = db.value
@@ -127,6 +141,7 @@ onPaneReady(() => {
   setNodes(saved.nodes)
   setEdges(saved.edges)
   setViewport(saved.viewport)
+  snap.value = !!saved.snap
   last = snapshot()
   history.value = startHistory(content())
   gestures.value = 0
@@ -136,6 +151,8 @@ onPaneReady(() => {
 // Every change to Nodes, Edges or the viewport ends up here; a drag is saved when it pauses.
 watch(() => ready.value && snapshot(), useDebounceFn(save, 300))
 onBeforeUnmount(() => {
+  // Its timer would otherwise end a gesture of the next Diagram opened.
+  endNudge()
   save()
   fullScreen.value = false
 })
@@ -335,6 +352,33 @@ function paste() {
 }
 const duplicate = () => add(pasted(selection(), nodes.value, edges.value, { x: 24, y: 24 }))
 
+// --- Arranging by hand: align and distribute the selected Nodes. A Frame takes its contents along.
+
+function arrange(corners: Record<string, { x: number; y: number }>) {
+  const parents = parentsOf(placed())
+  for (const [id, to] of Object.entries(corners)) {
+    const node = findNode(id)!
+    const [dx, dy] = [to.x - node.position.x, to.y - node.position.y]
+    node.position = to
+    for (const inner of within(parents, id).filter((c) => !(c in corners)).map((c) => findNode(c)!))
+      inner.position = { x: inner.position.x + dx, y: inner.position.y + dy }
+  }
+}
+const pickedBoxes = () => getSelectedNodes.value.map((n) => ({ id: n.id, ...box(n) }))
+const ALIGNMENTS: [Alignment, string, typeof Grid3x3][] = [
+  ['left', 'Align left', AlignStartVertical],
+  ['center', 'Align centre', AlignCenterVertical],
+  ['right', 'Align right', AlignEndVertical],
+  ['top', 'Align top', AlignStartHorizontal],
+  ['middle', 'Align middle', AlignCenterHorizontal],
+  ['bottom', 'Align bottom', AlignEndHorizontal],
+]
+
+const DISTRIBUTIONS: ['x' | 'y', string, typeof Grid3x3][] = [
+  ['x', 'Distribute horizontally', AlignHorizontalDistributeCenter],
+  ['y', 'Distribute vertically', AlignVerticalDistributeCenter],
+]
+
 // The arrow keys move the selection: a small step, a larger one with Shift. Held down, the moves are one undo step.
 const NUDGE = 4
 let nudging = false
@@ -351,7 +395,8 @@ function onNudge(e: KeyboardEvent) {
   e.stopPropagation()
   if (!nudging) gestures.value++
   nudging = true
-  const step = NUDGE * (e.shiftKey ? 4 : 1)
+  // With snap to grid on, a step is a grid square.
+  const step = (snap.value ? GRID : NUDGE) * (e.shiftKey ? 4 : 1)
   for (const n of withContents(selectedIds()).map((id) => findNode(id)!))
     n.position = { x: n.position.x + by[0] * step, y: n.position.y + by[1] * step }
   nudgeSoonOver()
@@ -589,7 +634,7 @@ async function exportPng() {
 }
 
 const tool =
-  'flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-accent disabled:opacity-40 [&>svg]:size-3.5'
+  'flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-accent disabled:opacity-40 aria-pressed:bg-accent [&>svg]:size-3.5'
 </script>
 
 <template>
@@ -636,6 +681,33 @@ const tool =
       <button type="button" :class="tool" aria-label="Tidy top down" title="Tidy top down" @click="runTidy('TB')">
         Tidy<ArrowDown />
       </button>
+      <button type="button" :class="tool" aria-label="Snap to grid" title="Snap to grid" :aria-pressed="snap" @click="snap = !snap">
+        <Grid3x3 />
+      </button>
+      <button
+        v-for="[how, name, icon] in ALIGNMENTS"
+        :key="how"
+        type="button"
+        :class="tool"
+        :aria-label="name"
+        :title="name"
+        :disabled="getSelectedNodes.length < 2"
+        @click="arrange(align(pickedBoxes(), how))"
+      >
+        <component :is="icon" />
+      </button>
+      <button
+        v-for="[axis, name, icon] in DISTRIBUTIONS"
+        :key="axis"
+        type="button"
+        :class="tool"
+        :aria-label="name"
+        :title="name"
+        :disabled="getSelectedNodes.length < 3"
+        @click="arrange(distribute(pickedBoxes(), axis))"
+      >
+        <component :is="icon" />
+      </button>
       <span class="flex-1" />
       <button type="button" :class="tool" @click="exportPng"><ImageDown />Export PNG</button>
       <button type="button" :class="tool" :aria-pressed="fullScreen" @click="fullScreen = !fullScreen">
@@ -651,6 +723,8 @@ const tool =
       :max-zoom="MAX_ZOOM"
       :delete-key-code="null"
       :zoom-on-double-click="false"
+      :snap-to-grid="snap"
+      :snap-grid="[GRID, GRID]"
       tabindex="-1"
       class="flex-1 outline-none"
       @keydown="onCanvasKey"
@@ -658,7 +732,7 @@ const tool =
       @dblclick="onDoubleClick"
       @pointerdown.capture="onCanvasPointerDown"
     >
-      <Background />
+      <Background :gap="GRID" />
       <Controls />
       <MiniMap pannable zoomable :width="120" :height="80" />
     </VueFlow>

@@ -109,3 +109,10 @@ test('an arrowhead has its tip on the point and opens against the direction it p
   expect(arrowHead(0, 0, INTO_SIDE[Position.Top])).toBe('0,0 -3.6,-9 3.6,-9')
   expect(arrowHead(0, 0, INTO_SIDE[Position.Right])).toBe('0,0 9,-3.6 9,3.6')
 })
+
+test('snap to grid is saved with the Diagram only when it is on', () => {
+  expect(JSON.parse(serialiseCanvas({ ...saved, snap: true })).snap).toBe(true)
+  expect(parseCanvas(serialiseCanvas({ ...saved, snap: true })).snap).toBe(true)
+  expect(serialiseCanvas({ ...saved, snap: false })).toBe(serialiseCanvas(saved))
+  expect(parseCanvas('{"snap":"yes"}').snap).toBeUndefined()
+})

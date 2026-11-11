@@ -2,7 +2,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { useVueFlow } from '@vue-flow/core'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from '../App.vue'
-import { openRecord } from '../navigation'
+import { current, openRecord } from '../navigation'
 import { closeNotebook } from '../notebook'
 import { createRecord, getRecord, listRecords, updateRecord } from '../records'
 import { memoryFolder } from '../storage-memory'
@@ -407,4 +407,41 @@ test('a Frame takes a fill but no shape and no Record, and Tidy leaves it around
   expect(inside.y).toBeGreaterThanOrEqual(f.position.y)
   expect(inside.y).toBeLessThanOrEqual(f.position.y + f.data.height)
   expect(f.type).toBe('frame')
+})
+
+// --- Arranging by hand
+
+test('align and distribute act on a selection of two or three Nodes and more', async () => {
+  await open([node('1', 0), { ...node('2', 200), position: { x: 200, y: 50 } }, { ...node('3', 300), position: { x: 300, y: 80 } }])
+  expect(button('Align top').attributes('disabled')).toBeDefined()
+  await select('1', '2')
+  expect(button('Align top').attributes('disabled')).toBeUndefined()
+  expect(button('Distribute horizontally').attributes('disabled')).toBeDefined()
+  await button('Align top').trigger('click')
+  expect(at('2')).toEqual({ x: 200, y: 0 })
+
+  await select('1', '2', '3')
+  await button('Distribute horizontally').trigger('click')
+  expect(at('2')).toEqual({ x: 150, y: 0 })
+  await flushPromises()
+  await ctrl('z')
+  expect(at('2')).toEqual({ x: 200, y: 0 })
+})
+
+test('snap to grid is remembered in the Diagram, and the arrow keys then step by the grid', async () => {
+  await open()
+  expect(button('Snap to grid').attributes('aria-pressed')).toBe('false')
+  await button('Snap to grid').trigger('click')
+  await expect.poll(() => JSON.parse(getRecord('diagram', id)!.canvas as string).snap).toBe(true)
+  expect(button('Undo').attributes('disabled')).toBeDefined()
+
+  await select('1')
+  await press('ArrowRight')
+  expect(at('1')).toEqual({ x: 16, y: 0 })
+
+  current.value = null
+  await flushPromises()
+  openRecord('diagram', id)
+  await expect.poll(() => app.find('[data-testid="diagram-canvas"]').attributes('data-ready')).toBe('true')
+  expect(button('Snap to grid').attributes('aria-pressed')).toBe('true')
 })
