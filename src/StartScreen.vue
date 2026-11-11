@@ -64,7 +64,7 @@ const card = 'flex flex-col gap-3 rounded-lg border bg-card p-4 text-card-foregr
       <template v-if="storage.blank">
         <section class="text-muted-foreground">
           <p>
-            This browser cannot open folders, so nothing is saved automatically and there are no
+            This browser can't open folders, so nothing is saved automatically and there are no
             Backups: after editing you download notebook.sqlite yourself, as a new file each time.
           </p>
           <p class="mt-2">

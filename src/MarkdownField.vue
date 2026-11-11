@@ -1,8 +1,24 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { caretSpot, placePopup } from './caret'
-import { renderMarkdown } from './markdown'
+import { copyText } from './clipboard'
+import {
+  applyEdit,
+  continueList,
+  indentLines,
+  insertLink,
+  pasteLink,
+  pasteTable,
+  startMention,
+  toggleLines,
+  toggleWrap,
+  type Edit,
+} from './editing'
+import FormatBar, { type FormatAction } from './FormatBar.vue'
+import { renderMarkdown, toggleTask } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
+import { isMac, shortcut } from './platform'
+import { untouched } from './templates'
 import type { Titled } from './records'
 import { RECORD_FIELDS } from './record-fields'
 
@@ -10,8 +26,8 @@ import { RECORD_FIELDS } from './record-fields'
 const props = defineProps<{ modelValue: string; label: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-// Empty text opens ready to type; existing text opens rendered.
-const editing = ref(!props.modelValue)
+// Empty text, or a template nobody filled in yet, opens ready to type; existing text opens rendered.
+const editing = ref(untouched(props.modelValue))
 
 // Mention autocomplete: open while the caret sits in an unclosed `[[`.
 const area = useTemplateRef('area')
@@ -31,10 +47,77 @@ function place(el: HTMLTextAreaElement) {
   spot.value = { left: `${at.left - box.left}px`, top: `${at.top - box.top}px` }
 }
 
-// Edit puts the caret in the text.
+// Edit puts the caret in the text; Done leaves the focus on the button, so the keyboard can go on from there.
+const toggler = useTemplateRef('toggler')
 function toggle() {
   editing.value = !editing.value
-  if (editing.value) nextTick(() => area.value?.focus())
+  nextTick(() => (editing.value ? area.value : toggler.value)?.focus())
+}
+
+/** Runs a transform from `editing.ts` on the textarea; false when it had nothing to do. */
+function edit(change: (e: Edit) => Edit | null) {
+  const el = area.value!
+  const next = change({ text: el.value, start: el.selectionStart, end: el.selectionEnd })
+  if (next) applyEdit(el, next)
+  return !!next
+}
+
+// What each button of the formatting bar does; three of them have a key too.
+const FORMAT: Record<FormatAction, (e: Edit) => Edit> = {
+  bold: (s) => toggleWrap(s, '**'),
+  italic: (s) => toggleWrap(s, '*'),
+  code: (s) => toggleWrap(s, '`'),
+  link: insertLink,
+  heading: (s) => toggleLines(s, 'heading'),
+  bullet: (s) => toggleLines(s, 'bullet'),
+  number: (s) => toggleLines(s, 'number'),
+  task: (s) => toggleLines(s, 'task'),
+  // The `[[` arrives as typing does, which opens the Mention list.
+  mention: startMention,
+}
+const KEYS: Record<string, FormatAction> = { b: 'bold', i: 'italic', e: 'code' }
+// ⌘ on a Mac, where Ctrl+B and Ctrl+E already move the caret; Ctrl everywhere else.
+const withMod = (e: KeyboardEvent) => (isMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && !e.altKey
+
+/** The editing keys. False leaves the key to the browser: Tab outside a list still moves the focus. */
+function editorKey(e: KeyboardEvent): boolean {
+  if (e.isComposing) return false
+  const key = e.key.toLowerCase()
+  if (withMod(e)) return !e.shiftKey && key in KEYS && edit(FORMAT[KEYS[key]])
+  if (e.ctrlKey || e.metaKey || e.altKey) return false
+  if (e.key === 'Enter') return !e.shiftKey && edit(continueList)
+  if (e.key === 'Tab') return edit((s) => indentLines(s, e.shiftKey))
+  if (e.key === 'Escape') toggle()
+  return e.key === 'Escape'
+}
+
+// Ticking a task item in the rendered view rewrites its line and saves, without entering edit mode.
+const view = useTemplateRef('view')
+function onTick(e: Event) {
+  const n = (e.target as HTMLElement).dataset.task
+  if (n === undefined) return
+  emit('update:modelValue', toggleTask(props.modelValue, Number(n)))
+  // The view is rendered anew, so the focus goes back to the box for the keyboard to go on.
+  nextTick(() => view.value?.querySelector<HTMLElement>(`[data-task="${n}"]`)?.focus())
+}
+
+// A click in the rendered view: a code block's Copy button, else maybe a Mention.
+async function onViewClick(e: MouseEvent) {
+  const button = (e.target as Element).closest?.('[data-copy]')
+  if (!button) return openMention(e)
+  const code = button.parentElement!.querySelector('pre')!
+  if (await copyText((code.textContent ?? '').replace(/\n$/, ''))) button.textContent = 'Copied'
+  else {
+    // The clipboard refused: select the code, so the copy key finishes the job.
+    getSelection()?.selectAllChildren(code)
+    button.textContent = `Press ${shortcut('C')}`
+  }
+  setTimeout(() => (button.textContent = 'Copy'), 2000)
+}
+
+function onPaste(e: ClipboardEvent) {
+  const pasted = e.clipboardData?.getData('text/plain') ?? ''
+  if (pasted && edit((s) => pasteLink(s, pasted) ?? pasteTable(s, pasted))) e.preventDefault()
 }
 
 function onInput() {
@@ -50,18 +133,18 @@ function onInput() {
 function pick(record: Titled) {
   const el = area.value!
   const before = el.value.slice(0, from) + mentionFor(record)
-  emit('update:modelValue', before + el.value.slice(el.selectionStart))
+  // The caret goes behind the Mention.
+  applyEdit(el, { text: before + el.value.slice(el.selectionStart), start: before.length, end: before.length })
   options.value = []
-  // Once the new text is in the textarea, put the caret behind the Mention.
-  nextTick(() => {
-    el.focus()
-    el.setSelectionRange(before.length, before.length)
-  })
 }
 
 function onKeydown(e: KeyboardEvent) {
   const n = options.value.length
-  if (!n) return
+  // While the Mention list is open its keys come first.
+  if (!n) {
+    if (editorKey(e)) e.preventDefault()
+    return
+  }
   if (e.key === 'ArrowDown') active.value = (active.value + 1) % n
   else if (e.key === 'ArrowUp') active.value = (active.value + n - 1) % n
   else if (e.key === 'Enter' || e.key === 'Tab') pick(options.value[active.value])
@@ -76,6 +159,7 @@ function onKeydown(e: KeyboardEvent) {
     <div class="flex h-8 items-center justify-between">
       <h2 class="text-xs font-medium text-muted-foreground">{{ label }}</h2>
       <button
+        ref="toggler"
         type="button"
         :aria-label="`${editing ? 'Done editing' : 'Edit'} ${label}`"
         class="h-6 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -84,6 +168,7 @@ function onKeydown(e: KeyboardEvent) {
         {{ editing ? 'Done' : 'Edit' }}
       </button>
     </div>
+    <FormatBar v-if="editing" @run="edit(FORMAT[$event])" />
     <div v-if="editing" class="relative">
       <textarea
         ref="area"
@@ -94,6 +179,7 @@ function onKeydown(e: KeyboardEvent) {
         class="block max-h-[70vh] min-h-40 w-full rounded-md border bg-background p-2 font-mono [field-sizing:content]"
         @input="onInput"
         @keydown="onKeydown"
+        @paste="onPaste"
         @blur="options = []"
       />
       <ul
@@ -121,17 +207,70 @@ function onKeydown(e: KeyboardEvent) {
       </ul>
     </div>
     <!-- renderMarkdown sanitizes its output. -->
-    <div v-else data-testid="markdown-view" class="markdown min-w-0" @click="openMention" v-html="renderMarkdown(modelValue)" />
+    <div
+      v-else
+      ref="view"
+      data-testid="markdown-view"
+      class="markdown min-w-0"
+      @click="onViewClick"
+      @change="onTick"
+      v-html="renderMarkdown(modelValue)"
+    />
   </section>
 </template>
 
 <style>
 /* Tailwind's reset strips these; rendered markdown needs them back. */
-.markdown :is(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4) {
+.markdown :is(p, ul, ol, pre, blockquote, table, h1, h2, h3, h4, h5, h6, .code-block) {
   margin-bottom: 0.5rem;
 }
-.markdown :is(h1, h2, h3, h4) {
+/* A calm, compact scale: the page title above is 1.5rem and the text 0.875rem. */
+.markdown :is(h1, h2, h3, h4, h5, h6) {
   font-weight: 600;
+  line-height: 1.3;
+}
+.markdown > :is(h1, h2, h3, h4, h5, h6):not(:first-child) {
+  margin-top: 1rem;
+}
+.markdown h3 {
+  font-size: 1rem;
+}
+.markdown :is(h5, h6) {
+  color: var(--muted-foreground);
+}
+.markdown .code-block {
+  position: relative;
+}
+.markdown .code-block pre {
+  margin-bottom: 0;
+}
+/* Shown when the block is pointed at or the button has the keyboard's focus. */
+.markdown .copy-code {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  height: 1.5rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  opacity: 0;
+}
+.markdown .code-block:hover .copy-code,
+.markdown .copy-code:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .markdown .copy-code {
+    opacity: 1;
+  }
+}
+@media print {
+  .markdown .copy-code {
+    display: none;
+  }
 }
 /* Long words, wide tables and code scroll or wrap inside the notes instead of widening the page. */
 .markdown {
@@ -169,6 +308,22 @@ function onKeydown(e: KeyboardEvent) {
 .markdown ol {
   list-style: decimal;
   padding-left: 1.25rem;
+}
+/* A task item's box takes the place of its bullet; in a numbered list it follows the number. */
+.markdown ul > li:has(> input[type='checkbox'], > p > input[type='checkbox']) {
+  list-style: none;
+}
+.markdown li input[type='checkbox'] {
+  width: 1rem;
+  height: 1rem;
+  margin-right: 0.25rem;
+  vertical-align: -0.15em;
+}
+.markdown ul > li :is(input[type='checkbox']) {
+  margin-left: -1.25rem;
+}
+.markdown li input[type='checkbox']:not(:disabled) {
+  cursor: pointer;
 }
 .markdown a {
   text-decoration: underline;

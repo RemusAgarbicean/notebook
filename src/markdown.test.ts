@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // DOMPurify does not sanitize under happy-dom, so these run in jsdom.
 import { expect, test } from 'vitest'
-import { renderMarkdown } from './markdown'
+import { renderMarkdown, taskLines, toggleTask } from './markdown'
 
 test('markdown renders to HTML', () => {
   const html = renderMarkdown('# Steps\n\n1. Requisition in **Coupa**\n2. Approval')
@@ -76,4 +76,83 @@ test('nothing else in a note can fetch: srcset, media, styles, backgrounds, SVG 
 
 test('a task list keeps its checkboxes', () => {
   expect(dom('- [x] done\n- [ ] open').querySelectorAll('input[type="checkbox"]')).toHaveLength(2)
+})
+
+// ---- Task items that can be ticked in the rendered view
+
+const boxes = (source: string) =>
+  [...dom(source).querySelectorAll('input[type="checkbox"]')].map((b) => ({
+    task: b.getAttribute('data-task'),
+    checked: b.hasAttribute('checked'),
+    name: b.getAttribute('aria-label'),
+    disabled: b.hasAttribute('disabled'),
+  }))
+
+test('each task checkbox is enabled, numbered in order and named after its item', () => {
+  expect(boxes('- [x] Book **workshop**\n- [ ] Ask [Ana](https://example.com)')).toEqual([
+    { task: '0', checked: true, name: 'Book workshop', disabled: false },
+    { task: '1', checked: false, name: 'Ask Ana', disabled: false },
+  ])
+})
+
+test('ticking a task changes only its own line', () => {
+  const source = '# Actions\n\n- [ ] one\n- [x] two\n- [ ] three'
+
+  expect(toggleTask(source, 1)).toBe('# Actions\n\n- [ ] one\n- [ ] two\n- [ ] three')
+  expect(toggleTask(source, 2)).toBe('# Actions\n\n- [ ] one\n- [x] two\n- [x] three')
+  expect(toggleTask(source, 7)).toBe(source)
+})
+
+// Every shape of task item: the nth box on the page must be the nth task line of the text.
+const SHAPES = [
+  '- [ ] a\n- [x] b',
+  '* [ ] star\n+ [X] plus',
+  '1. [ ] numbered\n2. [x] done',
+  '- [ ] parent\n    - [x] child\n    - [ ] second child\n- [ ] last',
+  '> - [ ] quoted\n> - [x] quoted done',
+  '- [ ] loose\n\n- [x] items\n\n- [ ] here',
+  '- [ ] with [[Coupa]] and [ ] and [x] in its text',
+  'text\n\n```\n- [ ] in a code block\n```\n\n- [x] real\n\n~~~md\n- [x] another block\n~~~\n- [ ] last',
+  '- [ ] a\r\n- [x] b\r\n',
+  '- [ ]\n- [ ] \n- [x] only this one has text',
+  '- plain item\n- [ ]no space\n- [x] task',
+  '| a | b |\n|---|---|\n| - [ ] cell | x |\n\n- [ ] after the table',
+]
+test.each(SHAPES)('the boxes of %j pair up with its task lines', (source) => {
+  const found = boxes(source)
+  const lines = taskLines(source)
+
+  expect(found.length).toBeGreaterThan(0)
+  expect(found.map((b) => b.task)).toEqual(lines.map((_, i) => String(i)))
+  expect(found.map((b) => b.checked)).toEqual(lines.map((l) => l.checked))
+  // Ticking each one flips exactly that box.
+  lines.forEach((_, n) => {
+    const after = boxes(toggleTask(source, n))
+    expect(after.map((b) => b.checked)).toEqual(found.map((b, i) => (i === n ? !b.checked : b.checked)))
+  })
+})
+
+test('a task line inside a code block is text, not a task', () => {
+  const source = '```\n- [ ] sample\n```\n\n- [ ] real'
+
+  expect(taskLines(source)).toEqual([{ line: 4, checked: false }])
+  expect(toggleTask(source, 0)).toBe('```\n- [ ] sample\n```\n\n- [x] real')
+})
+
+test('when the boxes and the task lines do not pair up, every box stays read-only', () => {
+  // An indented code block holds a task line the scan can\'t tell from a real one; a typed checkbox has no line.
+  for (const source of ['- [ ] real\n\ntext\n\n        - [ ] indented code', '- [ ] real\n\n<input type="checkbox">']) {
+    const found = boxes(source)
+    expect(found.length).toBeGreaterThan(0)
+    expect(found.every((b) => b.disabled && b.task === null)).toBe(true)
+  }
+})
+
+test('a code block gets a Copy button beside it, and inline code does not', () => {
+  const el = dom('Run `ME21N`:\n\n```sql\nselect 1\n```')
+
+  const block = el.querySelector('.code-block')!
+  expect(block.querySelector('pre')!.textContent).toBe('select 1\n')
+  expect(block.querySelector('button[data-copy]')!.textContent).toBe('Copy')
+  expect(el.querySelectorAll('button')).toHaveLength(1)
 })

@@ -3,7 +3,9 @@ import { unlinkNodes } from './diagram/links'
 import { keepMentions, renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
+import { setPinned } from './pins'
 import { RECORD_TYPES, type RecordType } from './record-types'
+import { captureDeleted, rememberDeleted } from './undo-delete'
 
 export type Value = string | number | null
 export type Rec = {
@@ -156,8 +158,10 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
   const rule = CLOSED[type]
   if (rule && values[rule.field] === rule.value) values[rule.stamp] = now()
 
-  const columns = Object.keys(values)
   return transaction(() => {
+    const top = retired?.db === db.value && retired.top[type]
+    if (top) values.id = Math.max(top, rows<{ id: number }>(`select max(id) as id from ${table(type)}`)[0].id ?? 0) + 1
+    const columns = Object.keys(values)
     // Mentions of a Record that already has this title keep pointing at it.
     keepMentions(String(values.title))
     db.value!.run(
@@ -167,6 +171,27 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
     const id = db.value!.exec('select last_insert_rowid()')[0].values[0][0] as number
     changed()
     return id
+  })
+}
+
+/**
+ * Creates "<title> copy" with the Record's fields, notes and Tags, and returns its id.
+ * The copy starts open (not done, not answered, no answer) and has no Relations and no pin.
+ * A Diagram's canvas is copied as it is: its linked Nodes point at the same Records, which is what a link is.
+ */
+export function duplicateRecord(type: RecordType, id: number): number {
+  const source = getRecord(type, id)
+  if (!source) throw new Error('That Record no longer exists')
+  const rule = CLOSED[type]
+  const skip = [isClosed(type, source) && rule!.field, type === 'open_question' && 'answer']
+  const fields: Patch = { notes: source.notes }
+  // An empty field stays out: a required one would be refused, and the copy starts as empty anyway.
+  for (const f of RECORD_FIELDS[type].fields)
+    if (!skip.includes(f.name) && source[f.name] !== null && source[f.name] !== '') fields[f.name] = source[f.name]
+  return transaction(() => {
+    const copy = createRecord(type, `${source.title} copy`, fields)
+    for (const tag of recordTags(type, id)) addTag(type, copy, tag.name)
+    return copy
   })
 }
 
@@ -226,10 +251,20 @@ export function updateRecord(type: RecordType, id: number, patch: Patch) {
 
 const DROP_UNUSED_TAGS = 'delete from tag where id not in (select tag_id from record_tag)'
 
-/** Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001), and unlinks its Nodes. */
+// SQLite hands the highest id out again once its row is gone. Undo delete puts a Record back under its id,
+// so while the Notebook stays open a new Record's id starts above every deleted one of its type.
+let retired: { db: unknown; top: Partial<Record<RecordType, number>> } | undefined
+
+/**
+ * Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001), and unlinks its Nodes.
+ * `undoDelete` can take the last few deletes back.
+ */
 export function deleteRecord(type: RecordType, id: number) {
   const d = db.value!
-  transaction(() => {
+  if (retired?.db !== d) retired = { db: d, top: {} }
+  retired.top[type] = Math.max(retired.top[type] ?? 0, id)
+  const deleted = transaction(() => {
+    const deleted = captureDeleted({ type, id })
     unlinkNodes({ type, id })
     d.run(
       'delete from relation where (from_type = ? and from_id = ?) or (to_type = ? and to_id = ?)',
@@ -237,8 +272,11 @@ export function deleteRecord(type: RecordType, id: number) {
     )
     d.run('delete from record_tag where type = ? and id = ?', [type, id])
     d.run(DROP_UNUSED_TAGS)
+    setPinned({ type, id }, false)
     d.run(`delete from ${table(type)} where id = ?`, [id])
+    return deleted
   })
+  rememberDeleted(deleted)
   changed()
 }
 

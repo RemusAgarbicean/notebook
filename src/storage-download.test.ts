@@ -163,7 +163,7 @@ test('without the File System Access API the start screen says what is lost and 
   const { app } = await start(fallbackStorage(() => {}))
 
   expect(app.findAll('button').map((b) => b.text())).toEqual(['Open notebook.sqlite', 'Create new Notebook'])
-  expect(app.text()).toContain('cannot open folders')
+  expect(app.text()).toContain("can't open folders")
   expect(app.text()).toContain('Chrome or Edge')
   expect(app.text()).toContain('brave://flags/#file-system-access-api')
 })

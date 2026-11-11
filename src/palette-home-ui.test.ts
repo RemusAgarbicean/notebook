@@ -120,13 +120,13 @@ test('Home is the landing page and takes the place of the list and page columns'
 
 test('Open Tasks shows open Tasks with their due date and Project, and drops a Task once done', async () => {
   const project = createRecord('project', 'ERP rollout')
-  const map = createRecord('task', 'Map interfaces', { due: '2026-12-01' })
+  const map = createRecord('task', 'Map interfaces', { due: '2099-12-01' })
   addRelation({ type: 'task', id: map }, LABEL.partOf, { type: 'project', id: project })
   createRecord('task', 'Book room')
   createRecord('task', 'Old chore', { done: true })
   await flushPromises()
 
-  expect(card('task')).toEqual(['Map interfacesERP rollout2026-12-01', 'Book room'])
+  expect(card('task')).toEqual(['Map interfacesERP rollout2099-12-01', 'Book room'])
 
   updateRecord('task', map, { done: true })
   await flushPromises()

@@ -120,3 +120,18 @@ test('other lists have no such toggle', async () => {
   expect(app.find('[data-testid="hide-closed"]').exists()).toBe(false)
   expect(titles()).toEqual(['Cleanup'])
 })
+
+test('#tag in the filter narrows the list to Records with a matching Tag, alone or with text', async () => {
+  const po = createRecord('acronym', 'PO', { expansion: 'Purchase Order' })
+  const grn = createRecord('acronym', 'GRN', { expansion: 'Goods Received Note' })
+  createRecord('acronym', 'S2P', { expansion: 'Source to Pay' })
+  addTag('acronym', po, 'finance')
+  addTag('acronym', grn, 'Finance ops')
+  await showType('Acronyms')
+
+  await get('list-filter').setValue('#fin')
+  expect(titles()).toEqual(['GRN', 'PO'])
+
+  await get('list-filter').setValue('#fin purchase')
+  expect(titles()).toEqual(['PO'])
+})

@@ -192,14 +192,14 @@ test('Delete asks first: cancelling keeps the Record, confirming removes it and 
 test('openRecord shows the Record\'s type in the list and its page', async () => {
   createRecord('task', 'Other task')
   const id = createRecord('task', 'Get Coupa access')
-  updateRecord('task', id, { due: '2026-12-01' })
+  updateRecord('task', id, { due: '2099-12-01' })
 
   openRecord('task', id)
   await flushPromises()
 
   expect(list.value).toBe('task')
   expect(current.value).toEqual({ type: 'task', id })
-  expect(rowsText()).toEqual(['Get Coupa access2026-12-01', 'Other task'])
+  expect(rowsText()).toEqual(['Get Coupa access2099-12-01', 'Other task'])
   expect(app.get('[data-testid="list-row"][aria-current="true"]').text()).toContain('Get Coupa access')
 })
 
@@ -232,4 +232,18 @@ test('the sidebar counts each type and each Tag, live', async () => {
   updateRecord('task', task, { done: true })
   await flushPromises()
   expect(count('record-type', 'Tasks').text()).toBe('1')
+})
+
+test('Duplicate on the Record page makes a copy and opens it', async () => {
+  const id = createRecord('system', 'Coupa', { summary: 'Procure-to-pay' })
+  openRecord('system', id)
+  await flushPromises()
+
+  await get('duplicate-record').trigger('click')
+  await flushPromises()
+
+  expect(current.value).not.toEqual({ type: 'system', id })
+  expect((get('record-title').element as HTMLInputElement).value).toBe('Coupa copy')
+  expect((get('field-summary').element as HTMLInputElement).value).toBe('Procure-to-pay')
+  expect(rowsText()).toEqual(['CoupaProcure-to-pay', 'Coupa copyProcure-to-pay'])
 })

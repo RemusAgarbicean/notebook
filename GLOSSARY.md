@@ -58,6 +58,10 @@ _Avoid_: Label, category
 A deliberate, directed, labelled connection from one Record to another (e.g. Maria owns Coupa), seen from both ends.
 _Avoid_: Link, reference
 
+**Relation label**:
+The pair of readings on a Relation, one from each end (e.g. owns / owned by).
+_Avoid_: Label on its own in UI text, Tag
+
 **Mention**:
 A `[[Record]]` reference inside a Record's notes; it is part of the text, not a Relation.
 _Avoid_: Wiki link, backlink

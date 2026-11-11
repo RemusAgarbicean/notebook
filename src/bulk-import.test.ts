@@ -19,6 +19,14 @@ const today = new Date().toLocaleDateString('sv')
 
 // ---- Reading the table
 
+test('a quoted cell keeps its outer spaces, unless it holds nothing else', () => {
+  expect(parseTable('title,notes\n" Coupa ","  indented\nline two "\n"x","  "')).toEqual([
+    ['title', 'notes'],
+    [' Coupa ', '  indented\nline two '],
+    ['x', ''],
+  ])
+})
+
 test('a table pasted from Excel is separated by tabs, a CSV by commas', () => {
   expect(detectSeparator('Name\tRole, level\tTeam\nAna\tDev, senior\tPayments')).toBe('\t')
   expect(detectSeparator('Name,Role,Team\nAna,Dev,Payments')).toBe(',')

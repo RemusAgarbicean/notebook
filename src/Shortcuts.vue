@@ -11,11 +11,14 @@ const open = ref(false)
 const ROWS: { keys: string[]; does: string }[] = [
   { keys: [shortcut('K')], does: 'Search the Notebook' },
   { keys: [shortcut('S')], does: 'Save now' },
+  { keys: [shortcut('Z')], does: 'Undo the last delete of a Record' },
   { keys: ['/'], does: 'Filter the list' },
   { keys: ['N'], does: 'New Record of the type shown' },
   { keys: ['J', 'K'], does: 'Next and previous Record in the list; Enter opens it' },
   { keys: ['↓', '↑'], does: 'The same, from inside the list' },
   { keys: ['E'], does: 'Edit the notes of the open Record' },
+  { keys: [shortcut('B'), shortcut('I'), shortcut('E')], does: 'Bold, italic and code while editing notes' },
+  { keys: ['Tab', 'Shift Tab'], does: 'Indent and outdent a list item while editing notes; Esc ends editing' },
   { keys: ['?'], does: 'Show these shortcuts' },
 ]
 
