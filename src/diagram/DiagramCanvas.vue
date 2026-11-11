@@ -8,7 +8,7 @@ import { Controls } from '@vue-flow/controls'
 import { Position, useVueFlow, VueFlow, type Edge, type EdgeComponent, type GraphNode, type Node, type NodeComponent } from '@vue-flow/core'
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
-import { toPng } from 'html-to-image'
+import { toBlob } from 'html-to-image'
 import {
   AlignCenterHorizontal,
   AlignCenterVertical,
@@ -20,7 +20,7 @@ import {
   AlignVerticalDistributeCenter,
   Grid3x3,
 } from 'lucide-vue-next'
-import { ArrowDown, ArrowRight, Frame, ImageDown, Maximize2, Minimize2, Plus, Redo2, SquareMenu, Undo2, Unlink } from 'lucide-vue-next'
+import { ArrowDown, ArrowRight, ClipboardCopy, Frame, ImageDown, Maximize2, Minimize2, Plus, Redo2, SquareMenu, Undo2, Unlink } from 'lucide-vue-next'
 import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
@@ -589,7 +589,8 @@ const EXPORT_MARGIN = 32
 
 const labelParts = () => root.value!.querySelectorAll<SVGElement>('.vue-flow__edge-textbg, .vue-flow__edge-text')
 
-async function exportPng() {
+/** The whole Diagram as a PNG, in the light shades. */
+async function renderPng(): Promise<Blob> {
   const before = { ...viewport.value }
   exporting.value = true // switches the canvas to its light colors, see the styles below
   // html-to-image fetches the images and fonts it comes across. A Diagram has none, and the app never goes online.
@@ -617,19 +618,48 @@ async function exportPng() {
     await new Promise(requestAnimationFrame)
     // html-to-image loses what CSS gives SVG, so the label parts get it inline for the capture.
     for (const el of labelParts()) Object.assign(el.style, { fill: getComputedStyle(el).fill, fontSize: getComputedStyle(el).fontSize })
-    const url = await toPng(flow, {
+    const png = await toBlob(flow, {
       backgroundColor: '#ffffff',
       pixelRatio: 2,
       skipFonts: true,
       // Controls and minimap are panels.
       filter: (el) => !el.classList?.contains('vue-flow__panel'),
     })
-    Object.assign(document.createElement('a'), { href: url, download: `${props.record.title}.png` }).click()
+    if (!png) throw new Error('The Diagram could not be drawn as a PNG.')
+    return png
   } finally {
     window.fetch = realFetch
     for (const el of labelParts()) Object.assign(el.style, { fill: '', fontSize: '' })
     exporting.value = false
     setViewport(before)
+  }
+}
+
+function download(png: Blob) {
+  const url = URL.createObjectURL(png)
+  Object.assign(document.createElement('a'), { href: url, download: `${props.record.title}.png` }).click()
+  setTimeout(() => URL.revokeObjectURL(url), 10_000)
+}
+const exportPng = async () => download(await renderPng())
+
+// What the last copy came to; shown in the toolbar for a few seconds.
+const notice = ref('')
+const clearNotice = useDebounceFn(() => (notice.value = ''), 6000)
+function say(text: string) {
+  notice.value = text
+  clearNotice()
+}
+// The same picture as Export PNG, onto the clipboard. A browser that has no clipboard for this page, or refuses it
+// (it may for a page opened from a file), gets the download instead, and is told so.
+async function copyPng() {
+  const png = renderPng()
+  try {
+    // Handed over as a promise, so the browser still counts the write as part of the click.
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+    say('Copied to the clipboard')
+  } catch {
+    download(await png)
+    say('The clipboard is not available here: the PNG was downloaded instead')
   }
 }
 
@@ -709,7 +739,11 @@ const tool =
         <component :is="icon" />
       </button>
       <span class="flex-1" />
-      <button type="button" :class="tool" @click="exportPng"><ImageDown />Export PNG</button>
+      <span v-if="notice" data-testid="diagram-notice" role="status" class="px-1 text-xs text-muted-foreground">{{ notice }}</span>
+      <button type="button" :class="tool" aria-label="Copy PNG" title="Copy the Diagram as a PNG to the clipboard" :disabled="exporting" @click="copyPng">
+        <ClipboardCopy />Copy PNG
+      </button>
+      <button type="button" :class="tool" :disabled="exporting" @click="exportPng"><ImageDown />Export PNG</button>
       <button type="button" :class="tool" :aria-pressed="fullScreen" @click="fullScreen = !fullScreen">
         <component :is="fullScreen ? Minimize2 : Maximize2" />Full screen
       </button>
