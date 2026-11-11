@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
 import { RECORD_TYPES, type RecordType } from './record-types'
@@ -135,12 +136,23 @@ export function updateRecord(type: RecordType, id: number, patch: Patch) {
     if (closes !== isClosed(type, getRecord(type, id) ?? {})) values[rule[2]] = closes ? now() : null
   }
   values.updated_at = now()
-  db.value!.run(
-    `update ${table(type)} set ${Object.keys(values)
-      .map((c) => `${c} = ?`)
-      .join(', ')} where id = ?`,
-    [...Object.values(values), id],
-  )
+  const d = db.value!
+  // A rename also rewrites every Mention of the Record, in the same transaction.
+  const renamed = 'title' in values && values.title !== getRecord(type, id)?.title
+  if (renamed) d.run('begin')
+  try {
+    if (renamed) renameMentions({ type, id }, String(values.title))
+    d.run(
+      `update ${table(type)} set ${Object.keys(values)
+        .map((c) => `${c} = ?`)
+        .join(', ')} where id = ?`,
+      [...Object.values(values), id],
+    )
+    if (renamed) d.run('commit')
+  } catch (e) {
+    if (renamed) d.run('rollback')
+    throw e
+  }
   changed()
 }
 
