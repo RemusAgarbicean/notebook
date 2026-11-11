@@ -29,6 +29,8 @@ import type { FillName } from './fills'
 import { fullScreen } from './full-screen'
 import { editRequest, gestures } from './interaction'
 import { linkOf, unlinked, withLiveTitles } from './links'
+import ShapePicker from './ShapePicker.vue'
+import type { ShapeName } from './shapes'
 import { tidy, type Direction } from './layout'
 import { record, redo, startHistory, undo } from './undo'
 
@@ -305,6 +307,10 @@ function setFill(ids: string[], fill: FillName | null) {
   // An undefined fill is left out of the saved JSON.
   for (const id of ids) updateNodeData(id, { fill: fill ?? undefined })
 }
+// The rectangle is the shape of a Node that names none.
+function setShape(ids: string[], shape: ShapeName) {
+  for (const id of ids) updateNodeData(id, { shape: shape === 'rectangle' ? undefined : shape })
+}
 const selectedIds = () => getSelectedNodes.value.map((n) => n.id)
 
 // The Node menu acts on the whole selection when the clicked Node is part of it.
@@ -317,7 +323,7 @@ function openMenu(ids: string[], clientX: number, clientY: number) {
   nodeEl(ids[0])?.focus({ preventScroll: true })
   // Kept on screen: the menu is at most this big.
   const x = Math.max(0, Math.min(clientX, innerWidth - 250))
-  const y = Math.max(0, Math.min(clientY, innerHeight - 150))
+  const y = Math.max(0, Math.min(clientY, innerHeight - 200))
   menu.value = { x, y, ids }
   nextTick(() => menuEl.value && focusable(menuEl.value)[0]?.focus())
 }
@@ -521,6 +527,7 @@ const tool =
       <button type="button" :class="tool" aria-label="Add Node" @click="addNode()"><Plus />Add Node</button>
       <RecordPicker data-testid="add-record" class="w-32" label="Add Record" @pick="addRecord" />
       <FillPicker class="px-2" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
+      <ShapePicker :disabled="!getSelectedNodes.length" @pick="setShape(selectedIds(), $event)" />
       <!-- click.stop: the click that opens the menu must not close it the way one elsewhere does. -->
       <button
         type="button"
@@ -579,6 +586,8 @@ const tool =
     >
       <span class="text-xs text-muted-foreground">Fill</span>
       <FillPicker @pick="setFill(menu.ids, $event)" />
+      <span class="text-xs text-muted-foreground">Shape</span>
+      <ShapePicker @pick="setShape(menu.ids, $event)" />
       <!-- click.stop: a click in here must not close the menu the way one elsewhere does. -->
       <div v-if="menuNode()" class="flex w-56 flex-col gap-1" @click.stop>
         <span class="text-xs text-muted-foreground">Record</span>
@@ -655,21 +664,106 @@ const tool =
   background: var(--dg-bg);
 }
 .diagram-node {
+  --node-bg: var(--fill-light, var(--dg-node));
+  --node-line: var(--dg-border);
+  --node-line-width: 1px;
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-width: 4rem;
   max-width: 14rem;
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--dg-border);
+  border: var(--node-line-width) solid var(--node-line);
   border-radius: 0.375rem;
-  background: var(--fill-light, var(--dg-node));
+  background: var(--node-bg);
   color: var(--dg-text);
   font-size: 0.75rem;
   text-align: center;
 }
 .diagram-node.linked {
-  border: 2px solid var(--dg-link);
+  --node-line: var(--dg-link);
+  --node-line-width: 2px;
 }
 .dark .diagram-canvas:not(.exporting) .diagram-node {
-  background: var(--fill-dark, var(--dg-node));
+  --node-bg: var(--fill-dark, var(--dg-node));
+}
+.node-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.node-text-input {
+  width: 100%;
+  min-width: 6rem;
+  resize: none;
+  text-align: inherit;
+  field-sizing: content;
+}
+/* The shapes. The rectangle is the Node as it is above. */
+.diagram-node.pill {
+  padding-inline: 1rem;
+  border-radius: 9999px;
+}
+.diagram-node.note {
+  --node-bg: var(--fill-light, transparent);
+  justify-content: flex-start;
+  text-align: left;
+}
+.dark .diagram-canvas:not(.exporting) .diagram-node.note {
+  --node-bg: var(--fill-dark, transparent);
+}
+.diagram-node.note:not(.linked),
+.diagram-node.diamond,
+.diagram-node.cylinder {
+  border-color: transparent;
+}
+/* Drawn behind the text by two layers: the line, and the fill inside it. */
+.diagram-node.diamond,
+.diagram-node.cylinder {
+  background: none;
+}
+.diagram-node.diamond::before,
+.diagram-node.diamond::after,
+.diagram-node.cylinder::before,
+.diagram-node.cylinder::after {
+  position: absolute;
+  z-index: -1;
+  content: '';
+}
+.diagram-node.diamond {
+  padding: 1.1rem 2rem;
+}
+.diagram-node.diamond::before,
+.diagram-node.diamond::after {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.diagram-node.diamond::before {
+  inset: calc(-1 * var(--node-line-width));
+  background: var(--node-line);
+}
+.diagram-node.diamond::after {
+  inset: calc(0.5 * var(--node-line-width));
+  background: var(--node-bg);
+}
+.diagram-node.cylinder {
+  --cap: 0.45rem;
+  padding-top: 1.15rem;
+  padding-bottom: 0.6rem;
+}
+.diagram-node.cylinder::before {
+  inset: calc(-1 * var(--node-line-width));
+  border: var(--node-line-width) solid var(--node-line);
+  border-radius: 50% / var(--cap);
+  background: var(--node-bg);
+}
+/* The lid: a whole ellipse over the top edge. */
+.diagram-node.cylinder::after {
+  inset: calc(-1 * var(--node-line-width)) calc(-1 * var(--node-line-width)) auto;
+  height: calc(2 * var(--cap));
+  border: var(--node-line-width) solid var(--node-line);
+  border-radius: 50%;
 }
 .diagram-canvas:not(.exporting) .vue-flow__node.selected .diagram-node {
   box-shadow: 0 0 0 2px var(--ring);

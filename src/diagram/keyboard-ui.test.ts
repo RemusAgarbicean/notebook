@@ -121,9 +121,9 @@ test('Enter or F2 edits the text of the selected Node, and Enter in the text giv
   for (const key of ['Enter', 'F2']) {
     await select('1')
     await press(key)
-    await expect.poll(() => nodeEl('1').find('input').exists()).toBe(true)
-    const input = nodeEl('1').get('input')
-    ;(input.element as HTMLInputElement).value = `Coupa ${key}`
+    await expect.poll(() => nodeEl('1').find('textarea').exists()).toBe(true)
+    const input = nodeEl('1').get('textarea')
+    ;(input.element as HTMLTextAreaElement).value = `Coupa ${key}`
     await input.trigger('keydown', { key: 'Enter' })
     await flushPromises()
     expect(nodeEl('1').text()).toBe(`Coupa ${key}`)
@@ -160,10 +160,10 @@ test('Delete and Backspace remove the selection only from the canvas, never whil
   await press('Backspace', {}, app.get('[data-testid="record-title"]'))
   // While typing a Node's text.
   await press('F2')
-  await expect.poll(() => nodeEl('1').find('input').exists()).toBe(true)
-  await press('Backspace', {}, nodeEl('1').get('input'))
-  await press('Delete', { shiftKey: true }, nodeEl('1').get('input'))
-  await press('Escape', {}, nodeEl('1').get('input'))
+  await expect.poll(() => nodeEl('1').find('textarea').exists()).toBe(true)
+  await press('Backspace', {}, nodeEl('1').get('textarea'))
+  await press('Delete', { shiftKey: true }, nodeEl('1').get('textarea'))
+  await press('Escape', {}, nodeEl('1').get('textarea'))
   // In the menu.
   await press('ContextMenu')
   await press('Delete', {}, menu().get('[aria-label="No fill"]'))

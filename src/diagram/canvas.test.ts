@@ -75,3 +75,16 @@ test('the export viewport never zooms a small drawing in past 2, or a huge one o
   expect(viewportFor({ x: 0, y: 0, width: 10, height: 10 }, { width: 1000, height: 500 }, 50).zoom).toBe(2)
   expect(viewportFor({ x: 0, y: 0, width: 1e6, height: 10 }, { width: 1000, height: 500 }, 50).zoom).toBe(0.1)
 })
+
+// Copied from a Diagram this version's predecessor saved: free and linked Nodes, a fill, a Tidy, drawn and restored Edges.
+const SAVED_BEFORE =
+  '{"nodes":[{"id":"1","type":"node","position":{"x":206,"y":45.5},"data":{"label":"Coupa","recordType":"system","recordId":2,"fill":"blue"},"targetPosition":"left","sourcePosition":"right"},' +
+  '{"id":"8","type":"node","position":{"x":40,"y":300},"data":{"label":"Plain node"}},{"id":"9","type":"node","position":{"x":427,"y":328.5},"data":{"label":""}}],' +
+  '"edges":[{"id":"1","type":"default","source":"1","target":"8","data":{},"label":"POs nightly","style":{"fill":"none","stroke":"#a1a1aa","strokeWidth":1.5}},' +
+  '{"id":"4","type":"default","source":"8","target":"9","data":{},"label":"","style":{"fill":"none","stroke":"#a1a1aa","strokeWidth":1.5}},' +
+  '{"id":"6","type":"default","source":"9","target":"1","sourceHandle":null,"targetHandle":null,"data":{},"label":"","style":{"fill":"none","stroke":"#a1a1aa","strokeWidth":1.5}}],' +
+  '"viewport":{"x":32,"y":137.97806451612905,"zoom":0.8438709677419355}}'
+
+test('a canvas saved before shapes, sizes, Edge options and Frames existed is read and written back unchanged', () => {
+  expect(serialiseCanvas(parseCanvas(SAVED_BEFORE))).toBe(SAVED_BEFORE)
+})

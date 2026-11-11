@@ -18,3 +18,24 @@ export function childPosition(parent: Box, children: Box[], direction: Direction
   const y = parent.y + parent.height + RANK_GAP
   return { x: children.length ? Math.max(...children.map((c) => c.x + c.width)) + NODE_GAP : parent.x, y }
 }
+
+export type Corner = 'nw' | 'ne' | 'sw' | 'se'
+
+/**
+ * The box after its `corner` was dragged by (dx, dy): the opposite corner stays put,
+ * the box keeps at least the `min` size, and with a `grid` the dragged corner lands on it.
+ */
+export function resize(box: Box, corner: Corner, dx: number, dy: number, min: { width: number; height: number }, grid = 0): Box {
+  const snap = (v: number) => (grid ? Math.round(v / grid) * grid : Math.round(v))
+  const [right, bottom] = [box.x + box.width, box.y + box.height]
+  const west = corner[1] === 'w'
+  const north = corner[0] === 'n'
+  const x = west ? Math.min(snap(box.x + dx), right - min.width) : box.x
+  const y = north ? Math.min(snap(box.y + dy), bottom - min.height) : box.y
+  return {
+    x,
+    y,
+    width: west ? right - x : Math.max(snap(right + dx) - x, min.width),
+    height: north ? bottom - y : Math.max(snap(bottom + dy) - y, min.height),
+  }
+}

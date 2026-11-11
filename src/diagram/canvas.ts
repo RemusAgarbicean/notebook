@@ -1,11 +1,26 @@
 import { Position, type Edge, type Node, type ViewportTransform } from '@vue-flow/core'
 import type { FillName } from './fills'
+import type { ShapeName } from './shapes'
 
 /**
  * What a Node carries. `fill` is a palette name, absent for no fill. A linked
  * Node also has its Record's type and id, and `label` is then the title snapshot.
+ * Everything but the label is optional, so a Diagram saved before a field existed reads as it did.
  */
-export type NodeData = { label: string; fill?: FillName; recordType?: string; recordId?: number }
+export type NodeData = {
+  label: string
+  fill?: FillName
+  recordType?: string
+  recordId?: number
+  /** A shape name; absent for the rectangle. */
+  shape?: ShapeName
+  /** The size a resize gave it, in canvas pixels; absent while its text decides. */
+  width?: number
+  height?: number
+}
+
+/** The grid the canvas shows, and snaps to when asked. */
+export const GRID = 16
 
 /** The JSON kept in `diagram.canvas`. */
 export type Canvas = { nodes: Node<NodeData>[]; edges: Edge[]; viewport: ViewportTransform }

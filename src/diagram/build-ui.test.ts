@@ -226,3 +226,62 @@ test('Add Record can make the Record from the typed title', async () => {
   const [ariba] = listRecords('system')
   expect(flow().nodes.value.at(-1)!.data).toEqual({ label: 'Ariba', recordType: 'system', recordId: ariba.id })
 })
+
+// --- Shapes, text with line breaks, sizes
+
+test('a shape chosen for the selection is saved by name, and the rectangle by no name', async () => {
+  await open()
+  await select('1', '2')
+  await button('Shape: Diamond').trigger('click')
+  await flushPromises()
+
+  expect(app.findAll('[data-testid="diagram-node"]').map((n) => n.classes('diamond'))).toEqual([true, true])
+  await expect.poll(() => saved().nodes.map((n) => n.data)).toEqual([
+    { label: '1', shape: 'diamond' },
+    { label: '2', shape: 'diamond' },
+  ])
+
+  await app.get('[data-testid="diagram-node"]').trigger('contextmenu')
+  await app.get('[role="menu"] [aria-label="Shape: Rectangle"]').trigger('click')
+  await expect.poll(() => saved().nodes.map((n) => n.data)).toEqual([{ label: '1' }, { label: '2' }])
+})
+
+test('a linked Node keeps its border and icon in every shape', async () => {
+  const coupa = createRecord('system', 'Coupa')
+  await open([node('1', 0, { label: 'Coupa', recordType: 'system', recordId: coupa, shape: 'cylinder' }), node('2', 200, { label: 'x', shape: 'hexagon' })])
+  const [linked, unknown] = app.findAll('[data-testid="diagram-node"]')
+  expect(linked.classes()).toEqual(expect.arrayContaining(['cylinder', 'linked']))
+  expect(linked.find('svg').exists()).toBe(true)
+  expect(unknown.classes()).toContain('rectangle')
+})
+
+test('Shift+Enter keeps typing, Enter ends the edit, and the line break is kept', async () => {
+  await open()
+  await app.get('[data-testid="diagram-node"]').trigger('dblclick')
+  const input = app.get<HTMLTextAreaElement>('textarea[aria-label="Node text"]')
+  input.element.value = 'Coupa\nP2P'
+  await input.trigger('keydown', { key: 'Enter', shiftKey: true })
+  expect(app.find('[aria-label="Node text"]').exists()).toBe(true)
+  await input.trigger('keydown', { key: 'Enter' })
+
+  expect(app.find('[aria-label="Node text"]').exists()).toBe(false)
+  expect(flow().findNode('1')!.data.label).toBe('Coupa\nP2P')
+})
+
+test('dragging a corner handle of a selected Node gives it a size, in one undo step', async () => {
+  await open()
+  expect(app.find('[data-testid="resize-handle"]').exists()).toBe(false)
+  await select('1')
+  flow().findNode('1')!.dimensions = { width: 80, height: 34 }
+  const handle = app.findAll('[data-testid="resize-handle"]')[3] // bottom right
+  await handle.trigger('pointerdown', { clientX: 80, clientY: 34 })
+  await handle.trigger('pointermove', { clientX: 100, clientY: 40 })
+  await handle.trigger('pointermove', { clientX: 120, clientY: 60 })
+  await handle.trigger('pointerup')
+  await flushPromises()
+
+  expect(flow().findNode('1')!.data).toEqual({ label: '1', width: 120, height: 60 })
+  expect(app.get('[data-testid="diagram-node"]').attributes('style')).toContain('width: 120px')
+  await ctrl('z')
+  expect(flow().findNode('1')!.data).toEqual({ label: '1' })
+})
