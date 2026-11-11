@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { Handle, Position, useVueFlow } from '@vue-flow/core'
 import { until } from '@vueuse/core'
-import { computed, nextTick, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { openRecord } from '../navigation'
 import { recordType } from '../record-types'
 import { getRecord } from '../records'
 import type { NodeData } from './canvas'
 import { fillVars } from './fills'
+import { editRequest, gestures } from './interaction'
 import { linkOf } from './links'
 
 // Vue Flow passes many more props than these; they must not land on the element.
@@ -27,9 +28,12 @@ const link = computed(() => linkOf(props.data))
 // A linked Node shows its Record's title as it is now; the saved label is only the fallback.
 const label = computed(() => (link.value && getRecord(link.value.type, link.value.id)?.title) || props.data.label)
 
-async function edit() {
+// `counted`: the canvas already counts this edit as a gesture in progress.
+async function edit(counted = false) {
   // A linked Node's text is its Record's title: double-clicking opens the Record instead.
   if (link.value) return openRecord(link.value.type, link.value.id)
+  if (editing.value) return
+  if (!counted) gestures.value++
   editing.value = true
   // A Node just added stays hidden, and so cannot take focus, until Vue Flow has measured it.
   await until(() => !!findNode(props.id)?.dimensions.width).toBe(true, { timeout: 1000 })
@@ -40,20 +44,33 @@ async function edit() {
 function commit() {
   // Esc already ended the edit; the blur that follows must not save.
   if (!editing.value) return
-  editing.value = false
+  stop()
   updateNodeData(props.id, { label: input.value!.value.trim() })
 }
+function stop() {
+  if (editing.value) gestures.value--
+  editing.value = false
+}
+onBeforeUnmount(stop)
 
 // Ending the edit with a key keeps the focus on the Node, so the canvas's keys go on working.
 const root = useTemplateRef('root')
 function end(save: boolean) {
   if (save) commit()
-  editing.value = false
+  stop()
   root.value?.closest<HTMLElement>('.vue-flow__node')?.focus({ preventScroll: true })
 }
 
-// A Node without text was just added: its text is ready to be typed.
-onMounted(() => props.data.label || edit())
+// The canvas asks for the text of a Node it just added to be ready for typing.
+watch(
+  () => editRequest.value === props.id,
+  (asked) => {
+    if (!asked) return
+    editRequest.value = null
+    edit(true)
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -63,7 +80,7 @@ onMounted(() => props.data.label || edit())
     class="diagram-node"
     :class="{ linked: link }"
     :style="fillVars(data.fill)"
-    @dblclick="edit"
+    @dblclick="edit()"
   >
     <Handle type="target" :position="targetPosition ?? Position.Top" />
     <!-- nodrag/nopan: typing and selecting text must not move the Node or the canvas. -->

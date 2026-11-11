@@ -9,11 +9,12 @@ import { Position, useVueFlow, VueFlow, type EdgeComponent, type NodeComponent }
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
-import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, SquareMenu, Unlink } from 'lucide-vue-next'
-import { markRaw, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, Redo2, SquareMenu, Undo2, Unlink } from 'lucide-vue-next'
+import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
 import { db } from '../notebook'
+import { shortcut } from '../platform'
 import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
@@ -24,8 +25,10 @@ import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
 import { fullScreen } from './full-screen'
+import { editRequest, gestures } from './interaction'
 import { linkOf, unlinked, withLiveTitles } from './links'
 import { tidy, type Direction } from './layout'
+import { record, redo, startHistory, undo } from './undo'
 
 // The Record page is keyed by Record, so this mounts once per opened Diagram.
 const props = defineProps<{ id: number; record: Rec }>()
@@ -59,6 +62,10 @@ const {
   onPaneReady,
   onConnect,
   onNodeContextMenu,
+  onNodeDragStart,
+  onNodeDragStop,
+  onSelectionDragStart,
+  onSelectionDragStop,
   onEdgeDoubleClick,
 } = useVueFlow(flowId)
 
@@ -89,6 +96,8 @@ onPaneReady(() => {
   setEdges(saved.edges)
   setViewport(saved.viewport)
   last = snapshot()
+  history.value = startHistory(content())
+  gestures.value = 0
   ready.value = true
 })
 
@@ -99,14 +108,54 @@ onBeforeUnmount(() => {
   fullScreen.value = false
 })
 
+// --- Undo and redo: snapshots of the Nodes and Edges, kept while this Diagram is open. Panning and zooming are not steps.
+
+const content = () => serialiseCanvas({ ...toObject(), viewport: {} })
+const history = shallowRef(startHistory(''))
+// The canvas as an undo or redo just set it is not a change of its own.
+let travelling = false
+
+function commit() {
+  if (ready.value && !gestures.value) history.value = record(history.value, content())
+}
+watch(
+  () => ready.value && content(),
+  (now) => {
+    if (travelling && now) history.value = { ...history.value, present: now }
+    else commit()
+    travelling = false
+  },
+)
+// A drag, a resize or typing a text is one step, taken when it ends.
+watch(gestures, commit)
+for (const on of [onNodeDragStart, onSelectionDragStart]) on(() => void gestures.value++)
+for (const on of [onNodeDragStop, onSelectionDragStop]) on(() => void gestures.value--)
+
+const flowEl = () => root.value?.querySelector<HTMLElement>('.vue-flow')
+// Whatever had the focus may be gone or disabled now; the keys must still reach the Diagram, not the page behind it.
+const keepFocus = () => nextTick(() => root.value?.contains(document.activeElement) || flowEl()?.focus({ preventScroll: true }))
+
+function travel(step: typeof undo) {
+  const to = step(history.value)
+  if (to === history.value) return
+  history.value = to
+  travelling = true
+  const { nodes, edges } = parseCanvas(to.present)
+  setNodes(nodes)
+  setEdges(edges)
+  keepFocus()
+}
+
 // --- Editing
 
 function addNode() {
   const { x, y, zoom } = viewport.value
   // Near the middle of what is visible, stepped so Nodes added in a row don't hide each other.
   const step = (nodes.value.length % 10) * 16
+  const id = nextId(nodes.value)
+  editText(id)
   addNodes({
-    id: nextId(nodes.value),
+    id,
     type: NODE_TYPE,
     position: {
       x: (dimensions.value.width / 2 - x) / zoom - 40 + step,
@@ -114,6 +163,12 @@ function addNode() {
     },
     data: { label: '' },
   })
+}
+
+// Opens a new Node's text for typing. Adding it and typing its text are one undo step: the Node ends the gesture.
+function editText(id: string) {
+  gestures.value++
+  editRequest.value = id
 }
 
 onConnect((connection) => addEdges(greyEdge({ ...connection, id: nextId(edges.value) })))
@@ -201,6 +256,7 @@ function onCanvasKey(e: KeyboardEvent) {
   else if (e.key === 'Delete' || e.key === 'Backspace') {
     removeNodes(picked)
     removeEdges(pickedEdges)
+    keepFocus()
   } else if ((e.key === 'Enter' || e.key === 'F2') && picked.length === 1 && !pickedEdges.length)
     // The same as a double-click: edits a Node's text, or opens the Record of a linked one.
     nodeEl(picked[0].id)?.querySelector('.diagram-node')?.dispatchEvent(new MouseEvent('dblclick'))
@@ -212,6 +268,16 @@ function onCanvasKey(e: KeyboardEvent) {
 function onCanvasPointerDown(e: PointerEvent) {
   const flow = e.currentTarget as HTMLElement
   if (!typing(e.target) && !flow.contains(document.activeElement)) flow.focus({ preventScroll: true })
+}
+
+// Ctrl or Cmd with a letter, anywhere in the Diagram area; a text box, the menu and the dialog keep theirs.
+function onAreaKey(e: KeyboardEvent) {
+  if (!(e.ctrlKey || e.metaKey) || e.altKey || typing(e.target) || menu.value || labelling.value) return
+  const key = e.key.toLowerCase()
+  const action = key === 'z' ? (e.shiftKey ? redo : undo) : key === 'y' && !e.shiftKey ? redo : null
+  if (!action) return
+  e.preventDefault()
+  travel(action)
 }
 
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
@@ -320,10 +386,17 @@ const tool =
     :data-ready="ready"
     class="diagram-canvas flex flex-col bg-background"
     @contextmenu.capture="onContextMenu"
+    @keydown="onAreaKey"
     :class="[fullScreen ? 'fixed inset-y-0 right-0 left-56 z-10' : 'h-[32rem] rounded-md border', { exporting }]"
   >
     <div class="flex flex-wrap items-center gap-1 border-b p-1">
-      <button type="button" :class="tool" @click="addNode"><Plus />Add Node</button>
+      <button type="button" :class="tool" aria-label="Undo" :title="`Undo (${shortcut('Z')})`" :disabled="!history.past.length" @click="travel(undo)">
+        <Undo2 />
+      </button>
+      <button type="button" :class="tool" aria-label="Redo" :title="`Redo (${shortcut('Shift Z')})`" :disabled="!history.future.length" @click="travel(redo)">
+        <Redo2 />
+      </button>
+      <button type="button" :class="tool" aria-label="Add Node" @click="addNode"><Plus />Add Node</button>
       <FillPicker class="px-2" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
       <!-- click.stop: the click that opens the menu must not close it the way one elsewhere does. -->
       <button

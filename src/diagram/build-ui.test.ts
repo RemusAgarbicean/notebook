@@ -1,0 +1,114 @@
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { useVueFlow } from '@vue-flow/core'
+import { afterEach, beforeEach, expect, test } from 'vitest'
+import App from '../App.vue'
+import { openRecord } from '../navigation'
+import { closeNotebook } from '../notebook'
+import { createRecord, getRecord, updateRecord } from '../records'
+import { memoryFolder } from '../storage-memory'
+import { parseCanvas } from './canvas'
+
+// Building a Diagram: undo, the quick ways to add Nodes, shapes, Edge options, Frames and arranging.
+
+let app: VueWrapper
+let id: number
+
+beforeEach(async () => {
+  closeNotebook()
+  const folder = memoryFolder()
+  app = mount(App, {
+    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    attachTo: document.body,
+  })
+  await flushPromises()
+  await app.findAll('button').find((b) => b.text() === 'Create new Notebook')!.trigger('click')
+  await expect.poll(() => app.find('[data-testid="sidebar"]').exists()).toBe(true)
+  id = createRecord('diagram', 'S2P overview')
+})
+afterEach(() => app.unmount())
+
+const node = (n: string, x: number, data: object = { label: n }) => ({ id: n, type: 'node', position: { x, y: 0 }, data })
+const saved = () => parseCanvas(getRecord('diagram', id)!.canvas as string | null)
+const flow = () => useVueFlow(`diagram-${id}`)
+const canvas = () => app.get('.vue-flow')
+const button = (name: string) => app.get(`button[aria-label="${name}"]`)
+const labels = () => flow().nodes.value.map((n) => n.data.label)
+const press = async (key: string, init: KeyboardEventInit = {}, on = canvas()) => {
+  await on.trigger('keydown', { key, ...init })
+  await flushPromises()
+}
+const ctrl = (key: string, init: KeyboardEventInit = {}) => press(key, { ctrlKey: true, ...init })
+/** Opens the Diagram with Nodes 1 and 2 and an Edge between them. */
+async function open(nodes: object[] = [node('1', 0), node('2', 200)]) {
+  updateRecord('diagram', id, {
+    canvas: JSON.stringify({ nodes, edges: [{ id: '1', source: '1', target: '2', label: 'invoices' }] }),
+  })
+  openRecord('diagram', id)
+  await expect.poll(() => app.find('[data-testid="diagram-canvas"]').attributes('data-ready')).toBe('true')
+  await expect.poll(() => app.findAll('.vue-flow__node')).toHaveLength(nodes.length)
+}
+async function select(...ids: string[]) {
+  flow().removeSelectedNodes(flow().getSelectedNodes.value)
+  flow().addSelectedNodes(ids.map((n) => flow().findNode(n)!))
+  await flushPromises()
+}
+
+test('Ctrl+Z takes back the last change and Ctrl+Shift+Z or Ctrl+Y brings it again', async () => {
+  await open()
+  expect(button('Undo').attributes('disabled')).toBeDefined()
+  await select('2')
+  await press('Delete')
+  expect(labels()).toEqual(['1'])
+  expect(flow().edges.value).toHaveLength(0)
+
+  await ctrl('z')
+  expect(labels()).toEqual(['1', '2'])
+  expect(flow().edges.value.map((e) => e.label)).toEqual(['invoices'])
+  expect(button('Undo').attributes('disabled')).toBeDefined()
+
+  await ctrl('z', { shiftKey: true })
+  expect(labels()).toEqual(['1'])
+  await ctrl('z')
+  await ctrl('y')
+  expect(labels()).toEqual(['1'])
+  expect(button('Redo').attributes('disabled')).toBeDefined()
+  await expect.poll(() => saved().nodes).toHaveLength(1)
+})
+
+test('the Undo and Redo buttons do the same, and a fill is one step', async () => {
+  await open()
+  await select('1')
+  await app.get('[aria-label="Fill green"]').trigger('click')
+  await flushPromises()
+  expect(flow().findNode('1')!.data.fill).toBe('green')
+
+  await button('Undo').trigger('click')
+  await flushPromises()
+  expect(flow().findNode('1')!.data.fill).toBeUndefined()
+  await button('Redo').trigger('click')
+  await flushPromises()
+  expect(flow().findNode('1')!.data.fill).toBe('green')
+})
+
+test('Ctrl+Z while typing a Node\'s text is left to the text box', async () => {
+  await open()
+  await select('2')
+  await press('Delete')
+  await app.get('[data-testid="diagram-node"]').trigger('dblclick')
+  await press('z', { ctrlKey: true }, app.get('[aria-label="Node text"]'))
+  expect(labels()).toEqual(['1'])
+})
+
+test('a new Node and the text typed into it are one step', async () => {
+  await open()
+  await button('Add Node').trigger('click')
+  await expect.poll(() => app.find('[aria-label="Node text"]').exists()).toBe(true)
+  const input = app.get<HTMLTextAreaElement>('[aria-label="Node text"]')
+  input.element.value = 'Ariba'
+  await input.trigger('blur')
+  await flushPromises()
+  expect(labels()).toEqual(['1', '2', 'Ariba'])
+
+  await ctrl('z')
+  expect(labels()).toEqual(['1', '2'])
+})
