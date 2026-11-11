@@ -5,7 +5,7 @@ import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { Position, useVueFlow, VueFlow, type NodeComponent } from '@vue-flow/core'
+import { Position, useVueFlow, VueFlow, type EdgeComponent, type NodeComponent } from '@vue-flow/core'
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
@@ -17,7 +17,8 @@ import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
 import { createRecord, getRecord, updateRecord, type Rec, type Titled } from '../records'
-import { greyEdge, NODE_TYPE, nextId, parseCanvas, serialiseCanvas } from './canvas'
+import { greyEdge, MAX_ZOOM, MIN_ZOOM, NODE_TYPE, nextId, parseCanvas, serialiseCanvas, viewportFor } from './canvas'
+import DiagramEdge from './DiagramEdge.vue'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
@@ -30,6 +31,8 @@ const props = defineProps<{ id: number; record: Rec }>()
 
 // The cast: the Node component declares only the props it uses.
 const nodeTypes = { [NODE_TYPE]: markRaw(DiagramNode) as unknown as NodeComponent }
+// Every Edge is drawn by ours; `default` is the type of an Edge that names none, so nothing is stored.
+const edgeTypes = { default: markRaw(DiagramEdge) as unknown as EdgeComponent }
 const flowId = `diagram-${props.id}`
 const {
   nodes,
@@ -183,6 +186,8 @@ function runTidy(direction: Direction) {
 
 const root = useTemplateRef('root')
 const exporting = ref(false)
+// Pixels of the canvas left free around the outermost Nodes and Edges.
+const EXPORT_MARGIN = 32
 
 const labelParts = () => root.value!.querySelectorAll<SVGElement>('.vue-flow__edge-textbg, .vue-flow__edge-text')
 
@@ -193,12 +198,28 @@ async function exportPng() {
   const realFetch = window.fetch
   window.fetch = () => Promise.reject(new Error('The Notebook does not fetch anything.'))
   try {
-    // html-to-image only captures what is in view.
-    await fitView({ padding: 0.1 })
+    // html-to-image only captures what is in view. Not fitView: it fits the Nodes and lets an Edge that bows out past them be cut off.
+    const flow = root.value!.querySelector<HTMLElement>('.vue-flow')!
+    const frame = flow.getBoundingClientRect()
+    const { x, y, zoom } = viewport.value
+    const rects = [...flow.querySelectorAll('.vue-flow__node, .vue-flow__edge-path, .vue-flow__edge-textwrapper')]
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width || r.height)
+    if (rects.length) {
+      const [left, top, right, bottom] = [
+        Math.min(...rects.map((r) => r.left)),
+        Math.min(...rects.map((r) => r.top)),
+        Math.max(...rects.map((r) => r.right)),
+        Math.max(...rects.map((r) => r.bottom)),
+      ]
+      // From screen to canvas coordinates.
+      const bounds = { x: (left - frame.left - x) / zoom, y: (top - frame.top - y) / zoom, width: (right - left) / zoom, height: (bottom - top) / zoom }
+      await setViewport(viewportFor(bounds, frame, EXPORT_MARGIN))
+    }
     await new Promise(requestAnimationFrame)
     // html-to-image loses what CSS gives SVG, so the label parts get it inline for the capture.
     for (const el of labelParts()) Object.assign(el.style, { fill: getComputedStyle(el).fill, fontSize: getComputedStyle(el).fontSize })
-    const url = await toPng(root.value!.querySelector<HTMLElement>('.vue-flow')!, {
+    const url = await toPng(flow, {
       backgroundColor: '#ffffff',
       pixelRatio: 2,
       skipFonts: true,
@@ -243,7 +264,15 @@ const tool =
       </button>
     </div>
 
-    <VueFlow :id="flowId" :node-types="nodeTypes" :delete-key-code="['Backspace', 'Delete']" class="flex-1">
+    <VueFlow
+      :id="flowId"
+      :node-types="nodeTypes"
+      :edge-types="edgeTypes"
+      :min-zoom="MIN_ZOOM"
+      :max-zoom="MAX_ZOOM"
+      :delete-key-code="['Backspace', 'Delete']"
+      class="flex-1"
+    >
       <Background />
       <Controls />
       <MiniMap pannable zoomable :width="120" :height="80" />
