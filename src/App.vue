@@ -26,6 +26,7 @@ import SaveGuards from './SaveGuards.vue'
 import Shortcuts from './Shortcuts.vue'
 import { tabLock } from './tab-lock'
 import ThemeSwitch from './ThemeSwitch.vue'
+import UndoDelete from './UndoDelete.vue'
 
 // A prop so tests can swap the storage. Brave ships without the folder picker.
 const { storage = window.showDirectoryPicker ? fsaStorage : downloadStorage } = defineProps<{
@@ -53,6 +54,7 @@ const item =
   <div v-else class="flex h-screen">
     <SaveGuards />
     <CommandPalette />
+    <UndoDelete />
     <aside
       data-testid="sidebar"
       class="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"

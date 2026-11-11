@@ -115,7 +115,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       @cancel="deleting = false"
     >
       <p class="text-muted-foreground">
-        Its Relations and Tags go with it.
+        Its Relations and Tags go with it. Undo is offered right after; later only a Backup brings it back.
         <template v-if="usedIn">
           It is used in {{ usedIn }} {{ usedIn > 1 ? 'Diagrams' : 'Diagram' }}; its Nodes there become free text.
         </template>

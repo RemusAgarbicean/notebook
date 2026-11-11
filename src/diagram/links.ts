@@ -45,6 +45,34 @@ export function unlinkNodes(target: RecordRef) {
   }
 }
 
+/** Node ids within one Diagram. */
+export type NodesInDiagram = { diagram: number; nodes: string[] }
+
+/** The Nodes linked to a Record, per Diagram: what `unlinkNodes` would turn into free text. */
+export const linkedNodes = (target: RecordRef): NodesInDiagram[] =>
+  diagramsLinking(target).map((d) => ({
+    diagram: d.id,
+    nodes: parseCanvas(d.canvas)
+      .nodes.filter((n) => linksTo(n.data, target))
+      .map((n) => n.id),
+  }))
+
+/**
+ * Undoes `unlinkNodes` for a Record that is back: links the given Nodes to it
+ * again, where they still are free text holding `title`. Call it inside the caller's transaction.
+ */
+export function relinkNodes(target: RecordRef, title: string, where: readonly NodesInDiagram[]) {
+  for (const { diagram, nodes } of where) {
+    const canvas = getRecord('diagram', diagram)?.canvas
+    if (typeof canvas !== 'string') continue
+    const saved = JSON.parse(canvas)
+    for (const node of saved.nodes as { id: string; data: NodeData }[])
+      if (nodes.includes(node.id) && !linkOf(node.data) && node.data.label === title)
+        node.data = { ...node.data, recordType: target.type, recordId: target.id }
+    db.value!.run('update diagram set canvas = ? where id = ?', [JSON.stringify(saved), diagram])
+  }
+}
+
 /** Nodes with each linked Node's title snapshot (`label`) set to its Record's title now. */
 export const withLiveTitles = <N extends { data?: NodeData }>(nodes: N[]): N[] =>
   nodes.map((n) => {

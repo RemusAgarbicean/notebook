@@ -4,6 +4,7 @@ import { keepMentions, renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
 import { RECORD_TYPES, type RecordType } from './record-types'
+import { captureDeleted, rememberDeleted } from './undo-delete'
 
 export type Value = string | number | null
 export type Rec = {
@@ -156,8 +157,10 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
   const rule = CLOSED[type]
   if (rule && values[rule.field] === rule.value) values[rule.stamp] = now()
 
-  const columns = Object.keys(values)
   return transaction(() => {
+    const top = retired?.db === db.value && retired.top[type]
+    if (top) values.id = Math.max(top, rows<{ id: number }>(`select max(id) as id from ${table(type)}`)[0].id ?? 0) + 1
+    const columns = Object.keys(values)
     // Mentions of a Record that already has this title keep pointing at it.
     keepMentions(String(values.title))
     db.value!.run(
@@ -226,10 +229,20 @@ export function updateRecord(type: RecordType, id: number, patch: Patch) {
 
 const DROP_UNUSED_TAGS = 'delete from tag where id not in (select tag_id from record_tag)'
 
-/** Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001), and unlinks its Nodes. */
+// SQLite hands the highest id out again once its row is gone. Undo delete puts a Record back under its id,
+// so while the Notebook stays open a new Record's id starts above every deleted one of its type.
+let retired: { db: unknown; top: Partial<Record<RecordType, number>> } | undefined
+
+/**
+ * Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001), and unlinks its Nodes.
+ * `undoDelete` can take the last few deletes back.
+ */
 export function deleteRecord(type: RecordType, id: number) {
   const d = db.value!
-  transaction(() => {
+  if (retired?.db !== d) retired = { db: d, top: {} }
+  retired.top[type] = Math.max(retired.top[type] ?? 0, id)
+  const deleted = transaction(() => {
+    const deleted = captureDeleted({ type, id })
     unlinkNodes({ type, id })
     d.run(
       'delete from relation where (from_type = ? and from_id = ?) or (to_type = ? and to_id = ?)',
@@ -238,7 +251,9 @@ export function deleteRecord(type: RecordType, id: number) {
     d.run('delete from record_tag where type = ? and id = ?', [type, id])
     d.run(DROP_UNUSED_TAGS)
     d.run(`delete from ${table(type)} where id = ?`, [id])
+    return deleted
   })
+  rememberDeleted(deleted)
   changed()
 }
 
