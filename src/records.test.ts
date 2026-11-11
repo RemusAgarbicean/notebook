@@ -16,6 +16,7 @@ import {
   transaction,
   removeTag,
   revision,
+  todaysLog,
   updateRecord,
 } from './records'
 import { saveStatus } from './save-status'
@@ -271,4 +272,16 @@ test('listTags gives each Tag the number of Records that have it', () => {
     { name: 'finance', count: 1 },
     { name: 'S2P', count: 2 },
   ])
+})
+
+test("todaysLog starts today's Journal entry of kind log once, and finds it again after a rename", () => {
+  createRecord('journal_entry', 'Standup', { kind: 'meeting' })
+  createRecord('journal_entry', '', { kind: 'log', date: '2020-01-01' })
+
+  const id = todaysLog()
+
+  expect(getRecord('journal_entry', id)).toMatchObject({ title: `${today} log`, date: today, kind: 'log' })
+  updateRecord('journal_entry', id, { title: 'What I learned' })
+  expect(todaysLog()).toBe(id)
+  expect(listRecords('journal_entry')).toHaveLength(3)
 })

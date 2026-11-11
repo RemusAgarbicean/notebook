@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { Search } from 'lucide-vue-next'
+import { NotebookPen, Search } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
-import { rows } from './records'
+import { rows, todaysLog } from './records'
 import { LABEL } from './relation-slots'
 
 // The landing page: a search box that opens the palette, then five cards.
@@ -97,6 +97,17 @@ const cards = computed<{ key: string; title: string; type?: RecordType; empty: s
           <h2 :id="`home-card-${c.key}`" class="flex items-center gap-2 px-2 pb-2 font-semibold">
             <component :is="recordType(c.type).icon" v-if="c.type" class="size-4 text-muted-foreground" />
             {{ c.title }}
+            <button
+              v-if="c.key === 'journal_entry'"
+              type="button"
+              data-testid="todays-log"
+              title="Open today's Journal entry of kind log, or start it"
+              class="ml-auto flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-accent"
+              @click="openRecord('journal_entry', todaysLog())"
+            >
+              <NotebookPen class="size-3.5" />
+              Today's log
+            </button>
           </h2>
           <ul v-if="c.rows.length" class="max-h-72 overflow-y-auto">
             <li v-for="r in c.rows" :key="`${r.type}:${r.id}`">

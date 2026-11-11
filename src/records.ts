@@ -170,6 +170,11 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
   })
 }
 
+/** The id of today's Journal entry of kind log (the earliest, if there are several), started now if there is none. */
+export const todaysLog = (): number =>
+  rows<{ id: number }>("select id from journal_entry where date = ? and kind = 'log' order by id limit 1", [today()])[0]
+    ?.id ?? createRecord('journal_entry', '', { kind: 'log' })
+
 export const getRecord = (type: RecordType, id: number): Rec | null =>
   rows<Rec>(`select * from ${table(type)} where id = ?`, [id])[0] ?? null
 
