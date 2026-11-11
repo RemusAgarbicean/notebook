@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { House, NotebookText, Search } from 'lucide-vue-next'
-import { computed, onMounted, ref } from 'vue'
+import { computed, ref } from 'vue'
+import { db } from './notebook'
 import { RECORD_TYPES, type RecordType } from './record-types'
-import { loadSqlite } from './sqlite'
+import { SAVE_STATUS_LABELS, saveStatus } from './save-status'
+import StartScreen from './StartScreen.vue'
+import type { NotebookStorage } from './storage'
+import { fsaStorage } from './storage-fsa'
+
+// A prop so tests, and later the file-input fallback, can swap the storage.
+const { storage = fsaStorage } = defineProps<{ storage?: NotebookStorage }>()
 
 const selected = ref<'home' | RecordType>('home')
 const selectedLabel = computed(
@@ -11,16 +18,11 @@ const selectedLabel = computed(
 
 const item =
   'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium [&>svg]:size-4 [&>svg]:shrink-0'
-
-const saveStatus = ref('No Notebook open')
-// Proves the bundled SQLite starts from file://; opening a Notebook replaces this.
-onMounted(() =>
-  loadSqlite().catch(() => (saveStatus.value = 'SQLite failed to load')),
-)
 </script>
 
 <template>
-  <div class="flex h-screen">
+  <StartScreen v-if="!db" :storage="storage" />
+  <div v-else class="flex h-screen">
     <aside
       data-testid="sidebar"
       class="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
@@ -74,7 +76,7 @@ onMounted(() =>
         role="status"
         class="border-t border-sidebar-border px-4 py-2 text-xs text-muted-foreground"
       >
-        {{ saveStatus }}
+        {{ SAVE_STATUS_LABELS[saveStatus] }}
       </footer>
     </aside>
 
