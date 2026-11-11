@@ -2,6 +2,7 @@
 import { CircleAlert, ExternalLink, Trash2, X } from 'lucide-vue-next'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import CopyMarkdown from './CopyMarkdown.vue'
 import DiagramCanvas from './diagram/DiagramCanvas.vue'
 import DuplicateButton from './DuplicateButton.vue'
 import { inDiagrams } from './diagram/links'
@@ -19,8 +20,10 @@ import {
   recordTags,
   removeTag,
   updateRecord,
+  type Patch,
   type Value,
 } from './records'
+import { getTemplate, templateKey, untouched } from './templates'
 
 // The parent keys this component by Record, so local state starts fresh for each one.
 const props = defineProps<{ type: RecordType; id: number }>()
@@ -36,7 +39,10 @@ const error = ref('')
 
 function save(name: string, value: Value | boolean, input?: HTMLInputElement) {
   try {
-    updateRecord(props.type, props.id, { [name]: value })
+    const patch: Patch = { [name]: value }
+    // A Journal entry whose notes are still untouched takes the template of its new kind.
+    if (name === 'kind' && untouched(record.value?.notes ?? '')) patch.notes = getTemplate(templateKey(props.type, value))
+    updateRecord(props.type, props.id, patch)
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -98,6 +104,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       <component :is="info.icon" class="size-4" />
       <span class="flex-1">{{ info.singular }}</span>
       <PinToggle :type="type" :id="id" />
+      <CopyMarkdown :type="type" :id="id" />
       <DuplicateButton :type="type" :id="id" />
       <button
         type="button"

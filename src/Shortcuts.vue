@@ -17,6 +17,8 @@ const ROWS: { keys: string[]; does: string }[] = [
   { keys: ['J', 'K'], does: 'Next and previous Record in the list; Enter opens it' },
   { keys: ['↓', '↑'], does: 'The same, from inside the list' },
   { keys: ['E'], does: 'Edit the notes of the open Record' },
+  { keys: [shortcut('B'), shortcut('I'), shortcut('E')], does: 'Bold, italic and code while editing notes' },
+  { keys: ['Tab', 'Shift Tab'], does: 'Indent and outdent a list item while editing notes; Esc ends editing' },
   { keys: ['?'], does: 'Show these shortcuts' },
 ]
 

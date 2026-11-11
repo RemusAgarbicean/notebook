@@ -10,6 +10,7 @@ import { pinnedRecords } from './pins'
 import QuizDialog from './QuizDialog.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { recordsName, recordType, type RecordType } from './record-types'
+import { getTemplate, templateKey } from './templates'
 import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag, rows as query } from './records'
 
 const type = computed(() => (typeof list.value === 'string' && list.value !== 'home' ? list.value : null))
@@ -80,8 +81,10 @@ const open = (r: { type: RecordType; id: number }) => (current.value = { type: r
 
 function add() {
   const t = type.value!
+  // Only here does a new Record start with its type's note template.
+  const notes = getTemplate(templateKey(t))
   // A Journal entry names itself after its date.
-  openRecord(t, createRecord(t, t === 'journal_entry' ? '' : `New ${RECORD_FIELDS[t].singular}`))
+  openRecord(t, createRecord(t, t === 'journal_entry' ? '' : `New ${RECORD_FIELDS[t].singular}`, { notes }))
 }
 </script>
 
