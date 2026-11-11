@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { caretSpot, placePopup } from './caret'
+import { applyEdit, continueList, indentLines, pasteLink, pasteTable, toggleWrap, type Edit } from './editing'
 import { renderMarkdown } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
+import { isMac } from './platform'
 import type { Titled } from './records'
 import { RECORD_FIELDS } from './record-fields'
 
@@ -31,10 +33,40 @@ function place(el: HTMLTextAreaElement) {
   spot.value = { left: `${at.left - box.left}px`, top: `${at.top - box.top}px` }
 }
 
-// Edit puts the caret in the text.
+// Edit puts the caret in the text; Done leaves the focus on the button, so the keyboard can go on from there.
+const toggler = useTemplateRef('toggler')
 function toggle() {
   editing.value = !editing.value
-  if (editing.value) nextTick(() => area.value?.focus())
+  nextTick(() => (editing.value ? area.value : toggler.value)?.focus())
+}
+
+/** Runs a transform from `editing.ts` on the textarea; false when it had nothing to do. */
+function edit(change: (e: Edit) => Edit | null) {
+  const el = area.value!
+  const next = change({ text: el.value, start: el.selectionStart, end: el.selectionEnd })
+  if (next) applyEdit(el, next)
+  return !!next
+}
+
+const WRAP: Record<string, string> = { b: '**', i: '*', e: '`' }
+// ⌘ on a Mac, where Ctrl+B and Ctrl+E already move the caret; Ctrl everywhere else.
+const withMod = (e: KeyboardEvent) => (isMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && !e.altKey
+
+/** The editing keys. False leaves the key to the browser: Tab outside a list still moves the focus. */
+function editorKey(e: KeyboardEvent): boolean {
+  if (e.isComposing) return false
+  const key = e.key.toLowerCase()
+  if (withMod(e)) return !e.shiftKey && key in WRAP && edit((s) => toggleWrap(s, WRAP[key]))
+  if (e.ctrlKey || e.metaKey || e.altKey) return false
+  if (e.key === 'Enter') return !e.shiftKey && edit(continueList)
+  if (e.key === 'Tab') return edit((s) => indentLines(s, e.shiftKey))
+  if (e.key === 'Escape') toggle()
+  return e.key === 'Escape'
+}
+
+function onPaste(e: ClipboardEvent) {
+  const pasted = e.clipboardData?.getData('text/plain') ?? ''
+  if (pasted && edit((s) => pasteLink(s, pasted) ?? pasteTable(s, pasted))) e.preventDefault()
 }
 
 function onInput() {
@@ -50,18 +82,18 @@ function onInput() {
 function pick(record: Titled) {
   const el = area.value!
   const before = el.value.slice(0, from) + mentionFor(record)
-  emit('update:modelValue', before + el.value.slice(el.selectionStart))
+  // The caret goes behind the Mention.
+  applyEdit(el, { text: before + el.value.slice(el.selectionStart), start: before.length, end: before.length })
   options.value = []
-  // Once the new text is in the textarea, put the caret behind the Mention.
-  nextTick(() => {
-    el.focus()
-    el.setSelectionRange(before.length, before.length)
-  })
 }
 
 function onKeydown(e: KeyboardEvent) {
   const n = options.value.length
-  if (!n) return
+  // While the Mention list is open its keys come first.
+  if (!n) {
+    if (editorKey(e)) e.preventDefault()
+    return
+  }
   if (e.key === 'ArrowDown') active.value = (active.value + 1) % n
   else if (e.key === 'ArrowUp') active.value = (active.value + n - 1) % n
   else if (e.key === 'Enter' || e.key === 'Tab') pick(options.value[active.value])
@@ -76,6 +108,7 @@ function onKeydown(e: KeyboardEvent) {
     <div class="flex h-8 items-center justify-between">
       <h2 class="text-xs font-medium text-muted-foreground">{{ label }}</h2>
       <button
+        ref="toggler"
         type="button"
         :aria-label="`${editing ? 'Done editing' : 'Edit'} ${label}`"
         class="h-6 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -94,6 +127,7 @@ function onKeydown(e: KeyboardEvent) {
         class="block max-h-[70vh] min-h-40 w-full rounded-md border bg-background p-2 font-mono [field-sizing:content]"
         @input="onInput"
         @keydown="onKeydown"
+        @paste="onPaste"
         @blur="options = []"
       />
       <ul
