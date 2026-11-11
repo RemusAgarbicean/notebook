@@ -78,7 +78,7 @@ const lastHandle = async (): Promise<FileSystemDirectoryHandle | undefined> => {
 export const fsaStorage: NotebookStorage = {
   async pick() {
     if (!window.showDirectoryPicker)
-      throw new Error('This browser cannot open folders. Use Chrome or Edge.')
+      throw new Error("This browser can't open folders. Use Chrome or Edge.")
     let dir
     try {
       dir = await window.showDirectoryPicker({ id: 'notebook', mode: 'readwrite' })

@@ -30,4 +30,7 @@ export const RECORD_TYPES = [
 
 export type RecordType = (typeof RECORD_TYPES)[number]['type']
 
+/** A type's Records as a plural: the sidebar label, except that the Journal's are Journal entries. */
+export const recordsName = (type: RecordType) => (type === 'journal_entry' ? 'Journal entries' : recordType(type).label)
+
 export const recordType = (type: RecordType) => RECORD_TYPES.find((t) => t.type === type)!

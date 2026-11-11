@@ -3,7 +3,7 @@ import { Upload, X } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
 import { vDialog, vFocus } from './dialog'
 import { importTargets, matchColumns, parseTable, planImport, runImport, type DuplicateMode } from './bulk-import'
-import { recordType, type RecordType } from './record-types'
+import { recordsName, type RecordType } from './record-types'
 import { listRecords } from './records'
 import { manualSave } from './save-status'
 
@@ -86,8 +86,8 @@ async function save() {
   <button
     type="button"
     data-testid="import-open"
-    :aria-label="`Import ${recordType(type).label}`"
-    :title="`Import ${recordType(type).label} from a pasted table or a .csv file`"
+    :aria-label="`Import ${recordsName(type)}`"
+    :title="`Import ${recordsName(type)} from a pasted table or a .csv file`"
     class="flex size-7 shrink-0 items-center justify-center rounded-md border hover:bg-accent hover:text-accent-foreground"
     @click="start"
   >
@@ -109,7 +109,7 @@ async function save() {
       class="flex max-h-full w-full max-w-3xl flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
     >
       <header class="flex items-center">
-        <h2 id="import-title" class="flex-1 font-semibold">Import {{ recordType(type).label }}</h2>
+        <h2 id="import-title" class="flex-1 font-semibold">Import {{ recordsName(type) }}</h2>
         <button type="button" aria-label="Close" class="rounded-md p-1 hover:bg-accent" @click="open = false">
           <X class="size-4" />
         </button>
@@ -154,7 +154,7 @@ async function save() {
 
         <fieldset class="flex flex-wrap gap-4">
           <legend class="mb-1 text-xs text-muted-foreground">
-            Rows whose title is already in {{ recordType(type).label }}
+            Rows whose title is already in {{ recordsName(type) }}
           </legend>
           <label class="flex items-center gap-1">
             <input v-model="mode" type="radio" value="skip" data-testid="import-skip" />

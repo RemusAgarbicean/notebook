@@ -80,13 +80,13 @@ test('ticking a Task sets its done_at and moves it below the open ones', async (
 test('the checklist shows due dates, only on a Project page, and leaves other Relations alone', async () => {
   const rollout = make('project', 'Coupa rollout')
   const other = make('project', 'Other project')
-  const dated = make('task', 'Sign contract', { due: '2026-12-01' })
+  const dated = make('task', 'Sign contract', { due: '2099-12-01' })
   addRelation(dated, LABEL.partOf, rollout)
   addRelation(make('task', 'Elsewhere'), LABEL.partOf, other)
   addRelation(make('system', 'Coupa'), LABEL.partOf, rollout)
 
   await open(rollout)
-  expect(tasks()).toEqual(['Sign contract2026-12-01'])
+  expect(tasks()).toEqual(['Sign contract2099-12-01'])
   expect(all('relation').map((r) => r.text())).toEqual(['Coupa'])
 
   await all('project-task')[0].get('button').trigger('click')

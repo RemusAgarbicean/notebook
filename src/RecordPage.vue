@@ -4,10 +4,12 @@ import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import CopyMarkdown from './CopyMarkdown.vue'
 import DiagramCanvas from './diagram/DiagramCanvas.vue'
+import DuplicateButton from './DuplicateButton.vue'
 import { inDiagrams } from './diagram/links'
 import MarkdownField from './MarkdownField.vue'
 import { current } from './navigation'
 import { PAGE_SECTIONS } from './page-sections'
+import PinToggle from './PinToggle.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
 import {
@@ -101,7 +103,9 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
     <header class="flex items-center gap-2 text-muted-foreground">
       <component :is="info.icon" class="size-4" />
       <span class="flex-1">{{ info.singular }}</span>
+      <PinToggle :type="type" :id="id" />
       <CopyMarkdown :type="type" :id="id" />
+      <DuplicateButton :type="type" :id="id" />
       <button
         type="button"
         data-testid="delete-record"
@@ -122,7 +126,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       @cancel="deleting = false"
     >
       <p class="text-muted-foreground">
-        Its Relations and Tags go with it.
+        Its Relations and Tags go with it. Undo is offered right after; later only a Backup brings it back.
         <template v-if="usedIn">
           It is used in {{ usedIn }} {{ usedIn > 1 ? 'Diagrams' : 'Diagram' }}; its Nodes there become free text.
         </template>
