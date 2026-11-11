@@ -7,6 +7,7 @@ import { inDiagrams } from './diagram/links'
 import MarkdownField from './MarkdownField.vue'
 import { current } from './navigation'
 import { PAGE_SECTIONS } from './page-sections'
+import PinToggle from './PinToggle.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
 import {
@@ -95,6 +96,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
     <header class="flex items-center gap-2 text-muted-foreground">
       <component :is="info.icon" class="size-4" />
       <span class="flex-1">{{ info.singular }}</span>
+      <PinToggle :type="type" :id="id" />
       <button
         type="button"
         data-testid="delete-record"

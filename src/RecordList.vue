@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { CircleAlert, Plus, Search } from 'lucide-vue-next'
+import { CircleAlert, Pin, Plus, Search } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
+import { pinnedRecords } from './pins'
 import { RECORD_FIELDS } from './record-fields'
 import { recordsName, recordType, type RecordType } from './record-types'
 import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag } from './records'
@@ -19,6 +20,13 @@ const heading = computed(() => {
 
 // Each row: the title with one key field underneath (the type's name in a Tag list).
 const items = computed(() => {
+  const pins = new Set(pinnedRecords().map((r) => `${r.type}:${r.id}`))
+  // Pinned Records come first, otherwise in the list's own order.
+  return unpinned.value
+    .map((r) => ({ ...r, pinned: pins.has(`${r.type}:${r.id}`) }))
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+})
+const unpinned = computed(() => {
   const t = type.value
   if (t) {
     const { key } = RECORD_FIELDS[t]
@@ -121,6 +129,9 @@ function add() {
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium" :class="{ 'line-through': r.closed }">{{ r.title }}</span>
             <span v-if="r.sub" class="block truncate text-xs text-muted-foreground">{{ r.sub }}</span>
+          </span>
+          <span v-if="r.pinned" data-testid="pinned" role="img" aria-label="Pinned" title="Pinned" class="mt-0.5 shrink-0 text-muted-foreground">
+            <Pin class="size-3.5 fill-current" />
           </span>
           <span
             v-if="missing.has(`${r.type}:${r.id}`)"

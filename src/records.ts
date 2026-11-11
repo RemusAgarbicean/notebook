@@ -3,6 +3,7 @@ import { unlinkNodes } from './diagram/links'
 import { keepMentions, renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
+import { setPinned } from './pins'
 import { RECORD_TYPES, type RecordType } from './record-types'
 import { captureDeleted, rememberDeleted } from './undo-delete'
 
@@ -250,6 +251,7 @@ export function deleteRecord(type: RecordType, id: number) {
     )
     d.run('delete from record_tag where type = ? and id = ?', [type, id])
     d.run(DROP_UNUSED_TAGS)
+    setPinned({ type, id }, false)
     d.run(`delete from ${table(type)} where id = ?`, [id])
     return deleted
   })

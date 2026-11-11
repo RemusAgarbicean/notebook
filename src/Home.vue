@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { CircleAlert, NotebookPen, Search } from 'lucide-vue-next'
+import { CircleAlert, NotebookPen, Pin, Search } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
+import { pinnedRecords } from './pins'
 import { shortcut } from './platform'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
@@ -18,8 +19,15 @@ const LATEST = 8
 
 type Card = { key: string; title: string; type?: RecordType; icon?: Component; empty: string; rows: Row[] }
 const cards = computed<Card[]>(() => [
-  // Only there while some Record has an empty required field.
+  // Only there while a Record is pinned, or has an empty required field.
   ...[
+    {
+      key: 'pinned',
+      title: 'Pinned',
+      icon: Pin,
+      empty: '',
+      rows: pinnedRecords().map((r) => ({ ...r, right: RECORD_FIELDS[r.type].singular })),
+    },
     {
       key: 'incomplete',
       title: 'Needs attention',
