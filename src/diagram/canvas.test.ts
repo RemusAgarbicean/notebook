@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest'
 import { Position } from '@vue-flow/core'
-import { edgeEnd, greyEdge, nextId, parseCanvas, serialiseCanvas, viewportFor } from './canvas'
+import { arrowHead, edgeData, edgeEnd, edgeOptions, greyEdge, INTO_SIDE, NEW_EDGE_DATA, nextId, parseCanvas, serialiseCanvas, viewportFor } from './canvas'
 
 const saved = {
   nodes: [
@@ -87,4 +87,25 @@ const SAVED_BEFORE =
 
 test('a canvas saved before shapes, sizes, Edge options and Frames existed is read and written back unchanged', () => {
   expect(serialiseCanvas(parseCanvas(SAVED_BEFORE))).toBe(SAVED_BEFORE)
+})
+
+test('an Edge without stored options has no arrowhead, a solid line and a curved path, as before they existed', () => {
+  const plain = { arrow: 'none', line: 'solid', path: 'curved' }
+  expect(edgeOptions(undefined)).toEqual(plain)
+  expect(edgeOptions({})).toEqual(plain)
+  expect(edgeOptions({ arrow: 'sideways', dash: 'yes', path: 7 })).toEqual(plain)
+  expect(edgeData(plain as never)).toEqual({})
+})
+
+test('Edge options are stored by name and read back', () => {
+  const options = { arrow: 'both', line: 'dashed', path: 'step' } as const
+  expect(edgeData(options)).toEqual({ arrow: 'both', dash: true, path: 'step' })
+  expect(edgeOptions(edgeData(options))).toEqual(options)
+  expect(edgeOptions(NEW_EDGE_DATA).arrow).toBe('end')
+})
+
+test('an arrowhead has its tip on the point and opens against the direction it points in', () => {
+  expect(arrowHead(100, 50, 0)).toBe('100,50 91,53.6 91,46.4')
+  expect(arrowHead(0, 0, INTO_SIDE[Position.Top])).toBe('0,0 -3.6,-9 3.6,-9')
+  expect(arrowHead(0, 0, INTO_SIDE[Position.Right])).toBe('0,0 9,-3.6 9,3.6')
 })

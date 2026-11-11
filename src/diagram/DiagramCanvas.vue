@@ -21,7 +21,21 @@ import { RECORD_TYPES, type RecordType } from '../record-types'
 import { createRecord, getRecord, updateRecord, type Rec, type Titled } from '../records'
 import { childPosition, type Box } from './arrange'
 import { clipOf, held, hold, pasted, type Clip } from './clipboard'
-import { greyEdge, MAX_ZOOM, MIN_ZOOM, NODE_TYPE, nextId, parseCanvas, serialiseCanvas, viewportFor, type NodeData } from './canvas'
+import {
+  edgeData,
+  edgeOptions,
+  greyEdge,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  NEW_EDGE_DATA,
+  NODE_TYPE,
+  nextId,
+  parseCanvas,
+  serialiseCanvas,
+  viewportFor,
+  type EdgeOptions,
+  type NodeData,
+} from './canvas'
 import DiagramEdge from './DiagramEdge.vue'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
@@ -77,6 +91,7 @@ const {
   onSelectionDragStart,
   onSelectionDragStop,
   onEdgeDoubleClick,
+  onEdgeContextMenu,
 } = useVueFlow(flowId)
 
 // --- Save and restore: the canvas JSON lives in `diagram.canvas` and rides the normal autosave.
@@ -207,7 +222,7 @@ function editText(id: string) {
   editRequest.value = id
 }
 
-const newEdge = (ends: { source: string; target: string }) => greyEdge({ ...ends, id: nextId(edges.value) })
+const newEdge = (ends: { source: string; target: string }) => greyEdge({ ...ends, id: nextId(edges.value), data: { ...NEW_EDGE_DATA } })
 // A connection let go over the empty canvas makes the Node it should end at.
 let connecting: { nodeId?: string; handleType?: string } | null = null
 onConnectStart((from) => (connecting = from))
@@ -292,16 +307,34 @@ function onNudge(e: KeyboardEvent) {
   nudgeSoonOver()
 }
 
-// Double-clicking an Edge, or Enter on a selected one, asks for its label in a dialog.
-const labelling = ref<{ id: string; text: string } | null>(null)
-const editLabel = (edge: { id: string; label?: unknown }) => (labelling.value = { id: edge.id, text: String(edge.label ?? '') })
+// The Edge dialog: its label and how it is drawn. A double-click or a right-click on an Edge opens it, and so do
+// Enter, F2 and the context-menu key on a selected one.
+const labelling = ref<({ id: string; text: string } & EdgeOptions) | null>(null)
+const editLabel = (edge: { id: string; label?: unknown; data?: unknown }) =>
+  (labelling.value = { id: edge.id, text: String(edge.label ?? ''), ...edgeOptions(edge.data) })
 onEdgeDoubleClick(({ edge }) => editLabel(edge))
-function saveLabel() {
-  const { id, text } = labelling.value!
+onEdgeContextMenu(({ event, edge }) => {
+  event.preventDefault()
+  editLabel(edge)
+})
+// The focus was on an Edge or the canvas; it goes back into the Diagram, so its keys go on working.
+function closeEdgeDialog() {
   labelling.value = null
-  const edge = findEdge(id)
-  if (edge) edge.label = text.trim() || undefined
+  keepFocus()
 }
+function saveLabel() {
+  const { id, text, ...options } = labelling.value!
+  closeEdgeDialog()
+  const edge = findEdge(id)
+  if (!edge) return
+  edge.label = text.trim() || undefined
+  edge.data = edgeData(options)
+}
+const EDGE_CHOICES = [
+  { key: 'arrow', name: 'Arrowhead', options: { none: 'None', end: 'At the end', both: 'Both ends' } },
+  { key: 'line', name: 'Line', options: { solid: 'Solid', dashed: 'Dashed' } },
+  { key: 'path', name: 'Path', options: { curved: 'Curved', straight: 'Straight', step: 'Stepped' } },
+] as const
 
 function setFill(ids: string[], fill: FillName | null) {
   // An undefined fill is left out of the saved JSON.
@@ -336,10 +369,12 @@ onNodeContextMenu(({ event, node }) => {
 let openedByKey = 0
 function openSelectionMenu() {
   const ids = selectedIds()
+  openedByKey = Date.now()
+  // An Edge's menu is its dialog.
+  if (!ids.length && getSelectedEdges.value.length === 1) return editLabel(getSelectedEdges.value[0])
   if (!ids.length) return
   const at = nodeEl(ids[0])?.getBoundingClientRect()
   openMenu(ids, at?.left ?? 0, (at?.bottom ?? 0) + 4)
-  openedByKey = Date.now()
 }
 // The browser's own menu would follow the context-menu key and cover ours.
 function onContextMenu(e: Event) {
@@ -627,10 +662,10 @@ const tool =
     <ConfirmDialog
       v-if="labelling"
       data-testid="edge-label-dialog"
-      title="Edge label"
+      title="Edge"
       confirm-label="Save"
       @confirm="saveLabel"
-      @cancel="labelling = null"
+      @cancel="closeEdgeDialog"
     >
       <input
         v-model="labelling.text"
@@ -639,6 +674,15 @@ const tool =
         placeholder="No label"
         class="h-8 w-full rounded-md border bg-background px-2"
       />
+      <fieldset v-for="choice in EDGE_CHOICES" :key="choice.key" class="flex items-center gap-2 text-xs">
+        <legend class="float-left w-20 text-muted-foreground">{{ choice.name }}</legend>
+        <span class="flex overflow-hidden rounded-md border">
+          <label v-for="(text, value) in choice.options" :key="value" class="cursor-pointer">
+            <input v-model="labelling[choice.key]" type="radio" class="peer sr-only" :name="`edge-${choice.key}`" :value="value" />
+            <span class="block px-2 py-1 peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:underline">{{ text }}</span>
+          </label>
+        </span>
+      </fieldset>
     </ConfirmDialog>
   </section>
 </template>

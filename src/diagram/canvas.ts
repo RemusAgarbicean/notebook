@@ -28,8 +28,60 @@ export type Canvas = { nodes: Node<NodeData>[]; edges: Edge[]; viewport: Viewpor
 /** The one custom node type; the name is stored in every saved Node. */
 export const NODE_TYPE = 'node'
 
+/** The one color of every Edge and arrowhead, in both themes and in the export. */
+export const EDGE_GREY = '#a1a1aa'
+
 // Inline, because html-to-image fills edge paths black without an inline `fill: none`.
-const EDGE_STYLE = { fill: 'none', stroke: '#a1a1aa', strokeWidth: 1.5 }
+const EDGE_STYLE = { fill: 'none', stroke: EDGE_GREY, strokeWidth: 1.5 }
+
+/** How an Edge is drawn. Every choice has a default that is not stored, so an Edge saved before these existed looks as it did. */
+export type EdgeOptions = { arrow: 'none' | 'end' | 'both'; line: 'solid' | 'dashed'; path: 'curved' | 'straight' | 'step' }
+/** What an Edge stores of its options: only what differs from no arrowhead, a solid line and a curved path. */
+export type EdgeData = { arrow?: 'end' | 'both'; dash?: true; path?: 'straight' | 'step' }
+
+/** The options of an Edge from its stored data; the default for anything absent or unknown. */
+export function edgeOptions(data: unknown): EdgeOptions {
+  const { arrow, dash, path } = (data ?? {}) as Record<string, unknown>
+  return {
+    arrow: arrow === 'end' || arrow === 'both' ? arrow : 'none',
+    line: dash === true ? 'dashed' : 'solid',
+    path: path === 'straight' || path === 'step' ? path : 'curved',
+  }
+}
+
+/** The data to store for these options. */
+export function edgeData({ arrow, line, path }: EdgeOptions): EdgeData {
+  return { ...(arrow !== 'none' && { arrow }), ...(line === 'dashed' && { dash: true as const }), ...(path !== 'curved' && { path }) }
+}
+
+/** The data of an Edge drawn now: it points at its target. */
+export const NEW_EDGE_DATA: EdgeData = { arrow: 'end' }
+
+/** The direction (in radians, 0 pointing right, clockwise on screen) in which an Edge runs into the side of a Node. */
+export const INTO_SIDE: Record<Position, number> = {
+  [Position.Left]: 0,
+  [Position.Top]: Math.PI / 2,
+  [Position.Right]: Math.PI,
+  [Position.Bottom]: -Math.PI / 2,
+}
+
+/** How long an arrowhead is; the line stops this far short of the tip so it does not blunt it. */
+export const ARROW_LENGTH = 9
+
+const round = (v: number) => Math.round(v * 10) / 10
+
+/** The corners of an arrowhead whose tip is at (x, y) and which points along `angle`, as SVG polygon points. */
+export function arrowHead(x: number, y: number, angle: number): string {
+  const [cos, sin] = [Math.cos(angle), Math.sin(angle)]
+  const [bx, by, half] = [x - ARROW_LENGTH * cos, y - ARROW_LENGTH * sin, ARROW_LENGTH * 0.4]
+  return [
+    [x, y],
+    [bx - half * sin, by + half * cos],
+    [bx + half * sin, by - half * cos],
+  ]
+    .map(([px, py]) => `${round(px)},${round(py)}`)
+    .join(' ')
+}
 
 // The tabindex: Vue Flow writes `tabIndex` on the SVG group, which SVG does not know, so Tab would skip every Edge.
 const EDGE_ATTRS = { tabindex: 0 }

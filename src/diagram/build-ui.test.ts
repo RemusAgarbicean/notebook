@@ -285,3 +285,55 @@ test('dragging a corner handle of a selected Node gives it a size, in one undo s
   await ctrl('z')
   expect(flow().findNode('1')!.data).toEqual({ label: '1' })
 })
+
+// --- Edge options
+
+const edgeDialog = () => app.find('[data-testid="edge-label-dialog"]')
+const choose = (group: string, value: string) => edgeDialog().get(`input[name="edge-${group}"][value="${value}"]`).setValue(true)
+const arrows = () => app.findAll('.diagram-arrow').length
+
+test('an Edge drawn now has an arrowhead at its end; one saved before has none and stays as it was', async () => {
+  await open([node('1', 0), node('2', 200), node('3', 400)])
+  expect(arrows()).toBe(0)
+
+  flow().emits.connect({ source: '2', target: '3', sourceHandle: null, targetHandle: null })
+  await flushPromises()
+
+  expect(flow().edges.value.map((e) => e.data)).toEqual([{}, { arrow: 'end' }])
+  expect(arrows()).toBe(1)
+  await expect.poll(() => saved().edges.map((e) => e.data)).toEqual([{}, { arrow: 'end' }])
+})
+
+test('a right-click on an Edge opens its dialog, where arrowheads, dashes and the path are chosen', async () => {
+  await open()
+  flow().emits.edgeContextMenu({ edge: flow().findEdge('1')!, event: new MouseEvent('contextmenu') })
+  await flushPromises()
+  expect(edgeDialog().get<HTMLInputElement>('[data-testid="edge-label-input"]').element.value).toBe('invoices')
+  expect(edgeDialog().get<HTMLInputElement>('input[name="edge-arrow"][value="none"]').element.checked).toBe(true)
+
+  await choose('arrow', 'both')
+  await choose('line', 'dashed')
+  await choose('path', 'step')
+  await edgeDialog().get('form').trigger('submit')
+  await flushPromises()
+
+  expect(flow().findEdge('1')).toMatchObject({ label: 'invoices', data: { arrow: 'both', dash: true, path: 'step' } })
+  expect(arrows()).toBe(2)
+  expect(app.get('.vue-flow__edge-path').attributes('style')).toContain('stroke-dasharray')
+  // Still the one grey.
+  expect(app.get('.vue-flow__edge-path').attributes('style')).toContain('stroke: #a1a1aa')
+  await expect.poll(() => saved().edges[0].data).toEqual({ arrow: 'both', dash: true, path: 'step' })
+
+  // One undo step, and back to stored defaults by choosing them.
+  await ctrl('z')
+  expect(flow().findEdge('1')!.data).toEqual({})
+  expect(arrows()).toBe(0)
+})
+
+test('the context-menu key on a selected Edge opens its dialog', async () => {
+  await open()
+  flow().addSelectedEdges([flow().findEdge('1')!])
+  await flushPromises()
+  await press('ContextMenu')
+  expect(edgeDialog().exists()).toBe(true)
+})
