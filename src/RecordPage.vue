@@ -17,8 +17,10 @@ import {
   recordTags,
   removeTag,
   updateRecord,
+  type Patch,
   type Value,
 } from './records'
+import { getTemplate, templateKey, untouched } from './templates'
 
 // The parent keys this component by Record, so local state starts fresh for each one.
 const props = defineProps<{ type: RecordType; id: number }>()
@@ -34,7 +36,10 @@ const error = ref('')
 
 function save(name: string, value: Value | boolean, input?: HTMLInputElement) {
   try {
-    updateRecord(props.type, props.id, { [name]: value })
+    const patch: Patch = { [name]: value }
+    // A Journal entry whose notes are still untouched takes the template of its new kind.
+    if (name === 'kind' && untouched(record.value?.notes ?? '')) patch.notes = getTemplate(templateKey(props.type, value))
+    updateRecord(props.type, props.id, patch)
     error.value = ''
   } catch (e) {
     error.value = e instanceof Error ? e.message : String(e)

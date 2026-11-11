@@ -25,6 +25,7 @@ import OtherTabScreen from './OtherTabScreen.vue'
 import SaveGuards from './SaveGuards.vue'
 import Shortcuts from './Shortcuts.vue'
 import { tabLock } from './tab-lock'
+import TemplatesDialog from './TemplatesDialog.vue'
 import ThemeSwitch from './ThemeSwitch.vue'
 
 // A prop so tests can swap the storage. Brave ships without the folder picker.
@@ -119,6 +120,7 @@ const item =
       <footer class="border-t border-sidebar-border px-2 py-2 text-xs text-muted-foreground">
         <LabelsSettings />
         <BackupsDialog />
+        <TemplatesDialog />
         <Shortcuts />
         <ThemeSwitch />
         <div data-testid="save-status" role="status" class="px-2 pt-2">

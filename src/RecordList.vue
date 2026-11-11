@@ -6,6 +6,7 @@ import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
+import { getTemplate, templateKey } from './templates'
 import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag } from './records'
 
 const type = computed(() => (typeof list.value === 'string' && list.value !== 'home' ? list.value : null))
@@ -60,7 +61,9 @@ const open = (r: { type: RecordType; id: number }) => (current.value = { type: r
 function add() {
   const t = type.value!
   // A Journal entry names itself after its date.
-  openRecord(t, createRecord(t, t === 'journal_entry' ? '' : `New ${RECORD_FIELDS[t].singular}`))
+  // Only here does a new Record start with its type's note template.
+  const notes = getTemplate(templateKey(t))
+  openRecord(t, createRecord(t, t === 'journal_entry' ? '' : `New ${RECORD_FIELDS[t].singular}`, { notes }))
 }
 </script>
 

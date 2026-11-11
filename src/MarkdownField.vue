@@ -17,6 +17,7 @@ import FormatBar, { type FormatAction } from './FormatBar.vue'
 import { renderMarkdown, toggleTask } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
 import { isMac } from './platform'
+import { untouched } from './templates'
 import type { Titled } from './records'
 import { RECORD_FIELDS } from './record-fields'
 
@@ -24,8 +25,8 @@ import { RECORD_FIELDS } from './record-fields'
 const props = defineProps<{ modelValue: string; label: string }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
-// Empty text opens ready to type; existing text opens rendered.
-const editing = ref(!props.modelValue)
+// Empty text, or a template nobody filled in yet, opens ready to type; existing text opens rendered.
+const editing = ref(untouched(props.modelValue))
 
 // Mention autocomplete: open while the caret sits in an unclosed `[[`.
 const area = useTemplateRef('area')
