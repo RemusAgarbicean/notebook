@@ -16,11 +16,12 @@ test('a saved canvas comes back exactly, viewport included', () => {
   expect(parseCanvas(serialiseCanvas(saved))).toEqual(saved)
 })
 
-test('only nodes, edges and viewport are saved, without what Vue Flow works out while drawing', () => {
+test('only nodes, edges and viewport are saved, without what Vue Flow works out while drawing or the tabindex of an Edge', () => {
   const nodes = saved.nodes.map((n) => ({ ...n, initialized: true }))
   const edges = saved.edges.map((e) => ({ ...e, sourceX: 1, sourceY: 2, targetX: 3, targetY: 4 }))
   const json = serialiseCanvas({ ...saved, nodes, edges, position: [0, 37], zoom: 1.5 } as never)
-  expect(JSON.parse(json)).toEqual(saved)
+  const { domAttributes: _, ...edge } = saved.edges[0]
+  expect(JSON.parse(json)).toEqual({ ...saved, edges: [edge] })
 })
 
 test('a new or unreadable canvas is empty at the default viewport', () => {

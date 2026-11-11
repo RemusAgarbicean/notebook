@@ -16,15 +16,18 @@ export const NODE_TYPE = 'node'
 // Inline, because html-to-image fills edge paths black without an inline `fill: none`.
 const EDGE_STYLE = { fill: 'none', stroke: '#a1a1aa', strokeWidth: 1.5 }
 
-/** An Edge with the one look every Edge has. */
-export const greyEdge = <E extends object>(edge: E) => ({ ...edge, style: EDGE_STYLE })
+// The tabindex: Vue Flow writes `tabIndex` on the SVG group, which SVG does not know, so Tab would skip every Edge.
+const EDGE_ATTRS = { tabindex: 0 }
+
+/** An Edge with the one look every Edge has, reachable with Tab. */
+export const greyEdge = <E extends object>(edge: E) => ({ ...edge, style: EDGE_STYLE, domAttributes: EDGE_ATTRS })
 
 /** Vue Flow's `toObject()` result as the text to store. */
 export function serialiseCanvas({ nodes, edges, viewport }: { nodes: object[]; edges: object[]; viewport: object }): string {
-  // Dropped: what Vue Flow works out again while drawing. Saving it would rewrite a Diagram just for being opened.
+  // Dropped: what Vue Flow works out again while drawing, and what `greyEdge` adds for the keyboard. Saving it would rewrite a Diagram just for being opened.
   return JSON.stringify({
     nodes: (nodes as Record<string, unknown>[]).map(({ initialized: _, ...node }: Record<string, unknown>) => node),
-    edges: (edges as Record<string, unknown>[]).map(({ sourceX: _a, sourceY: _b, targetX: _c, targetY: _d, ...edge }: Record<string, unknown>) => edge),
+    edges: (edges as Record<string, unknown>[]).map(({ sourceX: _a, sourceY: _b, targetX: _c, targetY: _d, domAttributes: _e, ...edge }: Record<string, unknown>) => edge),
     viewport,
   })
 }
