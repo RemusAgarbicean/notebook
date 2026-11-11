@@ -113,7 +113,11 @@ function onTick(e: Event) {
 const viewing = ref<{ id: number; alt: string } | null>(null)
 async function onViewClick(e: Event) {
   const img = (e.target as Element).closest?.<HTMLImageElement>('img[data-image]')
-  if (img?.src) return void (viewing.value = { id: Number(img.dataset.image), alt: img.alt })
+  if (img?.src) {
+    // Enter must not go on to press the viewer's Close button, which has the focus by then.
+    e.preventDefault()
+    return void (viewing.value = { id: Number(img.dataset.image), alt: img.alt })
+  }
   if (!(e instanceof MouseEvent)) return
   const button = (e.target as Element).closest?.('[data-copy]')
   if (!button) return openMention(e)
