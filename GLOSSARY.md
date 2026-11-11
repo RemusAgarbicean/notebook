@@ -5,7 +5,7 @@ A personal, single-user information center for onboarding into a procurement ana
 ## Records
 
 **Record**:
-Any typed entry the user keeps: a System, Acronym, Person, Diagram, Bookmark, Open question, Task, Journal entry, Team or Process.
+Any typed entry the user keeps: a System, Acronym, Person, Diagram, Bookmark, Open question, Task, Journal entry, Team, Process or Project.
 _Avoid_: Item, entity, object
 
 **System**:
@@ -27,6 +27,10 @@ _Avoid_: Group, department
 **Process**:
 A named business procedure (e.g. Source-to-Pay) involving Systems and People.
 _Avoid_: Workflow, flow
+
+**Project**:
+A piece of work the user is involved in, with an outcome, that Tasks, People, Teams and other Records can be part of.
+_Avoid_: Initiative, workstream, engagement
 
 **Bookmark**:
 A saved URL, such as a dashboard or a documentation page.
@@ -51,17 +55,31 @@ _Avoid_: Label, category
 ## Connections
 
 **Relation**:
-A connection between two Records (e.g. a Person owns a System).
+A deliberate, directed, labelled connection from one Record to another (e.g. Maria owns Coupa), seen from both ends.
 _Avoid_: Link, reference
+
+**Mention**:
+A `[[Record]]` reference inside a Record's notes; it is part of the text, not a Relation.
+_Avoid_: Wiki link, backlink
+
+**Relation slot**:
+A named picker on a Record type (e.g. a System's Owner) that adds and removes Relations with a fixed label.
+_Avoid_: Reference field, foreign key
 
 **Diagram**:
 A canvas of Nodes and Edges, used for mind maps and system diagrams.
 _Avoid_: Mind map, chart, canvas
 
 **Node**:
-A box on a Diagram; free text, or optionally linked to a Record.
+A box on a Diagram; free text, or linked to a Record of any type (another Diagram included), in which case it shows that Record's title.
 _Avoid_: Shape, box
 
 **Edge**:
-A line connecting two Nodes on a Diagram.
+A line connecting two Nodes on a Diagram; it is part of the drawing and never a Relation, even between linked Nodes.
 _Avoid_: Link, arrow, connector
+
+## Storage
+
+**Backup**:
+A dated copy of the whole Notebook, taken automatically once a day and before upgrades and imports, and kept next to it.
+_Avoid_: Snapshot, version
