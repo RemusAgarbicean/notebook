@@ -89,9 +89,12 @@ export function createTabLock(
   return { blocked, refused, useHere }
 }
 
+// Without the File System Access API each tab works on its own copy in memory,
+// so there is no shared file to guard and no lock.
+const shared = !!window.showDirectoryPicker
 export const tabLock = createTabLock(
-  navigator.locks,
-  typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel(NAME),
+  shared ? navigator.locks : undefined,
+  !shared || typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel(NAME),
   async () => {
     await saveNow()
     // Never step down with edits that did not reach the disk.

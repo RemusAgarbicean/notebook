@@ -1,8 +1,8 @@
 import type { Database } from 'sql.js'
 import { ref, shallowRef } from 'vue'
-import { dailyBackup, writeBackup } from './backups'
+import { backupName, dailyBackup, writeBackup } from './backups'
 import { MIGRATIONS, migrate, schemaVersion } from './migrations'
-import { saveStatus } from './save-status'
+import { manualSave, saveStatus } from './save-status'
 import { loadSqlite } from './sqlite'
 import type { NotebookFolder } from './storage'
 
@@ -34,8 +34,15 @@ export async function openNotebook(target: NotebookFolder, create = false): Prom
   if (!bytes && !create) return false
   const SQL = await loadSqlite()
   const opened = new SQL.Database(bytes)
-  if (bytes && schemaVersion(opened) < MIGRATIONS.length) await writeBackup(target, 'pre-upgrade')
-  if (migrate(opened) || !bytes) {
+  try {
+    schemaVersion(opened) // SQLite only looks at the bytes on the first read
+  } catch {
+    throw new Error(`"${target.name}" is not a Notebook: the file is not a SQLite database.`)
+  }
+  // A manual folder is never written unasked: the opened file stays as it was, which is its own Backup.
+  if (!target.manual && bytes && schemaVersion(opened) < MIGRATIONS.length)
+    await writeBackup(target, 'pre-upgrade')
+  if ((migrate(opened) || !bytes) && !target.manual) {
     await target.write(opened.export())
     modified = await target.lastModified()
   }
@@ -43,6 +50,7 @@ export async function openNotebook(target: NotebookFolder, create = false): Prom
   folder = target
   knownModified = modified
   db.value = opened
+  manualSave.value = !!target.manual
   saveStatus.value = 'saved'
   saveProblem.value = null
   return true
@@ -53,6 +61,7 @@ export function closeNotebook() {
   clearTimeout(timer)
   folder = null
   db.value = null
+  manualSave.value = false
   saveStatus.value = 'saved'
   saveProblem.value = null
 }
@@ -67,13 +76,15 @@ export function markDirty() {
 /**
  * Writes unsaved changes now. Never rejects: a failed save leaves the status
  * at 'unsaved' and sets saveProblem. Does nothing while saveProblem is 'changed'.
+ * A Notebook saved by download is only saved when the user `asked`, and then
+ * even with nothing new, so a lost download can be had again.
  */
-export function saveNow(): Promise<void> {
+export function saveNow(asked = false): Promise<void> {
   clearTimeout(timer)
   // Queued so two saves never write the file at the same time.
   return (queue = queue.then(async () => {
-    if (!db.value || !folder || saveStatus.value !== 'unsaved' || saveProblem.value === 'changed')
-      return
+    if (!db.value || !folder || saveProblem.value === 'changed') return
+    if (folder.manual ? !asked : saveStatus.value !== 'unsaved') return
     saveStatus.value = 'saving'
     try {
       const onDisk = await folder.lastModified()
@@ -83,7 +94,7 @@ export function saveNow(): Promise<void> {
         saveStatus.value = 'unsaved'
         return
       }
-      await dailyBackup(folder)
+      if (!folder.manual) await dailyBackup(folder)
       // export() frees prepared statements and resets pragmas such as foreign_keys.
       await folder.write(db.value.export())
       knownModified = await folder.lastModified()
@@ -104,6 +115,8 @@ export function saveNow(): Promise<void> {
  * latest edits) or the copy cannot be written.
  */
 export async function takeBackup(reason: string): Promise<void> {
+  // No backups/ to write to: the user gets the Notebook as it is now as a download.
+  if (folder?.manual && db.value) return folder.writeBackup(backupName(reason), db.value.export())
   await saveNow()
   if (saveProblem.value)
     throw new Error('The Notebook could not be saved, so no Backup was taken. Fix the save problem first.')
@@ -124,17 +137,20 @@ export async function overwriteDisk(): Promise<void> {
   await saveNow()
 }
 
-window.addEventListener('pagehide', saveNow)
+window.addEventListener('pagehide', () => saveNow())
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') saveNow()
 })
 window.addEventListener('keydown', (e) => {
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
-    saveNow()
+    saveNow(true)
   }
 })
-// The browser's "Leave site?" prompt while edits cannot reach the disk.
+// The browser's "Leave site?" prompt while edits are not on disk. That includes
+// the second before autosave: a write started while the page unloads is lost.
 window.addEventListener('beforeunload', (e) => {
-  if (saveProblem.value) e.preventDefault()
+  if (!db.value || (saveStatus.value === 'saved' && !saveProblem.value)) return
+  e.preventDefault()
+  void saveNow()
 })

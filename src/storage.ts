@@ -1,10 +1,15 @@
 // Everything the app needs from disk. The File System Access version is in
-// storage-fsa.ts; an <input type=file> + download fallback would be a second
-// implementation of these two interfaces.
+// storage-fsa.ts; the <input type=file> + download fallback for browsers
+// without that API is in storage-download.ts.
 
 /** An opened Notebook folder: `notebook.sqlite` plus `backups/`. */
 export interface NotebookFolder {
   readonly name: string
+  /**
+   * True when write() and writeBackup() hand the user a download instead of
+   * writing silently: nothing may call them unasked, and there is no backups/.
+   */
+  readonly manual?: boolean
   /** The bytes of `notebook.sqlite`, or null when the file (or the folder) is gone. */
   read(): Promise<Uint8Array | null>
   /** Replaces the whole of `notebook.sqlite`. */
@@ -24,4 +29,9 @@ export interface NotebookStorage {
   lastName(): Promise<string | null>
   /** Re-asks permission for the remembered folder. Must be called from a click. Null when refused. */
   reopen(): Promise<NotebookFolder | null>
+  /**
+   * Only on the download fallback, where there is no folder: a new, empty
+   * Notebook. There pick() opens one notebook.sqlite file.
+   */
+  blank?(): NotebookFolder
 }

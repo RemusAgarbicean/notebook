@@ -6,6 +6,9 @@ import { loadSqlite } from './sqlite'
 import type { NotebookStorage } from './storage'
 import { memoryFolder } from './storage-memory'
 
+// The tab lock only exists where tabs can share a folder: a browser with the folder picker.
+vi.hoisted(() => (window.showDirectoryPicker = async () => new FileSystemDirectoryHandle()))
+
 beforeEach(closeNotebook)
 afterEach(() => vi.restoreAllMocks())
 

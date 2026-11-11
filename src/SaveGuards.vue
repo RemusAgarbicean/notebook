@@ -3,6 +3,7 @@
 // and the Reload/Overwrite choice.
 import { ref } from 'vue'
 import { db, overwriteDisk, reloadFromDisk, saveNow, saveProblem } from './notebook'
+import { download } from './storage-download'
 
 const error = ref('')
 
@@ -15,11 +16,7 @@ async function reload() {
   }
 }
 
-function downloadCopy() {
-  const url = URL.createObjectURL(new Blob([db.value!.export() as Uint8Array<ArrayBuffer>]))
-  Object.assign(document.createElement('a'), { href: url, download: 'notebook.sqlite' }).click()
-  URL.revokeObjectURL(url)
-}
+const downloadCopy = () => download(db.value!.export(), 'notebook.sqlite')
 
 const button = 'h-8 rounded-md border px-3 font-medium'
 </script>
