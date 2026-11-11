@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { CircleAlert, Plus, Search } from 'lucide-vue-next'
+import { CircleAlert, Pin, Plus, Search } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef, watch } from 'vue'
+import DueDate from './DueDate.vue'
+import ExportButton from './ExportButton.vue'
 import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
+import { pinnedRecords } from './pins'
+import QuizDialog from './QuizDialog.vue'
 import { RECORD_FIELDS } from './record-fields'
-import { recordType, type RecordType } from './record-types'
-import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag } from './records'
+import { recordsName, recordType, type RecordType } from './record-types'
+import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag, rows as query } from './records'
 
 const type = computed(() => (typeof list.value === 'string' && list.value !== 'home' ? list.value : null))
 const tagId = computed(() => (typeof list.value === 'object' ? list.value.tag : null))
@@ -19,6 +23,24 @@ const heading = computed(() => {
 
 // Each row: the title with one key field underneath (the type's name in a Tag list).
 const items = computed(() => {
+  const pins = new Set(pinnedRecords().map((r) => `${r.type}:${r.id}`))
+  // Pinned Records come first, otherwise in the list's own order.
+  return unpinned.value
+    .map((r) => ({ ...r, pinned: pins.has(`${r.type}:${r.id}`), tags: tagNames.value.get(`${r.type}:${r.id}`) }))
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned))
+})
+// Each Record's Tag names, for `#tag` in the filter box.
+const tagNames = computed(() => {
+  const names = new Map<string, string[]>()
+  for (const r of query<{ type: string; id: number; name: string }>(
+    'select rt.type, rt.id, t.name from record_tag rt join tag t on t.id = rt.tag_id',
+  )) {
+    const key = `${r.type}:${r.id}`
+    names.set(key, [...(names.get(key) ?? []), r.name])
+  }
+  return names
+})
+const unpinned = computed(() => {
   const t = type.value
   if (t) {
     const { key } = RECORD_FIELDS[t]
@@ -49,8 +71,7 @@ watch(list, () => (text.value = ''))
 const closedWord = computed(() => ({ task: 'done', open_question: 'answered' })[type.value as string])
 const shown = computed(() => filterList(items.value, text.value, !!closedWord.value && hideClosed.value))
 const empty = computed(() => {
-  // The Journal's Records are Journal entries: "No Journal yet" reads wrong.
-  const named = type.value === 'journal_entry' ? 'Journal entries' : heading.value
+  const named = type.value ? recordsName(type.value) : heading.value
   if (!items.value.length) return type.value ? `No ${named} yet. Use New to add the first.` : 'No Records have this Tag.'
   if (text.value.trim()) return `No ${type.value ? named : 'Records'} match "${text.value.trim()}".`
   return `No open ${heading.value}. Hide ${closedWord.value} is on.`
@@ -68,7 +89,9 @@ function add() {
   <section data-testid="list-column" class="flex w-72 shrink-0 flex-col border-r">
     <header class="flex h-12 shrink-0 items-center justify-between gap-1 border-b px-4">
       <h1 class="flex-1 truncate font-semibold" :title="heading">{{ heading }}</h1>
+      <QuizDialog v-if="type === 'acronym'" />
       <ImportDialog v-if="type && type !== 'diagram'" :key="type" :type="type" />
+      <ExportButton v-if="type && type !== 'diagram' && items.length" :type="type" />
       <button
         v-if="type"
         type="button"
@@ -88,7 +111,8 @@ function add() {
           v-model="text"
           data-testid="list-filter"
           :aria-label="`Filter ${heading}`"
-          placeholder="Filter"
+          title="Type to filter by title; #name narrows to a Tag"
+          placeholder="Filter, or #tag"
           class="h-7 w-full rounded-md border bg-background pr-2 pl-8 placeholder:text-muted-foreground"
           @keydown.esc="text = ''"
           @keydown.enter="shown[0] && open(shown[0])"
@@ -121,7 +145,11 @@ function add() {
           <component :is="recordType(r.type).icon" v-if="tagId !== null" class="mt-0.5 size-4 shrink-0" />
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium" :class="{ 'line-through': r.closed }">{{ r.title }}</span>
-            <span v-if="r.sub" class="block truncate text-xs text-muted-foreground">{{ r.sub }}</span>
+            <DueDate v-if="type === 'task'" :due="r.sub" :done="r.closed" class="block truncate" />
+            <span v-else-if="r.sub" class="block truncate text-xs text-muted-foreground">{{ r.sub }}</span>
+          </span>
+          <span v-if="r.pinned" data-testid="pinned" role="img" aria-label="Pinned" title="Pinned" class="mt-0.5 shrink-0 text-muted-foreground">
+            <Pin class="size-3.5 fill-current" />
           </span>
           <span
             v-if="missing.has(`${r.type}:${r.id}`)"

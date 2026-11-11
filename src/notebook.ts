@@ -180,7 +180,7 @@ async function restore(fileName: string) {
   const restored = await parse(bytes, fileName)
   // Before anything is touched. migrate() says "This Notebook": here it is the Backup that is newer.
   if (schemaVersion(restored) > MIGRATIONS.length)
-    throw new Error('This Backup was saved by a newer version of the app, so this one cannot restore it. Use the newer notebook.html.')
+    throw new Error("This Backup was saved by a newer version of the app, so this one can't restore it. Use the newer notebook.html.")
   migrate(restored)
   await backUp('restore')
   await target.write(restored.export())
