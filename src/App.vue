@@ -1,9 +1,12 @@
 <script setup lang="ts">
 import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
 import { computed, watch } from 'vue'
+import CommandPalette from './CommandPalette.vue'
+import Home from './Home.vue'
 import LabelsSettings from './LabelsSettings.vue'
 import { current, list } from './navigation'
 import { db } from './notebook'
+import { paletteOpen } from './palette'
 import RecordList from './RecordList.vue'
 import RecordPage from './RecordPage.vue'
 import { RECORD_TYPES } from './record-types'
@@ -39,6 +42,7 @@ const item =
   <StartScreen v-else-if="!db" :storage="storage" />
   <div v-else class="flex h-screen">
     <SaveGuards />
+    <CommandPalette />
     <aside
       data-testid="sidebar"
       class="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
@@ -53,6 +57,7 @@ const item =
           type="button"
           data-testid="search"
           class="mb-2 flex h-8 w-full items-center gap-2 rounded-md border border-sidebar-border bg-background px-2 text-muted-foreground"
+          @click="paletteOpen = true"
         >
           <Search class="size-4" />
           <span class="flex-1 text-left">Search</span>
@@ -108,11 +113,15 @@ const item =
       </footer>
     </aside>
 
-    <RecordList />
+    <!-- Home takes the place of both the list and the page column. -->
+    <Home v-if="list === 'home'" />
+    <template v-else>
+      <RecordList />
 
-    <main data-testid="page-column" class="flex-1 overflow-y-auto">
-      <RecordPage v-if="current" :key="`${current.type}:${current.id}`" :type="current.type" :id="current.id" />
-      <p v-else class="p-4 text-muted-foreground">Select a Record to see its page.</p>
-    </main>
+      <main data-testid="page-column" class="flex-1 overflow-y-auto">
+        <RecordPage v-if="current" :key="`${current.type}:${current.id}`" :type="current.type" :id="current.id" />
+        <p v-else class="p-4 text-muted-foreground">Select a Record to see its page.</p>
+      </main>
+    </template>
   </div>
 </template>
