@@ -14,5 +14,5 @@ export default defineConfig({
     modulePreload: { polyfill: false },
     rollupOptions: { input: 'notebook.html' },
   },
-  test: { environment: 'happy-dom' },
+  test: { environment: 'happy-dom', include: ['src/**/*.test.ts'] },
 })
