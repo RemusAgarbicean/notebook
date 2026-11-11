@@ -118,7 +118,8 @@ const cards = computed<{ key: string; title: string; type?: RecordType; empty: s
                 @click="openRecord(r.type, r.id)"
               >
                 <span class="truncate">{{ r.title }}</span>
-                <span v-if="r.grey" class="shrink-0 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
+                <!-- No base width: the title keeps its room and the grey text gets what is left. -->
+                <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
                 <span v-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
               </button>
             </li>

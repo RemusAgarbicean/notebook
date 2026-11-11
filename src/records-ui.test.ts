@@ -163,15 +163,27 @@ test('Delete asks first: cancelling keeps the Record, confirming removes it and 
   const id = createRecord('system', 'Coupa')
   openRecord('system', id)
   await flushPromises()
-  const confirm = vi.fn(() => false)
+  const confirm = vi.fn(() => true)
   vi.stubGlobal('confirm', confirm)
 
+  ;(get('delete-record').element as HTMLElement).focus()
   await get('delete-record').trigger('click')
-  expect(confirm).toHaveBeenCalledOnce()
+  expect(get('confirm-dialog').text()).toContain('Delete the System "Coupa"?')
+  // Enter confirms: the Delete button of the dialog has the focus.
+  expect(document.activeElement).toBe(get('dialog-confirm').element)
+  await get('confirm-dialog').trigger('keydown', { key: 'Escape' })
+  expect(app.find('[data-testid="confirm-dialog"]').exists()).toBe(false)
+  expect(getRecord('system', id)).not.toBeNull()
+  // Cancelling gives the focus back to where it was.
+  expect(document.activeElement).toBe(get('delete-record').element)
+
+  await get('delete-record').trigger('click')
+  await get('dialog-cancel').trigger('click')
   expect(getRecord('system', id)).not.toBeNull()
 
-  confirm.mockReturnValue(true)
   await get('delete-record').trigger('click')
+  await get('confirm-dialog').get('form').trigger('submit')
+  expect(confirm).not.toHaveBeenCalled()
   expect(getRecord('system', id)).toBeNull()
   expect(rowsText()).toEqual([])
   expect(app.find('[data-testid="record-title"]').exists()).toBe(false)

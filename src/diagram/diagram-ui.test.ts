@@ -5,6 +5,7 @@ import { current, openRecord } from '../navigation'
 import { closeNotebook } from '../notebook'
 import { createRecord, getRecord, updateRecord } from '../records'
 import { memoryFolder } from '../storage-memory'
+import { useVueFlow } from '@vue-flow/core'
 import { parseCanvas } from './canvas'
 
 let app: VueWrapper
@@ -123,4 +124,37 @@ test('leaving a Diagram leaves full screen', async () => {
   await flushPromises()
 
   expect(app.find('[data-testid="list-column"]').exists()).toBe(true)
+})
+
+test('double-clicking an Edge edits its label in a dialog: Enter saves, Esc cancels', async () => {
+  const node = (n: string, x: number) => ({ id: n, type: 'node', position: { x, y: 0 }, data: { label: n } })
+  updateRecord('diagram', id, {
+    canvas: JSON.stringify({ nodes: [node('1', 0), node('2', 200)], edges: [{ id: '1', source: '1', target: '2', label: 'invoices' }] }),
+  })
+  await open()
+  const { onEdgeDoubleClick: _, emits } = useVueFlow(`diagram-${id}`)
+  const dblclick = async () => {
+    emits.edgeDoubleClick({ edge: useVueFlow(`diagram-${id}`).findEdge('1')!, event: new MouseEvent('dblclick') })
+    await flushPromises()
+  }
+  const input = () => app.get<HTMLInputElement>('[data-testid="edge-label-input"]')
+
+  await dblclick()
+  expect(input().element.value).toBe('invoices')
+  expect(document.activeElement).toBe(input().element)
+  await input().setValue('  POs  ')
+  await app.get('[data-testid="edge-label-dialog"] form').trigger('submit')
+  expect(app.find('[data-testid="edge-label-dialog"]').exists()).toBe(false)
+  await expect.poll(() => saved().edges[0].label).toBe('POs')
+
+  await dblclick()
+  await input().setValue('other')
+  await app.get('[data-testid="edge-label-dialog"]').trigger('keydown', { key: 'Escape' })
+  expect(app.find('[data-testid="edge-label-dialog"]').exists()).toBe(false)
+
+  // An emptied label is removed.
+  await dblclick()
+  await input().setValue('')
+  await app.get('[data-testid="edge-label-dialog"] form').trigger('submit')
+  await expect.poll(() => saved().edges[0].label).toBeUndefined()
 })

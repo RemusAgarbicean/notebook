@@ -11,6 +11,7 @@ import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
 import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, Unlink } from 'lucide-vue-next'
 import { markRaw, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import ConfirmDialog from '../ConfirmDialog.vue'
 import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
@@ -106,10 +107,15 @@ function addNode() {
 
 onConnect((connection) => addEdges(greyEdge({ ...connection, id: nextId(edges.value) })))
 
-onEdgeDoubleClick(({ edge }) => {
-  const label = prompt('Edge label', String(edge.label ?? ''))
-  if (label !== null) findEdge(edge.id)!.label = label.trim() || undefined
-})
+// Double-clicking an Edge asks for its label in a dialog.
+const labelling = ref<{ id: string; text: string } | null>(null)
+onEdgeDoubleClick(({ edge }) => (labelling.value = { id: edge.id, text: String(edge.label ?? '') }))
+function saveLabel() {
+  const { id, text } = labelling.value!
+  labelling.value = null
+  const edge = findEdge(id)
+  if (edge) edge.label = text.trim() || undefined
+}
 
 function setFill(ids: string[], fill: FillName | null) {
   // An undefined fill is left out of the saved JSON.
@@ -121,7 +127,10 @@ const selectedIds = () => getSelectedNodes.value.map((n) => n.id)
 const menu = ref<{ x: number; y: number; ids: string[] } | null>(null)
 onNodeContextMenu(({ event, node }) => {
   event.preventDefault()
-  const { clientX: x, clientY: y } = event as MouseEvent
+  const { clientX, clientY } = event as MouseEvent
+  // Kept on screen: the menu is at most this big.
+  const x = Math.max(0, Math.min(clientX, innerWidth - 250))
+  const y = Math.max(0, Math.min(clientY, innerHeight - 150))
   menu.value = { x, y, ids: node.selected ? selectedIds() : [node.id] }
 })
 useEventListener(window, 'click', () => (menu.value = null))
@@ -277,6 +286,23 @@ const tool =
         <RecordPicker label="Link to a Record" @pick="link(menu.ids[0], $event)" />
       </div>
     </div>
+
+    <ConfirmDialog
+      v-if="labelling"
+      data-testid="edge-label-dialog"
+      title="Edge label"
+      confirm-label="Save"
+      @confirm="saveLabel"
+      @cancel="labelling = null"
+    >
+      <input
+        v-model="labelling.text"
+        data-testid="edge-label-input"
+        aria-label="Edge label"
+        placeholder="No label"
+        class="h-8 w-full rounded-md border bg-background px-2"
+      />
+    </ConfirmDialog>
   </section>
 </template>
 
@@ -334,5 +360,14 @@ const tool =
   background: #27272a;
   border-color: #3f3f46;
   fill: #fafafa;
+}
+.dark .diagram-canvas .vue-flow__minimap-mask {
+  fill: rgb(9 9 11 / 0.6);
+}
+.dark .diagram-canvas .vue-flow__minimap-node {
+  fill: #71717a;
+}
+.dark .diagram-canvas .vue-flow__controls-button:hover {
+  background: #3f3f46;
 }
 </style>

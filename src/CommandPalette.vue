@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Plus, Search } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { vDialog } from './dialog'
 import { globalSearch } from './global-search'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
@@ -78,6 +79,7 @@ onBeforeUnmount(() => {
 <template>
   <div
     v-if="paletteOpen"
+    v-dialog
     class="fixed inset-0 z-40 flex items-start justify-center bg-black/50 p-4 pt-[12vh] text-sm text-foreground"
     @click.self="paletteOpen = false"
   >

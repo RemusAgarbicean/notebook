@@ -48,7 +48,7 @@ function add() {
 <template>
   <section data-testid="list-column" class="flex w-72 shrink-0 flex-col border-r">
     <header class="flex h-12 shrink-0 items-center justify-between gap-1 border-b px-4">
-      <h1 class="flex-1 truncate font-semibold">{{ heading }}</h1>
+      <h1 class="flex-1 truncate font-semibold" :title="heading">{{ heading }}</h1>
       <ImportDialog v-if="type && type !== 'diagram'" :key="type" :type="type" />
       <button
         v-if="type"
@@ -81,6 +81,8 @@ function add() {
         </button>
       </li>
     </ul>
-    <p v-else class="p-4 text-muted-foreground">Nothing here yet.</p>
+    <p v-else data-testid="list-empty" class="p-4 text-muted-foreground">
+      {{ type ? `No ${heading} yet. Use New to add the first.` : 'No Records have this Tag.' }}
+    </p>
   </section>
 </template>

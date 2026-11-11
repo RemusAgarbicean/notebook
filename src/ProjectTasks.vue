@@ -7,7 +7,7 @@ import { LABEL } from './relation-slots'
 import { addRelation, isProjectTask, recordRelations } from './relations'
 
 // The Tasks checklist of a Project page, with the "+ Task" box.
-const props = defineProps<{ type: RecordType; id: number }>()
+const props = defineProps<{ type: RecordType; id: number; record?: unknown }>()
 
 // listRecords gives the order: open first, then by due date.
 const tasks = computed(() => {

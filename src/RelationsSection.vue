@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Plus, X } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { openRecord } from './navigation'
 import RecordPicker from './RecordPicker.vue'
 import { recordType, type RecordType } from './record-types'
@@ -8,7 +8,7 @@ import type { RecordRef } from './records'
 import { groupRelations, readings, relate, removeRelation } from './relations'
 
 // The Relations section of a Record page, with "+ Relation".
-const props = defineProps<{ type: RecordType; id: number }>()
+const props = defineProps<{ type: RecordType; id: number; record?: unknown }>()
 
 const own = computed<RecordRef>(() => ({ type: props.type, id: props.id }))
 const groups = computed(() => groupRelations(own.value))
@@ -18,6 +18,14 @@ const adding = ref(false)
 // An index into `choices`: the two readings of a label share its id.
 const choice = ref(0)
 const error = ref('')
+
+// Opening the row puts the focus on its first control.
+const reading = useTemplateRef('reading')
+function toggle() {
+  adding.value = !adding.value
+  error.value = ''
+  if (adding.value) nextTick(() => reading.value?.focus())
+}
 
 function add(other: RecordRef) {
   try {
@@ -33,12 +41,13 @@ function add(other: RecordRef) {
 <template>
   <section data-testid="relations" class="flex flex-col gap-2">
     <header class="flex items-center gap-2">
-      <h2 class="flex-1 text-muted-foreground">Relations</h2>
+      <h2 class="flex-1 text-xs font-medium text-muted-foreground">Relations</h2>
       <button
         type="button"
         data-testid="add-relation"
         class="flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
-        @click="((adding = !adding), (error = ''))"
+        :aria-expanded="adding"
+        @click="toggle"
       >
         <Plus class="size-3.5" />
         Relation
@@ -47,6 +56,7 @@ function add(other: RecordRef) {
 
     <div v-if="adding" class="flex items-center gap-2">
       <select
+        ref="reading"
         v-model.number="choice"
         data-testid="relation-reading"
         aria-label="Reading"
@@ -60,12 +70,12 @@ function add(other: RecordRef) {
 
     <div v-for="g in groups" :key="g.reading" data-testid="relation-group" class="flex gap-2">
       <h3 class="w-28 shrink-0 pt-1 text-muted-foreground">{{ g.reading }}</h3>
-      <ul class="flex flex-1 flex-col">
+      <ul class="flex min-w-0 flex-1 flex-col">
         <li
           v-for="e in g.entries"
           :key="`${e.forward}:${e.other.type}:${e.other.id}`"
           data-testid="relation"
-          class="group flex min-h-7 items-center gap-1"
+          class="group flex min-h-7 min-w-0 items-center gap-1"
         >
           <button
             type="button"
@@ -78,7 +88,7 @@ function add(other: RecordRef) {
           <button
             type="button"
             :aria-label="`Remove Relation ${g.reading} ${e.other.title}`"
-            class="rounded text-muted-foreground opacity-0 hover:bg-accent focus:opacity-100 group-hover:opacity-100"
+            class="shrink-0 rounded text-muted-foreground opacity-0 hover:bg-accent focus:opacity-100 group-hover:opacity-100"
             @click="removeRelation(e.from, e.labelId, e.to)"
           >
             <X class="size-3.5" />

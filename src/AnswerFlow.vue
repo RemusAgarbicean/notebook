@@ -37,8 +37,12 @@ const input = 'h-6 rounded-md border bg-background px-2 text-xs'
 </script>
 
 <template>
-  <div class="flex min-h-8 flex-wrap items-center gap-2">
-    <span class="w-28 shrink-0 text-muted-foreground">Answer</span>
+  <div class="flex min-h-8 items-start gap-2">
+    <!-- Not "Answer" twice: the field above already has that name. -->
+    <span class="flex h-8 w-28 shrink-0 items-center text-muted-foreground">
+      {{ record.status === 'answered' ? 'Answered by' : 'Answered?' }}
+    </span>
+    <div class="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-2">
     <button
       v-if="record.status !== 'answered'"
       type="button"
@@ -50,7 +54,7 @@ const input = 'h-6 rounded-md border bg-background px-2 text-xs'
     </button>
     <template v-else>
       <button type="button" data-testid="reopen" :class="button" @click="setStatus('open')">Reopen</button>
-      <form data-testid="make-record" class="flex flex-1 items-center gap-1" @submit.prevent="makeRecord">
+      <form data-testid="make-record" class="flex min-w-64 flex-1 items-center gap-1" @submit.prevent="makeRecord">
         <select v-model="makeType" data-testid="make-record-type" aria-label="Type of the new Record" :class="input">
           <option v-for="t in RECORD_TYPES" :key="t.type" :value="t.type">{{ RECORD_FIELDS[t.type].singular }}</option>
         </select>
@@ -65,5 +69,6 @@ const input = 'h-6 rounded-md border bg-background px-2 text-xs'
       </form>
     </template>
     <p v-if="error" role="alert" class="w-full text-xs text-destructive">{{ error }}</p>
+    </div>
   </div>
 </template>

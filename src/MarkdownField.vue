@@ -18,6 +18,12 @@ const options = ref<Titled[]>([])
 const active = ref(0)
 let from = 0 // where the `[[` being completed starts
 
+// Edit puts the caret in the text.
+function toggle() {
+  editing.value = !editing.value
+  if (editing.value) nextTick(() => area.value?.focus())
+}
+
 function onInput() {
   const el = area.value!
   emit('update:modelValue', el.value)
@@ -52,13 +58,14 @@ function onKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <section>
+  <section class="min-w-0">
     <div class="flex h-8 items-center justify-between">
       <h2 class="text-xs font-medium text-muted-foreground">{{ label }}</h2>
       <button
         type="button"
-        class="rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        @click="editing = !editing"
+        :aria-label="`${editing ? 'Done editing' : 'Edit'} ${label}`"
+        class="h-6 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+        @click="toggle"
       >
         {{ editing ? 'Done' : 'Edit' }}
       </button>
@@ -70,7 +77,7 @@ function onKeydown(e: KeyboardEvent) {
         :aria-label="label"
         rows="8"
         placeholder="Markdown. Type [[ to mention a Record."
-        class="block w-full rounded-md border bg-background p-2 font-mono"
+        class="block max-h-[70vh] min-h-40 w-full rounded-md border bg-background p-2 font-mono [field-sizing:content]"
         @input="onInput"
         @keydown="onKeydown"
         @blur="options = []"
@@ -99,7 +106,7 @@ function onKeydown(e: KeyboardEvent) {
       </ul>
     </div>
     <!-- renderMarkdown sanitizes its output. -->
-    <div v-else data-testid="markdown-view" class="markdown" @click="openMention" v-html="renderMarkdown(modelValue)" />
+    <div v-else data-testid="markdown-view" class="markdown min-w-0" @click="openMention" v-html="renderMarkdown(modelValue)" />
   </section>
 </template>
 
@@ -111,11 +118,34 @@ function onKeydown(e: KeyboardEvent) {
 .markdown :is(h1, h2, h3, h4) {
   font-weight: 600;
 }
+/* Long words, wide tables and code scroll or wrap inside the notes instead of widening the page. */
+.markdown {
+  overflow-wrap: anywhere;
+}
+.markdown table {
+  display: block;
+  max-width: 100%;
+  width: max-content;
+  overflow-x: auto;
+}
+.markdown :is(th, td) {
+  overflow-wrap: normal;
+}
+.markdown img {
+  max-width: 100%;
+  height: auto;
+}
 .markdown h1 {
   font-size: 1.25rem;
 }
 .markdown h2 {
   font-size: 1.1rem;
+}
+.markdown hr {
+  margin: 0.75rem 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
 }
 .markdown ul {
   list-style: disc;

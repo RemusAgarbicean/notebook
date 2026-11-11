@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { History, X } from 'lucide-vue-next'
 import { ref } from 'vue'
+import { vDialog } from './dialog'
 import { formatSize } from './backups'
 import { listBackups, restoreBackup, takeBackup, type BackupFile } from './notebook'
 import { manualSave } from './save-status'
@@ -65,6 +66,7 @@ const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent 
 
   <div
     v-if="open"
+    v-dialog
     class="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 text-sm text-foreground"
     @click.self="open = false"
     @keydown.esc="open = false"
@@ -74,7 +76,7 @@ const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent 
       role="dialog"
       aria-modal="true"
       aria-labelledby="backups-title"
-      class="flex max-h-full w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4"
+      class="flex max-h-full w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
     >
       <header class="flex items-center">
         <h2 id="backups-title" class="flex-1 font-semibold">Backups</h2>
@@ -152,7 +154,7 @@ const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent 
             <button
               type="button"
               data-testid="confirm-restore-yes"
-              class="h-7 rounded-md bg-destructive px-3 font-medium text-white hover:bg-destructive/90"
+              class="h-7 rounded-md bg-red-600 px-3 font-medium text-white hover:bg-red-700"
               @click="restore"
             >
               Restore

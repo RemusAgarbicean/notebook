@@ -77,7 +77,8 @@ const importFields = (type: RecordType) => RECORD_FIELDS[type].fields.filter((f)
 
 // Each place a column can go, with the column names that match it.
 const targets = (type: RecordType): { value: Target; label: string; names: string[] }[] => [
-  { value: 'title', label: 'Title', names: ['title', 'name', 'abbreviation'] },
+  // A sheet of Systems often heads its first column "System".
+  { value: 'title', label: 'Title', names: ['title', 'name', 'abbreviation', RECORD_FIELDS[type].singular] },
   ...importFields(type).map((f) => ({ value: f.name, label: f.label, names: [f.name, f.label] })),
   ...slotsOf(type).map((s) => ({ value: `slot:${s.name}`, label: s.name, names: [s.name] })),
   { value: 'tags', label: 'Tags', names: ['tags', 'tag'] },

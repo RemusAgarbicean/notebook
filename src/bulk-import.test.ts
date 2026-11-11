@@ -57,6 +57,9 @@ test('matches columns to fields, Tags and slots ignoring case, with title aliase
     '',
   ])
   expect(matchColumns('acronym', ['Abbreviation', 'Expansion'])).toEqual(['title', 'expansion'])
+  // The type's own name heads the title column.
+  expect(matchColumns('acronym', ['Acronym', 'Expansion'])).toEqual(['title', 'expansion'])
+  expect(matchColumns('open_question', ['Open question', 'Status'])).toEqual(['title', 'status'])
   expect(matchColumns('person', ['go_to_for', 'Title'])).toEqual(['go_to_for', 'title'])
   expect(matchColumns('task', ['Title', 'Project', 'Done', 'Due'])).toEqual(['title', 'slot:Project', 'done', 'due'])
 })
