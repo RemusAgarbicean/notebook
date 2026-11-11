@@ -9,6 +9,7 @@ import LabelsSettings from './LabelsSettings.vue'
 import { current, list } from './navigation'
 import { db } from './notebook'
 import { paletteOpen } from './palette'
+import { shortcut } from './platform'
 import RecordList from './RecordList.vue'
 import RecordPage from './RecordPage.vue'
 import { RECORD_TYPES } from './record-types'
@@ -69,7 +70,7 @@ const item =
         >
           <Search class="size-4" />
           <span class="flex-1 text-left">Search</span>
-          <kbd class="rounded border px-1 font-sans text-xs">⌘K</kbd>
+          <kbd class="rounded border px-1 font-sans text-xs">{{ shortcut('K') }}</kbd>
         </button>
 
         <button

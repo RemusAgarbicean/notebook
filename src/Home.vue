@@ -3,6 +3,7 @@ import { NotebookPen, Search } from 'lucide-vue-next'
 import { computed } from 'vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
+import { shortcut } from './platform'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
 import { rows, todaysLog } from './records'
@@ -84,7 +85,7 @@ const cards = computed<{ key: string; title: string; type?: RecordType; empty: s
       >
         <Search class="size-5" />
         <span class="flex-1 text-left">What do you want to find?</span>
-        <kbd class="rounded border px-1.5 font-sans text-xs">⌘K</kbd>
+        <kbd class="rounded border px-1.5 font-sans text-xs">{{ shortcut('K') }}</kbd>
       </button>
 
       <div class="grid gap-4 md:grid-cols-2">

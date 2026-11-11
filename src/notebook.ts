@@ -157,7 +157,10 @@ export async function restoreBackup(fileName: string): Promise<void> {
   const bytes = await target.readBackup(fileName)
   if (!bytes) throw new Error(`"${fileName}" is no longer in the folder's backups.`)
   const restored = await parse(bytes, fileName)
-  migrate(restored) // throws for a Backup newer than the app, before anything is touched
+  // Before anything is touched. migrate() says "This Notebook": here it is the Backup that is newer.
+  if (schemaVersion(restored) > MIGRATIONS.length)
+    throw new Error('This Backup was saved by a newer version of the app, so this one cannot restore it. Use the newer notebook.html.')
+  migrate(restored)
   await takeBackup('restore')
   clearTimeout(timer)
   await target.write(restored.export())

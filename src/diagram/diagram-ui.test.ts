@@ -2,7 +2,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from '../App.vue'
 import { current, openRecord } from '../navigation'
-import { closeNotebook } from '../notebook'
+import { closeNotebook, listBackups, restoreBackup, takeBackup } from '../notebook'
 import { createRecord, getRecord, updateRecord } from '../records'
 import { memoryFolder } from '../storage-memory'
 import { useVueFlow } from '@vue-flow/core'
@@ -157,4 +157,19 @@ test('double-clicking an Edge edits its label in a dialog: Enter saves, Esc canc
   await input().setValue('')
   await app.get('[data-testid="edge-label-dialog"] form').trigger('submit')
   await expect.poll(() => saved().edges[0].label).toBeUndefined()
+})
+
+test('a Diagram edited just before a Backup is restored does not write into the restored Notebook', async () => {
+  await takeBackup('manual')
+  const [backup] = await listBackups()
+  await open()
+  await button('Add Node').trigger('click')
+  await expect.poll(() => app.findAll('[data-testid="diagram-node"]')).toHaveLength(1)
+
+  await restoreBackup(backup.name)
+  await flushPromises()
+  await new Promise((r) => setTimeout(r, 400)) // past the canvas's debounced save
+
+  expect(app.find('[data-testid="diagram-canvas"]').exists()).toBe(false)
+  expect(saved().nodes).toEqual([])
 })

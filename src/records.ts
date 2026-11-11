@@ -125,7 +125,7 @@ function normalize(type: RecordType, patch: Patch): Record<string, Value> {
   for (const [name, raw] of Object.entries(patch)) {
     if (raw === undefined) continue
     const field = fields.find((f) => f.name === name)
-    if (!field) throw new Error(`A ${RECORD_FIELDS[type].singular} has no field "${name}"`)
+    if (!field) throw new Error(`${RECORD_FIELDS[type].singular} has no field "${name}"`)
     if (field.kind === 'checkbox') {
       out[name] = raw ? 1 : 0
       continue
