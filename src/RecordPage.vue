@@ -2,6 +2,7 @@
 import { ExternalLink, Trash2, X } from 'lucide-vue-next'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import DiagramCanvas from './diagram/DiagramCanvas.vue'
+import { inDiagrams } from './diagram/links'
 import MarkdownField from './MarkdownField.vue'
 import { current } from './navigation'
 import { PAGE_SECTIONS } from './page-sections'
@@ -52,7 +53,9 @@ function addTagFrom(e: Event) {
 }
 
 function remove() {
-  if (!confirm(`Delete the ${info.value.singular} "${record.value!.title}"? Its Relations and Tags go with it.`)) return
+  const n = inDiagrams(props).length
+  const used = n ? ` It is used in ${n} Diagram${n > 1 ? 's' : ''}; its Nodes there become plain text.` : ''
+  if (!confirm(`Delete the ${info.value.singular} "${record.value!.title}"? Its Relations and Tags go with it.${used}`)) return
   deleteRecord(props.type, props.id)
   current.value = null
 }
