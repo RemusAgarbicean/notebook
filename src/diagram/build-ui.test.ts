@@ -337,3 +337,74 @@ test('the context-menu key on a selected Edge opens its dialog', async () => {
   await press('ContextMenu')
   expect(edgeDialog().exists()).toBe(true)
 })
+
+// --- Frames
+
+const frame = (n: string, x: number, y: number, width: number, height: number, label = 'Lane') => ({ id: n, type: 'frame', position: { x, y }, data: { label, width, height } })
+const at = (n: string) => flow().findNode(n)!.position
+
+test('Add Frame puts a titled Frame on the canvas, ready for its title', async () => {
+  await open()
+  await button('Add Frame').trigger('click')
+  await expect.poll(() => app.find('[aria-label="Frame title"]').exists()).toBe(true)
+  const input = app.get<HTMLInputElement>('[aria-label="Frame title"]')
+  input.element.value = 'Finance'
+  await input.trigger('blur')
+  await flushPromises()
+
+  expect(app.get('[data-testid="diagram-frame"]').text()).toBe('Finance')
+  await expect.poll(() => saved().nodes[2]).toMatchObject({ type: 'frame', data: { label: 'Finance', width: 320, height: 200 } })
+  await ctrl('z')
+  expect(flow().nodes.value).toHaveLength(2)
+})
+
+test('Add Frame with Nodes selected draws the Frame around them', async () => {
+  await open()
+  await select('1', '2')
+  await button('Add Frame').trigger('click')
+  await flushPromises()
+  // Nodes have no size in this test environment: the Frame is its padding around their corners.
+  expect(flow().findNode('3')).toMatchObject({ type: 'frame', position: { x: -20, y: -40 }, data: { width: 240, height: 60 } })
+})
+
+test('moving a Frame takes the Nodes in it along, and leaves the others', async () => {
+  await open([node('1', 10), node('2', 500), frame('3', -50, -50, 200, 200)])
+  await select('3')
+  await press('ArrowRight', { shiftKey: true })
+
+  expect(at('3')).toEqual({ x: -34, y: -50 })
+  expect(at('1')).toEqual({ x: 26, y: 0 })
+  expect(at('2')).toEqual({ x: 500, y: 0 })
+})
+
+test('duplicating a Frame duplicates what is in it; deleting it leaves that where it is', async () => {
+  await open([node('1', 10), node('2', 500), frame('3', -50, -50, 200, 200)])
+  await select('3')
+  await ctrl('d')
+  expect(flow().nodes.value.map((n) => `${n.type}:${n.data.label}`)).toEqual(['node:1', 'node:2', 'frame:Lane', 'node:1', 'frame:Lane'])
+
+  await ctrl('z')
+  await select('3')
+  await press('Delete')
+  expect(labels()).toEqual(['1', '2'])
+})
+
+test('a Frame takes a fill but no shape and no Record, and Tidy leaves it around its Nodes', async () => {
+  await open([node('1', 10), node('2', 500), frame('3', -50, -50, 200, 200)])
+  await select('3')
+  await app.get('[data-testid="node-menu-button"]').trigger('click')
+  await flushPromises()
+  expect(app.find('[role="menu"] [aria-label="Shape: Diamond"]').exists()).toBe(false)
+  expect(app.find('[role="menu"] [data-testid="record-picker"]').exists()).toBe(false)
+  await app.get('[role="menu"] [aria-label="Fill blue"]').trigger('click')
+  expect(flow().findNode('3')!.data.fill).toBe('blue')
+
+  await button('Tidy left to right').trigger('click')
+  await flushPromises()
+  const [f, inside] = [flow().findNode('3')!, at('1')]
+  expect(inside.x).toBeGreaterThanOrEqual(f.position.x)
+  expect(inside.x).toBeLessThanOrEqual(f.position.x + f.data.width)
+  expect(inside.y).toBeGreaterThanOrEqual(f.position.y)
+  expect(inside.y).toBeLessThanOrEqual(f.position.y + f.data.height)
+  expect(f.type).toBe('frame')
+})

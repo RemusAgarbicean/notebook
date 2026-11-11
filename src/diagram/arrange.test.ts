@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { childPosition, resize } from './arrange'
+import { childPosition, frameAround, parentsOf, resize, within } from './arrange'
 
 const box = (x: number, y: number, width = 100, height = 40) => ({ x, y, width, height })
 
@@ -30,4 +30,28 @@ test('a box does not shrink below its minimum, from either side', () => {
 test('with a grid, the dragged corner lands on it', () => {
   expect(resize(box(10, 10), 'se', 31, 13, { width: 40, height: 20 }, 16)).toEqual(box(10, 10, 134, 54))
   expect(resize(box(10, 10), 'nw', -7, -7, { width: 40, height: 20 }, 16)).toEqual(box(0, 0, 110, 50))
+})
+
+const placed = (id: string, x: number, y: number, width = 100, height = 40, frame = false) => ({ id, x, y, width, height, frame })
+
+test('a Node is in the smallest Frame that holds its middle, and a Frame can be in a larger one', () => {
+  const nodes = [
+    placed('outer', 0, 0, 600, 400, true),
+    placed('inner', 20, 40, 200, 200, true),
+    placed('a', 40, 60), // in inner
+    placed('b', 400, 300), // in outer only
+    placed('c', 580, 380), // its corner is in outer, its middle is not
+    placed('d', 900, 900),
+  ]
+  expect(parentsOf(nodes)).toEqual({ inner: 'outer', a: 'inner', b: 'outer' })
+  expect(within(parentsOf(nodes), 'outer').sort()).toEqual(['a', 'b', 'inner'])
+  expect(within(parentsOf(nodes), 'inner')).toEqual(['a'])
+})
+
+test('two Frames of the same size on top of each other are not in each other', () => {
+  expect(parentsOf([placed('f', 0, 0, 200, 200, true), placed('g', 10, 10, 200, 200, true)])).toEqual({})
+})
+
+test('a Frame around Nodes leaves room on every side and for its title', () => {
+  expect(frameAround([box(100, 100), box(300, 200)])).toEqual({ x: 80, y: 60, width: 340, height: 200 })
 })

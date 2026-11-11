@@ -25,8 +25,10 @@ export const GRID = 16
 /** The JSON kept in `diagram.canvas`. */
 export type Canvas = { nodes: Node<NodeData>[]; edges: Edge[]; viewport: ViewportTransform }
 
-/** The one custom node type; the name is stored in every saved Node. */
+/** The node type of a Node; the name is stored in every saved Node. */
 export const NODE_TYPE = 'node'
+/** The node type of a Frame: a titled rectangle behind the Nodes. Its data has a label, a size and maybe a fill. */
+export const FRAME_TYPE = 'frame'
 
 /** The one color of every Edge and arrowhead, in both themes and in the export. */
 export const EDGE_GREY = '#a1a1aa'

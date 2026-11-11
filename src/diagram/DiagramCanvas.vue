@@ -9,7 +9,7 @@ import { Position, useVueFlow, VueFlow, type Edge, type EdgeComponent, type Grap
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
-import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, Redo2, SquareMenu, Undo2, Unlink } from 'lucide-vue-next'
+import { ArrowDown, ArrowRight, Frame, ImageDown, Maximize2, Minimize2, Plus, Redo2, SquareMenu, Undo2, Unlink } from 'lucide-vue-next'
 import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
@@ -19,11 +19,12 @@ import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
 import { createRecord, getRecord, updateRecord, type Rec, type Titled } from '../records'
-import { childPosition, type Box } from './arrange'
+import { childPosition, frameAround, parentsOf, within, type Box } from './arrange'
 import { clipOf, held, hold, pasted, type Clip } from './clipboard'
 import {
   edgeData,
   edgeOptions,
+  FRAME_TYPE,
   greyEdge,
   MAX_ZOOM,
   MIN_ZOOM,
@@ -37,6 +38,7 @@ import {
   type NodeData,
 } from './canvas'
 import DiagramEdge from './DiagramEdge.vue'
+import DiagramFrame, { FRAME_SIZE } from './DiagramFrame.vue'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
@@ -52,7 +54,10 @@ import { record, redo, startHistory, undo } from './undo'
 const props = defineProps<{ id: number; record: Rec }>()
 
 // The cast: the Node component declares only the props it uses.
-const nodeTypes = { [NODE_TYPE]: markRaw(DiagramNode) as unknown as NodeComponent }
+const nodeTypes = {
+  [NODE_TYPE]: markRaw(DiagramNode) as unknown as NodeComponent,
+  [FRAME_TYPE]: markRaw(DiagramFrame) as unknown as NodeComponent,
+}
 // Every Edge is drawn by ours; `default` is the type of an Edge that names none, so nothing is stored.
 const edgeTypes = { default: markRaw(DiagramEdge) as unknown as EdgeComponent }
 const flowId = `diagram-${props.id}`
@@ -87,6 +92,8 @@ const {
   onConnect,
   onNodeContextMenu,
   onNodeDragStart,
+  onNodeDrag,
+  onSelectionDrag,
   onNodeDragStop,
   onSelectionDragStart,
   onSelectionDragStop,
@@ -153,8 +160,29 @@ watch(
 )
 // A drag, a resize or typing a text is one step, taken when it ends.
 watch(gestures, commit)
-for (const on of [onNodeDragStart, onSelectionDragStart]) on(() => void gestures.value++)
-for (const on of [onNodeDragStop, onSelectionDragStop]) on(() => void gestures.value--)
+// A dragged Frame takes along what lies in it: each of those keeps its distance to the Frame.
+let carried: { node: GraphNode; frame: GraphNode; dx: number; dy: number }[] = []
+for (const on of [onNodeDragStart, onSelectionDragStart])
+  on(({ nodes: dragged }) => {
+    gestures.value++
+    const parents = parentsOf(placed())
+    const moving = new Set(dragged.map((n) => n.id))
+    carried = dragged.filter(isFrame).flatMap((frame) =>
+      within(parents, frame.id)
+        .filter((id) => !moving.has(id))
+        .map((id) => findNode(id)!)
+        .map((node) => ({ node, frame, dx: node.position.x - frame.position.x, dy: node.position.y - frame.position.y })),
+    )
+  })
+for (const on of [onNodeDrag, onSelectionDrag])
+  on(() => {
+    for (const { node, frame, dx, dy } of carried) node.position = { x: frame.position.x + dx, y: frame.position.y + dy }
+  })
+for (const on of [onNodeDragStop, onSelectionDragStop])
+  on(() => {
+    carried = []
+    gestures.value--
+  })
 
 const flowEl = () => root.value?.querySelector<HTMLElement>('.vue-flow')
 // Whatever had the focus may be gone or disabled now; the keys must still reach the Diagram, not the page behind it.
@@ -174,7 +202,19 @@ function travel(step: typeof undo) {
 
 // --- Editing
 
-const box = (n: GraphNode): Box => ({ ...n.position, ...n.dimensions })
+const isFrame = (n: { type?: string }) => n.type === FRAME_TYPE
+// A Frame just added has its size before Vue Flow has measured it.
+const box = (n: GraphNode): Box => ({
+  ...n.position,
+  width: n.dimensions.width || n.data.width || 0,
+  height: n.dimensions.height || n.data.height || 0,
+})
+const placed = () => nodes.value.map((n) => ({ id: n.id, ...box(n), frame: isFrame(n) }))
+/** The ids with everything that lies in the Frames among them: a Frame takes its contents along. */
+function withContents(ids: string[]) {
+  const parents = parentsOf(placed())
+  return [...new Set(ids.flatMap((id) => [id, ...within(parents, id)]))]
+}
 const select = (ids: string[]) => {
   removeSelectedElements()
   addSelectedNodes(ids.map((id) => findNode(id)!))
@@ -209,6 +249,15 @@ function addNode(data?: NodeData) {
   const { x, y } = spot()
   const step = (nodes.value.length % 10) * 16
   newNode({ x: x + step, y: y + step }, data)
+}
+// A Frame around the selected Nodes, or an empty one in the middle of the view. It starts with its title open.
+function addFrame() {
+  const picked = getSelectedNodes.value.filter((n) => !isFrame(n))
+  const { x, y, width, height } = picked.length ? frameAround(picked.map(box)) : { ...spot(), ...FRAME_SIZE }
+  const id = nextId(nodes.value)
+  editText(id)
+  addNodes({ id, type: FRAME_TYPE, position: picked.length ? { x, y } : { x: x - 120, y: y - 80 }, data: { label: '', width, height } })
+  select([id])
 }
 // A Node linked to the Record; one that is on the Diagram already is simply there twice.
 const addRecord = ({ type, id, title }: Titled) => addNode({ label: title, recordType: type, recordId: id })
@@ -254,7 +303,7 @@ function addChild(parent: GraphNode) {
 
 function selection() {
   const { nodes, edges } = parseCanvas(content())
-  return clipOf(nodes, edges, selectedIds())
+  return clipOf(nodes, edges, withContents(selectedIds()))
 }
 function add(clip: Clip) {
   addNodes(clip.nodes as Node[])
@@ -268,7 +317,7 @@ function copy() {
 }
 function cut() {
   copy()
-  removeNodes(getSelectedNodes.value)
+  removeNodes(withContents(selectedIds()))
   keepFocus()
 }
 // Each paste of the same clip lands a step further on.
@@ -303,7 +352,8 @@ function onNudge(e: KeyboardEvent) {
   if (!nudging) gestures.value++
   nudging = true
   const step = NUDGE * (e.shiftKey ? 4 : 1)
-  for (const n of getSelectedNodes.value) n.position = { x: n.position.x + by[0] * step, y: n.position.y + by[1] * step }
+  for (const n of withContents(selectedIds()).map((id) => findNode(id)!))
+    n.position = { x: n.position.x + by[0] * step, y: n.position.y + by[1] * step }
   nudgeSoonOver()
 }
 
@@ -342,7 +392,7 @@ function setFill(ids: string[], fill: FillName | null) {
 }
 // The rectangle is the shape of a Node that names none.
 function setShape(ids: string[], shape: ShapeName) {
-  for (const id of ids) updateNodeData(id, { shape: shape === 'rectangle' ? undefined : shape })
+  for (const n of ids.map((id) => findNode(id)!)) if (!isFrame(n)) n.data = { ...n.data, shape: shape === 'rectangle' ? undefined : shape }
 }
 const selectedIds = () => getSelectedNodes.value.map((n) => n.id)
 
@@ -412,7 +462,7 @@ function onCanvasKey(e: KeyboardEvent) {
   } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) openSelectionMenu()
   else if (e.shiftKey) handled = false
   // Only with the focus on that Node or on the canvas: from any other Node, Tab moves on as it always does.
-  else if (e.key === 'Tab' && picked.length === 1 && !pickedEdges.length && [nodeEl(picked[0].id), flowEl()].includes(e.target as HTMLElement))
+  else if (e.key === 'Tab' && picked.length === 1 && !isFrame(picked[0]) && !pickedEdges.length && [nodeEl(picked[0].id), flowEl()].includes(e.target as HTMLElement))
     addChild(picked[0])
   else if (e.key === 'Delete' || e.key === 'Backspace') {
     removeNodes(picked)
@@ -420,7 +470,7 @@ function onCanvasKey(e: KeyboardEvent) {
     keepFocus()
   } else if ((e.key === 'Enter' || e.key === 'F2') && picked.length === 1 && !pickedEdges.length)
     // The same as a double-click: edits a Node's text, or opens the Record of a linked one.
-    nodeEl(picked[0].id)?.querySelector('.diagram-node')?.dispatchEvent(new MouseEvent('dblclick'))
+    nodeEl(picked[0].id)?.querySelector('[data-edit]')?.dispatchEvent(new MouseEvent('dblclick'))
   else if ((e.key === 'Enter' || e.key === 'F2') && pickedEdges.length === 1 && !picked.length) editLabel(pickedEdges[0])
   else handled = false
   if (handled) e.preventDefault()
@@ -450,7 +500,8 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 
 // --- Links to Records: offered for one Node at a time.
 
-const menuNode = () => (menu.value?.ids.length === 1 ? findNode(menu.value.ids[0]) : undefined)
+const menuNode = () => (menu.value?.ids.length === 1 ? [findNode(menu.value.ids[0])].find((n) => n && !isFrame(n)) : undefined)
+const menuHasNodes = () => menu.value!.ids.some((id) => !isFrame(findNode(id) ?? {}))
 const makeType = ref<RecordType>('system')
 
 function link(id: string, { type, id: recordId, title }: Titled) {
@@ -472,14 +523,14 @@ function unlink(id: string) {
 
 function runTidy(direction: Direction) {
   lastTidy = direction
-  const positions = tidy(
-    nodes.value.map((n) => ({ id: n.id, ...n.dimensions })),
-    edges.value,
-    direction,
-  )
+  const boxes = tidy(placed(), edges.value, direction)
   const [targetPosition, sourcePosition] =
     direction === 'LR' ? [Position.Left, Position.Right] : [Position.Top, Position.Bottom]
-  for (const n of nodes.value) updateNode(n.id, { position: positions[n.id], targetPosition, sourcePosition })
+  for (const n of nodes.value) {
+    const { x, y, width, height } = boxes[n.id]
+    if (isFrame(n)) Object.assign(n, { position: { x, y }, data: { ...n.data, width, height } })
+    else updateNode(n.id, { position: { x, y }, targetPosition, sourcePosition })
+  }
   // A frame later, once Vue Flow has taken in the new positions.
   requestAnimationFrame(() => fitView())
 }
@@ -560,6 +611,9 @@ const tool =
         <Redo2 />
       </button>
       <button type="button" :class="tool" aria-label="Add Node" @click="addNode()"><Plus />Add Node</button>
+      <button type="button" :class="tool" aria-label="Add Frame" title="Add Frame: a titled box behind the Nodes, around the selection if there is one" @click="addFrame">
+        <Frame />Frame
+      </button>
       <RecordPicker data-testid="add-record" class="w-32" label="Add Record" @pick="addRecord" />
       <FillPicker class="px-2" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
       <ShapePicker :disabled="!getSelectedNodes.length" @pick="setShape(selectedIds(), $event)" />
@@ -621,8 +675,10 @@ const tool =
     >
       <span class="text-xs text-muted-foreground">Fill</span>
       <FillPicker @pick="setFill(menu.ids, $event)" />
-      <span class="text-xs text-muted-foreground">Shape</span>
-      <ShapePicker @pick="setShape(menu.ids, $event)" />
+      <template v-if="menuHasNodes()">
+        <span class="text-xs text-muted-foreground">Shape</span>
+        <ShapePicker @pick="setShape(menu.ids, $event)" />
+      </template>
       <!-- click.stop: a click in here must not close the menu the way one elsewhere does. -->
       <div v-if="menuNode()" class="flex w-56 flex-col gap-1" @click.stop>
         <span class="text-xs text-muted-foreground">Record</span>
