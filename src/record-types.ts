@@ -29,3 +29,5 @@ export const RECORD_TYPES = [
 ] as const satisfies readonly { type: string; label: string; icon: Component }[]
 
 export type RecordType = (typeof RECORD_TYPES)[number]['type']
+
+export const recordType = (type: RecordType) => RECORD_TYPES.find((t) => t.type === type)!

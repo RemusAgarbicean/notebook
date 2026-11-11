@@ -1,8 +1,12 @@
 <script setup lang="ts">
-import { House, NotebookText, Search } from 'lucide-vue-next'
-import { computed, ref } from 'vue'
+import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
+import { computed, watch } from 'vue'
+import { current, list } from './navigation'
 import { db } from './notebook'
-import { RECORD_TYPES, type RecordType } from './record-types'
+import RecordList from './RecordList.vue'
+import RecordPage from './RecordPage.vue'
+import { RECORD_TYPES } from './record-types'
+import { listTags } from './records'
 import { SAVE_STATUS_LABELS, saveStatus } from './save-status'
 import StartScreen from './StartScreen.vue'
 import type { NotebookStorage } from './storage'
@@ -11,10 +15,15 @@ import { fsaStorage } from './storage-fsa'
 // A prop so tests, and later the file-input fallback, can swap the storage.
 const { storage = fsaStorage } = defineProps<{ storage?: NotebookStorage }>()
 
-const selected = ref<'home' | RecordType>('home')
-const selectedLabel = computed(
-  () => RECORD_TYPES.find((t) => t.type === selected.value)?.label ?? 'Home',
-)
+const tags = computed(() => (db.value ? listTags() : []))
+
+// Choosing something in the sidebar changes the list and closes the open page.
+function show(target: typeof list.value) {
+  list.value = target
+  current.value = null
+}
+// Another Notebook has other Records behind the same ids.
+watch(db, () => show('home'))
 
 const item =
   'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium [&>svg]:size-4 [&>svg]:shrink-0'
@@ -46,8 +55,8 @@ const item =
         <button
           type="button"
           :class="item"
-          :aria-current="selected === 'home' ? 'page' : undefined"
-          @click="selected = 'home'"
+          :aria-current="list === 'home' ? 'page' : undefined"
+          @click="show('home')"
         >
           <House />
           Home
@@ -60,15 +69,27 @@ const item =
           type="button"
           data-testid="record-type"
           :class="item"
-          :aria-current="selected === t.type ? 'page' : undefined"
-          @click="selected = t.type"
+          :aria-current="list === t.type ? 'page' : undefined"
+          @click="show(t.type)"
         >
           <component :is="t.icon" />
           {{ t.label }}
         </button>
 
         <h2 class="px-2 pt-4 pb-1 text-xs font-medium text-muted-foreground">Tags</h2>
-        <p class="px-2 text-muted-foreground">No Tags yet</p>
+        <button
+          v-for="t in tags"
+          :key="t.id"
+          type="button"
+          data-testid="tag"
+          :class="item"
+          :aria-current="typeof list === 'object' && list.tag === t.id ? 'page' : undefined"
+          @click="show({ tag: t.id })"
+        >
+          <Tag />
+          <span class="truncate">{{ t.name }}</span>
+        </button>
+        <p v-if="!tags.length" class="px-2 text-muted-foreground">No Tags yet</p>
       </nav>
 
       <footer
@@ -80,13 +101,11 @@ const item =
       </footer>
     </aside>
 
-    <section data-testid="list-column" class="w-72 shrink-0 overflow-y-auto border-r">
-      <h1 class="flex h-12 items-center border-b px-4 font-semibold">{{ selectedLabel }}</h1>
-      <p class="p-4 text-muted-foreground">Nothing here yet.</p>
-    </section>
+    <RecordList />
 
     <main data-testid="page-column" class="flex-1 overflow-y-auto">
-      <p class="p-4 text-muted-foreground">Select a Record to see its page.</p>
+      <RecordPage v-if="current" :key="`${current.type}:${current.id}`" :type="current.type" :id="current.id" />
+      <p v-else class="p-4 text-muted-foreground">Select a Record to see its page.</p>
     </main>
   </div>
 </template>
