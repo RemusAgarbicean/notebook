@@ -116,3 +116,19 @@ test('snap to grid is saved with the Diagram only when it is on', () => {
   expect(serialiseCanvas({ ...saved, snap: false })).toBe(serialiseCanvas(saved))
   expect(parseCanvas('{"snap":"yes"}').snap).toBeUndefined()
 })
+
+test('an Edge leaves from the side that faces the other Node, whatever side its handle is on', () => {
+  // Stacked Nodes with left and right handles: straight down, not around the Nodes.
+  expect(edgeEnd(box(0, 0), Position.Right, box(0, 200))).toEqual({ x: 50, y: 40, position: Position.Bottom })
+  expect(edgeEnd(box(0, 200), Position.Left, box(0, 0))).toEqual({ x: 50, y: 200, position: Position.Top })
+  // Side by side with top and bottom handles.
+  expect(edgeEnd(box(0, 0), Position.Bottom, box(300, 0))).toEqual({ x: 100, y: 20, position: Position.Right })
+  expect(edgeEnd(box(300, 0), Position.Top, box(0, 0))).toEqual({ x: 300, y: 20, position: Position.Left })
+  // The longer way between the centres decides.
+  expect(edgeEnd(box(0, 0), Position.Bottom, box(300, 100)).position).toBe(Position.Right)
+  expect(edgeEnd(box(0, 0), Position.Right, box(60, 300)).position).toBe(Position.Bottom)
+})
+
+test('two Nodes on the same spot keep the handle side', () => {
+  expect(edgeEnd(box(0, 0), Position.Right, box(0, 0)).position).toBe(Position.Right)
+})

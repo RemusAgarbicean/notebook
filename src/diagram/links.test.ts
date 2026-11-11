@@ -4,7 +4,7 @@ import { db } from '../notebook'
 import { createRecord, deleteRecord, getRecord, updateRecord } from '../records'
 import { loadSqlite } from '../sqlite'
 import { parseCanvas, type NodeData } from './canvas'
-import { inDiagrams, unlinked, withLiveTitles } from './links'
+import { inDiagrams, unlinked, withLiveTitles, withoutDeadLinks } from './links'
 
 beforeEach(async () => {
   const fresh = new (await loadSqlite()).Database()
@@ -73,4 +73,21 @@ test('an unlinked Node keeps its fill and holds the title it is given, or its sn
   expect(unlinked(data, 'Coupa P2P')).toEqual({ label: 'Coupa P2P', fill: 'green' })
   expect(unlinked(data, undefined)).toEqual({ label: 'Coupa', fill: 'green' })
   expect(data.recordId).toBe(7)
+})
+
+test('a copied Node whose Record was deleted since is free text; one whose Record lives stays linked', () => {
+  const coupa = createRecord('system', 'Coupa')
+  const sap = createRecord('system', 'SAP')
+  const copied = [
+    node('1', { label: 'Coupa', recordType: 'system', recordId: coupa, fill: 'green' }),
+    node('2', { label: 'SAP', recordType: 'system', recordId: sap }),
+    node('3', { label: 'free' }),
+  ]
+  deleteRecord('system', coupa)
+
+  expect(withoutDeadLinks(copied).map((n) => n.data)).toEqual([
+    { label: 'Coupa', fill: 'green' },
+    { label: 'SAP', recordType: 'system', recordId: sap },
+    { label: 'free' },
+  ])
 })

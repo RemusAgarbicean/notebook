@@ -4,6 +4,7 @@ import App from '../App.vue'
 import { current, openRecord } from '../navigation'
 import { closeNotebook, db, listBackups, reloadFromDisk, restoreBackup, saveNow, takeBackup } from '../notebook'
 import { createRecord, getRecord, updateRecord } from '../records'
+import { saveStatus } from '../save-status'
 import { memoryFolder } from '../storage-memory'
 import { useVueFlow } from '@vue-flow/core'
 import { parseCanvas } from './canvas'
@@ -192,4 +193,27 @@ test('an open Diagram does not write into the Notebook reloaded from disk, even 
 
   expect(app.find('[data-testid="diagram-canvas"]').exists()).toBe(false)
   expect(getRecord('diagram', id)!.canvas).toBe(canvas)
+})
+
+test('a canvas change counts as unsaved at once, and closing the tab right after it still saves it', async () => {
+  await open()
+  await saveNow()
+  expect(saveStatus.value).toBe('saved')
+
+  await button('Add Node').trigger('click')
+  await flushPromises()
+  expect(saveStatus.value).toBe('unsaved')
+  window.dispatchEvent(new Event('pagehide'))
+
+  expect(saved().nodes).toHaveLength(1)
+  await saveNow()
+  db.value = null
+  expect(folder.file).not.toBeNull()
+})
+
+test('opening a Diagram and looking at it leaves the Notebook saved', async () => {
+  await saveNow()
+  await open()
+  await flushPromises()
+  expect(saveStatus.value).toBe('saved')
 })
