@@ -1,7 +1,19 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { caretSpot, placePopup } from './caret'
-import { applyEdit, continueList, indentLines, pasteLink, pasteTable, toggleWrap, type Edit } from './editing'
+import {
+  applyEdit,
+  continueList,
+  indentLines,
+  insertLink,
+  pasteLink,
+  pasteTable,
+  startMention,
+  toggleLines,
+  toggleWrap,
+  type Edit,
+} from './editing'
+import FormatBar, { type FormatAction } from './FormatBar.vue'
 import { renderMarkdown, toggleTask } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
 import { isMac } from './platform'
@@ -48,7 +60,20 @@ function edit(change: (e: Edit) => Edit | null) {
   return !!next
 }
 
-const WRAP: Record<string, string> = { b: '**', i: '*', e: '`' }
+// What each button of the formatting bar does; three of them have a key too.
+const FORMAT: Record<FormatAction, (e: Edit) => Edit> = {
+  bold: (s) => toggleWrap(s, '**'),
+  italic: (s) => toggleWrap(s, '*'),
+  code: (s) => toggleWrap(s, '`'),
+  link: insertLink,
+  heading: (s) => toggleLines(s, 'heading'),
+  bullet: (s) => toggleLines(s, 'bullet'),
+  number: (s) => toggleLines(s, 'number'),
+  task: (s) => toggleLines(s, 'task'),
+  // The `[[` arrives as typing does, which opens the Mention list.
+  mention: startMention,
+}
+const KEYS: Record<string, FormatAction> = { b: 'bold', i: 'italic', e: 'code' }
 // ⌘ on a Mac, where Ctrl+B and Ctrl+E already move the caret; Ctrl everywhere else.
 const withMod = (e: KeyboardEvent) => (isMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && !e.altKey
 
@@ -56,7 +81,7 @@ const withMod = (e: KeyboardEvent) => (isMac() ? e.metaKey && !e.ctrlKey : e.ctr
 function editorKey(e: KeyboardEvent): boolean {
   if (e.isComposing) return false
   const key = e.key.toLowerCase()
-  if (withMod(e)) return !e.shiftKey && key in WRAP && edit((s) => toggleWrap(s, WRAP[key]))
+  if (withMod(e)) return !e.shiftKey && key in KEYS && edit(FORMAT[KEYS[key]])
   if (e.ctrlKey || e.metaKey || e.altKey) return false
   if (e.key === 'Enter') return !e.shiftKey && edit(continueList)
   if (e.key === 'Tab') return edit((s) => indentLines(s, e.shiftKey))
@@ -127,6 +152,7 @@ function onKeydown(e: KeyboardEvent) {
         {{ editing ? 'Done' : 'Edit' }}
       </button>
     </div>
+    <FormatBar v-if="editing" @run="edit(FORMAT[$event])" />
     <div v-if="editing" class="relative">
       <textarea
         ref="area"

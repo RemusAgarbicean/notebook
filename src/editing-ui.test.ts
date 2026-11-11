@@ -147,3 +147,61 @@ test('pasting a copied spreadsheet range makes a table, and other text pastes as
 
   expect((await paste('plain')).defaultPrevented).toBe(false)
 })
+
+// ---- The formatting bar
+
+const bar = (action: string) => app.get(`[data-testid="format-${action}"]`)
+
+test('the formatting bar shows only while editing, with named buttons that tell their shortcut', async () => {
+  expect(bar('bold').attributes()).toMatchObject({ 'aria-label': 'Bold', title: 'Bold (Ctrl B)' })
+  expect(bar('task').attributes()).toMatchObject({ 'aria-label': 'Task list', title: 'Task list' })
+
+  await type('notes|')
+  await press('Escape')
+
+  expect(app.find('[data-testid="format-bar"]').exists()).toBe(false)
+})
+
+test('a formatting button changes the selection in the textarea and saves', async () => {
+  await type('pay |the invoice| now')
+  await bar('bold').trigger('click')
+  expect(notes()).toBe('pay **the invoice** now')
+  expect([el().selectionStart, el().selectionEnd]).toEqual([6, 17])
+
+  await type('|Requisition\nApproval|')
+  await bar('number').trigger('click')
+  expect(notes()).toBe('1. Requisition\n2. Approval')
+
+  await type('Agenda|')
+  await bar('heading').trigger('click')
+  expect(notes()).toBe('## Agenda')
+})
+
+test('pressing the mouse on a formatting button does not take the focus from the textarea', async () => {
+  const down = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
+  bar('italic').element.dispatchEvent(down)
+
+  expect(down.defaultPrevented).toBe(true)
+})
+
+test('the Mention button starts a Mention and opens the list of Records', async () => {
+  createRecord('person', 'Maria')
+  await type('ask |')
+
+  await bar('mention').trigger('click')
+
+  expect(notes()).toBe('ask [[')
+  expect(app.findAll('[data-testid="mention-option"]').map((o) => o.text())).toContain('MariaPerson')
+})
+
+test('the formatting bar is one Tab stop and the arrow keys move along it', async () => {
+  const stops = app.findAll('[data-testid="format-bar"] button').map((b) => b.attributes('tabindex'))
+  expect(stops.filter((t) => t === '0')).toHaveLength(1)
+
+  ;(bar('bold').element as HTMLElement).focus()
+  await bar('bold').trigger('keydown', { key: 'ArrowRight' })
+  expect(document.activeElement).toBe(bar('italic').element)
+  await bar('italic').trigger('keydown', { key: 'ArrowLeft' })
+  await bar('bold').trigger('keydown', { key: 'ArrowLeft' })
+  expect(document.activeElement).toBe(bar('mention').element)
+})
