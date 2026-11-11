@@ -7,6 +7,9 @@ import { SAVE_STATUS_LABELS, saveStatus } from './save-status'
 import StartScreen from './StartScreen.vue'
 import type { NotebookStorage } from './storage'
 import { fsaStorage } from './storage-fsa'
+import OtherTabScreen from './OtherTabScreen.vue'
+import SaveGuards from './SaveGuards.vue'
+import { tabLock } from './tab-lock'
 import ThemeSwitch from './ThemeSwitch.vue'
 
 // A prop so tests, and later the file-input fallback, can swap the storage.
@@ -22,8 +25,10 @@ const item =
 </script>
 
 <template>
-  <StartScreen v-if="!db" :storage="storage" />
+  <OtherTabScreen v-if="tabLock.blocked.value" />
+  <StartScreen v-else-if="!db" :storage="storage" />
   <div v-else class="flex h-screen">
+    <SaveGuards />
     <aside
       data-testid="sidebar"
       class="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"

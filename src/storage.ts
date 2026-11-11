@@ -12,6 +12,9 @@ export interface NotebookFolder {
   writeBackup(fileName: string, bytes: Uint8Array): Promise<void>
   /** File names in `backups/`. */
   listBackups(): Promise<string[]>
+  deleteBackup(fileName: string): Promise<void>
+  /** When `notebook.sqlite` was last changed on disk, by anyone. Null when it is gone. */
+  lastModified(): Promise<number | null>
 }
 
 export interface NotebookStorage {
