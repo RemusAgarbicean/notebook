@@ -37,6 +37,43 @@ const save = async () => {
   await get('import-save').trigger('click')
   await expect.poll(() => app.find('[data-testid="import-dialog"]').exists()).toBe(false)
 }
+test('Export downloads the whole type as a .csv file named after the list and the day', async () => {
+  createRecord('system', 'Coupa', { summary: 'Procure-to-pay' })
+  createRecord('system', 'SAP')
+  list.value = 'system'
+  await flushPromises()
+  const saved: { name: string; blob: Blob }[] = []
+  const createObjectURL = URL.createObjectURL
+  URL.createObjectURL = (blob: Blob) => (saved.push({ name: '', blob }), 'blob:x')
+  const click = HTMLAnchorElement.prototype.click
+  HTMLAnchorElement.prototype.click = function () {
+    saved.at(-1)!.name = this.download
+  }
+  try {
+    await get('list-filter').setValue('sap')
+    await get('export-csv').trigger('click')
+  } finally {
+    URL.createObjectURL = createObjectURL
+    HTMLAnchorElement.prototype.click = click
+  }
+
+  expect(saved).toHaveLength(1)
+  expect(saved[0].name).toMatch(/^systems-\d{4}-\d{2}-\d{2}\.csv$/)
+  const bytes = new Uint8Array(await saved[0].blob.arrayBuffer())
+  expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf])
+  expect(new TextDecoder().decode(bytes)).toBe('Title,Summary,URL,Owner,Tags,Notes\r\nCoupa,Procure-to-pay,,,,\r\nSAP,,,,,\r\n')
+})
+
+test('there is no Export for Diagrams or for an empty list', async () => {
+  createRecord('diagram', 'Map')
+  list.value = 'diagram'
+  await flushPromises()
+  expect(app.find('[data-testid="export-csv"]').exists()).toBe(false)
+  list.value = 'team'
+  await flushPromises()
+  expect(app.find('[data-testid="export-csv"]').exists()).toBe(false)
+})
+
 const cells = () => all('import-row').map((r) => r.findAll('td').map((c) => c.text()))
 
 const PEOPLE = 'Name\tRole\tTeam\nAna\tDev\tPayments\nBogdan\tLead\tPayments, Platform'

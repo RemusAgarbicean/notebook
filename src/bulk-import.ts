@@ -35,7 +35,7 @@ export function detectSeparator(text: string): (typeof SEPARATORS)[number] {
 /**
  * Parses a pasted table or CSV into rows of trimmed cells, the first being the
  * column names. A cell in double quotes may hold separators, newlines and
- * doubled quotes. Blank rows are dropped.
+ * doubled quotes, and keeps its outer spaces (notes with an indented first line). Blank rows are dropped.
  */
 export function parseTable(text: string): string[][] {
   text = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n')
@@ -44,9 +44,12 @@ export function parseTable(text: string): string[][] {
   let row: string[] = []
   let cell = ''
   let quoted = false
+  // What the quotes held, when the cell was quoted.
+  let exact: string | null = null
   const endCell = () => {
-    row.push(cell.trim())
+    row.push(exact?.trim() && exact.trim() === cell.trim() ? exact : cell.trim())
     cell = ''
+    exact = null
   }
   const endRow = () => {
     endCell()
@@ -58,7 +61,10 @@ export function parseTable(text: string): string[][] {
     if (quoted) {
       if (c !== '"') cell += c
       else if (text[i + 1] === '"') cell += text[i++]
-      else quoted = false
+      else {
+        quoted = false
+        exact = cell
+      }
     } else if (c === '"' && !cell.trim()) quoted = true
     else if (c === sep) endCell()
     else if (c === '\n') endRow()

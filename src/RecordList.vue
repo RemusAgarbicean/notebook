@@ -2,6 +2,7 @@
 import { CircleAlert, Pin, Plus, Search } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import DueDate from './DueDate.vue'
+import ExportButton from './ExportButton.vue'
 import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
@@ -77,6 +78,7 @@ function add() {
     <header class="flex h-12 shrink-0 items-center justify-between gap-1 border-b px-4">
       <h1 class="flex-1 truncate font-semibold" :title="heading">{{ heading }}</h1>
       <ImportDialog v-if="type && type !== 'diagram'" :key="type" :type="type" />
+      <ExportButton v-if="type && type !== 'diagram' && items.length" :type="type" />
       <button
         v-if="type"
         type="button"
