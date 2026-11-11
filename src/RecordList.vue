@@ -7,6 +7,7 @@ import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
 import { pinnedRecords } from './pins'
+import QuizDialog from './QuizDialog.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { recordsName, recordType, type RecordType } from './record-types'
 import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag, rows as query } from './records'
@@ -88,6 +89,7 @@ function add() {
   <section data-testid="list-column" class="flex w-72 shrink-0 flex-col border-r">
     <header class="flex h-12 shrink-0 items-center justify-between gap-1 border-b px-4">
       <h1 class="flex-1 truncate font-semibold" :title="heading">{{ heading }}</h1>
+      <QuizDialog v-if="type === 'acronym'" />
       <ImportDialog v-if="type && type !== 'diagram'" :key="type" :type="type" />
       <ExportButton v-if="type && type !== 'diagram' && items.length" :type="type" />
       <button
