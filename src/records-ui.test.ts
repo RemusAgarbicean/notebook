@@ -192,14 +192,14 @@ test('Delete asks first: cancelling keeps the Record, confirming removes it and 
 test('openRecord shows the Record\'s type in the list and its page', async () => {
   createRecord('task', 'Other task')
   const id = createRecord('task', 'Get Coupa access')
-  updateRecord('task', id, { due: '2026-12-01' })
+  updateRecord('task', id, { due: '2099-12-01' })
 
   openRecord('task', id)
   await flushPromises()
 
   expect(list.value).toBe('task')
   expect(current.value).toEqual({ type: 'task', id })
-  expect(rowsText()).toEqual(['Get Coupa access2026-12-01', 'Other task'])
+  expect(rowsText()).toEqual(['Get Coupa access2099-12-01', 'Other task'])
   expect(app.get('[data-testid="list-row"][aria-current="true"]').text()).toContain('Get Coupa access')
 })
 

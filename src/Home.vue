@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { CircleAlert, NotebookPen, Pin, Search } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
+import DueDate from './DueDate.vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
 import { pinnedRecords } from './pins'
 import { shortcut } from './platform'
+import QuickTask from './QuickTask.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
 import { incompleteRecords, rows, todaysLog } from './records'
@@ -144,11 +146,13 @@ const cards = computed<Card[]>(() => [
                 <span class="truncate">{{ r.title }}</span>
                 <!-- No base width: the title keeps its room and the grey text gets what is left. -->
                 <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
-                <span v-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
+                <DueDate v-if="c.key === 'task'" :due="r.right" class="ml-auto shrink-0" />
+                <span v-else-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
               </button>
             </li>
           </ul>
           <p v-else class="px-2 py-1 text-muted-foreground">{{ c.empty }}</p>
+          <QuickTask v-if="c.key === 'task'" />
         </section>
       </div>
     </div>

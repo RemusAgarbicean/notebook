@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import DueDate from './DueDate.vue'
 import { openRecord } from './navigation'
 import type { RecordType } from './record-types'
 import { createRecord, listRecords, transaction, updateRecord } from './records'
@@ -47,7 +48,7 @@ function add() {
         >
           {{ t.title }}
         </button>
-        <span v-if="t.due" class="shrink-0 text-xs text-muted-foreground">{{ t.due }}</span>
+        <DueDate :due="t.due" :done="t.done" class="shrink-0" />
       </li>
     </ul>
     <form class="px-2 pt-1" @submit.prevent="add">

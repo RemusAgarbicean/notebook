@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { CircleAlert, Pin, Plus, Search } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef, watch } from 'vue'
+import DueDate from './DueDate.vue'
 import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
@@ -128,7 +129,8 @@ function add() {
           <component :is="recordType(r.type).icon" v-if="tagId !== null" class="mt-0.5 size-4 shrink-0" />
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium" :class="{ 'line-through': r.closed }">{{ r.title }}</span>
-            <span v-if="r.sub" class="block truncate text-xs text-muted-foreground">{{ r.sub }}</span>
+            <DueDate v-if="type === 'task'" :due="r.sub" :done="r.closed" class="block truncate" />
+            <span v-else-if="r.sub" class="block truncate text-xs text-muted-foreground">{{ r.sub }}</span>
           </span>
           <span v-if="r.pinned" data-testid="pinned" role="img" aria-label="Pinned" title="Pinned" class="mt-0.5 shrink-0 text-muted-foreground">
             <Pin class="size-3.5 fill-current" />
