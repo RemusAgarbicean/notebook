@@ -79,6 +79,21 @@ export const MIGRATIONS: string[] = [
 
   create table setting (key text primary key, value text);
   `,
+  // Images pasted into notes. autoincrement: an id is never handed out again, so a reference
+  // left in some text, or an Undo delete, can't end up pointing at a different Image.
+  `
+  create table image (
+    id integer primary key autoincrement,
+    owner_type text not null,
+    owner_id integer not null,
+    mime text not null,
+    width integer not null,
+    height integer not null,
+    bytes integer not null,
+    data blob not null,
+    created_at text not null default ${NOW}
+  );
+  `,
 ]
 
 export const schemaVersion = (db: Database) =>
