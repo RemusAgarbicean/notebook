@@ -11,5 +11,5 @@
     "isolatedModules": true,
     "paths": { "@/*": ["./src/*"] }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "scripts", "vite.config.ts", "vitest.sample.config.ts"]
 }
