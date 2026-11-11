@@ -5,7 +5,7 @@ import { globalSearch } from './global-search'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
 import { RECORD_FIELDS } from './record-fields'
-import { sameTitle } from './record-search'
+import { sameTitle } from './records'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
 import { createRecord } from './records'
 

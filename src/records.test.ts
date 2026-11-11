@@ -12,6 +12,7 @@ import {
   listTags,
   recordTags,
   recordsWithTag,
+  transaction,
   removeTag,
   revision,
   updateRecord,
@@ -231,4 +232,19 @@ test('every write bumps the refresh signal and marks the Notebook unsaved', () =
   addTag('team', id, 'core')
   deleteRecord('team', id)
   expect(revision.value).toBeGreaterThanOrEqual(afterCreate + 3)
+})
+
+test('a transaction that throws leaves none of its writes, also when transactions nest', () => {
+  expect(() =>
+    transaction(() => {
+      createRecord('team', 'Finance')
+      transaction(() => createRecord('person', 'Maria'))
+      throw new Error('halfway')
+    }),
+  ).toThrow('halfway')
+
+  expect(listRecords('team')).toEqual([])
+  expect(listRecords('person')).toEqual([])
+  // The Notebook still accepts transactions afterwards.
+  expect(transaction(() => createRecord('team', 'Finance'))).toBeGreaterThan(0)
 })

@@ -1,15 +1,24 @@
 import { db, takeBackup } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
-import { searchRecords, sameTitle } from './record-search'
+import { searchRecords } from './record-search'
 import type { RecordType } from './record-types'
-import { addTag, changed, createRecord, listRecords, today, updateRecord, type Patch } from './records'
+import {
+  addTag,
+  createRecord,
+  foldTitle as fold,
+  listRecords,
+  sameRecord,
+  sameTitle,
+  today,
+  transaction,
+  updateRecord,
+  type Patch,
+} from './records'
 import { slotsOf } from './relation-slots'
 import { addToSlot, slotRecords } from './relations'
 
 // Bulk import: a pasted table or CSV file becomes Records of one type.
 // Reading and planning are pure; only `runImport` touches the Notebook.
-
-const fold = (s: string) => s.trim().toLocaleLowerCase()
 
 // ---- Reading the table
 
@@ -220,16 +229,14 @@ export async function runImport(
   mode: DuplicateMode,
 ): Promise<{ created: number; filled: number; skipped: number }> {
   await takeBackup('import')
-  const d = db.value
-  if (!d) throw new Error('The Notebook is closed')
+  if (!db.value) throw new Error('The Notebook is closed')
   // Planned after the Backup, which may have waited on a save.
   const existing = listRecords(type)
   const plan = planImport(type, table, columns, existing.map((r) => r.title))
   const result = { created: 0, filled: 0, skipped: 0 }
 
   // Nothing below awaits, so no save can run inside the transaction.
-  d.run('begin')
-  try {
+  transaction(() => {
     for (const row of plan) {
       if (row.error || (row.duplicate && mode === 'skip')) {
         result.skipped++
@@ -242,7 +249,6 @@ export async function runImport(
         const patch: Patch = {}
         // A false, a 0 and a chosen option are values, so only null and '' count as empty.
         for (const [k, v] of Object.entries(row.fields)) if (old[k] === null || old[k] === '') patch[k] = v
-        // No title in the patch: a renaming `updateRecord` would open its own transaction.
         if (Object.keys(patch).length) updateRecord(type, id, patch)
         result.filled++
       } else {
@@ -254,19 +260,14 @@ export async function runImport(
         for (const title of row.slots[slot.name] ?? []) {
           const found = searchRecords(title, slot.offers).filter((r) => sameTitle(r.title, title))
           const other = slot.offers.flatMap((t) => found.filter((r) => r.type === t))[0] ?? {
-            type: slot.offers[0],
-            id: createRecord(slot.offers[0], title),
+            type: slot.creates ?? slot.offers[0],
+            id: createRecord(slot.creates ?? slot.offers[0], title),
           }
-          if (!slotRecords(slot, id).some((r) => r.type === other.type && r.id === other.id))
+          if (!slotRecords(slot, id).some((r) => sameRecord(r, other)))
             addToSlot(slot, id, other)
         }
       }
     }
-    d.run('commit')
-  } catch (e) {
-    d.run('rollback')
-    changed()
-    throw e
-  }
+  })
   return result
 }

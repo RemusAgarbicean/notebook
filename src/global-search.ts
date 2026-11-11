@@ -1,21 +1,18 @@
 import { RECORD_FIELDS } from './record-fields'
-import type { Found } from './record-search'
 import { RECORD_TYPES } from './record-types'
-import { rows, type Rec, type RecordRef } from './records'
+import { byTitle, foldTitle, rows, type Rec, type RecordRef, type Titled } from './records'
 
 /** A search result. `where` names what matched when it was not the title. */
-export type Hit = Found & { where?: string }
-
-const fold = (s: unknown) => String(s ?? '').toLocaleLowerCase()
+export type Hit = Titled & { where?: string }
 
 /**
  * The Records whose title, fields, notes or Tags contain the text, ignoring
  * case: title matches first, then the rest, each by title. Empty text finds nothing.
  */
 export function globalSearch(text: string): Hit[] {
-  const needle = fold(text.trim())
+  const needle = foldTitle(text)
   if (!needle) return []
-  const has = (v: unknown) => fold(v).includes(needle)
+  const has = (v: unknown) => foldTitle(String(v ?? '')).includes(needle)
 
   const tagged = new Set(
     rows<RecordRef & { name: string }>('select rt.type, rt.id, t.name from record_tag rt join tag t on t.id = rt.tag_id')
@@ -33,10 +30,5 @@ export function globalSearch(text: string): Hit[] {
       return where === null ? [] : [{ type, id: r.id, title: r.title, where }]
     })
   })
-  return hits.sort(
-    (a, b) =>
-      Number(!!a.where) - Number(!!b.where) ||
-      a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) ||
-      a.id - b.id,
-  )
+  return hits.sort((a, b) => Number(!!a.where) - Number(!!b.where) || byTitle(a, b))
 }

@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 import { openRecord } from './navigation'
 import type { RecordType } from './record-types'
-import { createRecord, listRecords, updateRecord } from './records'
+import { createRecord, listRecords, transaction, updateRecord } from './records'
 import { LABEL } from './relation-slots'
 import { addRelation, isProjectTask, recordRelations } from './relations'
 
@@ -18,8 +18,11 @@ const tasks = computed(() => {
 const title = ref('')
 function add() {
   if (!title.value.trim()) return
-  const id = createRecord('task', title.value)
-  addRelation({ type: 'task', id }, LABEL.partOf, props)
+  // Both or neither: no Task is left behind outside its Project.
+  transaction(() => {
+    const id = createRecord('task', title.value)
+    addRelation({ type: 'task', id }, LABEL.partOf, props)
+  })
   title.value = ''
 }
 </script>

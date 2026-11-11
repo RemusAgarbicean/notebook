@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, type RecordType } from './record-types'
-import { createRecord, updateRecord, type Rec } from './records'
+import { createRecord, transaction, updateRecord, type Rec } from './records'
 import { LABEL } from './relation-slots'
 import { addRelation } from './relations'
 
@@ -20,8 +20,11 @@ function makeRecord() {
   const title = makeTitle.value.trim()
   if (!title) return
   try {
-    const made = { type: makeType.value, id: createRecord(makeType.value, title) }
-    addRelation({ type: props.type, id: props.id }, LABEL.answeredBy, made)
+    // Both or neither: no new Record is left behind without its Relation.
+    transaction(() => {
+      const made = { type: makeType.value, id: createRecord(makeType.value, title) }
+      addRelation({ type: props.type, id: props.id }, LABEL.answeredBy, made)
+    })
     makeTitle.value = ''
     error.value = ''
   } catch (e) {

@@ -100,10 +100,13 @@ export function saveNow(): Promise<void> {
 /**
  * Saves, then copies notebook.sqlite to backups/ as
  * `notebook-YYYY-MM-DD-HHMMSS-<reason>.sqlite` (reason e.g. 'import').
- * Rejects when the copy cannot be written.
+ * Rejects when the save did not reach the disk (the copy would miss the
+ * latest edits) or the copy cannot be written.
  */
 export async function takeBackup(reason: string): Promise<void> {
   await saveNow()
+  if (saveProblem.value)
+    throw new Error('The Notebook could not be saved, so no Backup was taken. Fix the save problem first.')
   if (folder) await writeBackup(folder, reason)
 }
 

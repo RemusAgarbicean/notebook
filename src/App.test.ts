@@ -142,3 +142,25 @@ test('the list and page columns sit next to the sidebar', async () => {
   expect(app.find('[data-testid="list-column"]').exists()).toBe(true)
   expect(app.find('[data-testid="page-column"]').exists()).toBe(true)
 })
+
+test('Reopen says so when the browser refuses permission', async () => {
+  const app = await start({
+    pick: async () => null,
+    lastName: async () => 'Work notes',
+    reopen: async () => null,
+  })
+
+  await click(app, 'Reopen')
+
+  expect(app.get('[role="alert"]').text()).toContain('permission')
+  expect(buttons(app)).toEqual(['Reopen', 'Pick folder', 'Create new Notebook'])
+})
+
+test('cancelling the folder picker shows no message', async () => {
+  const app = await start(fakeStorage(null))
+
+  await app.findAll('button').find((b) => b.text() === 'Pick folder')!.trigger('click')
+  await flushPromises()
+
+  expect(app.find('[role="alert"]').exists()).toBe(false)
+})

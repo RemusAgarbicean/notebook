@@ -12,6 +12,31 @@ DOMPurify.addHook('afterSanitizeAttributes', (node) => {
   }
 })
 
-/** Markdown to sanitized HTML, safe for `v-html`. The only way notes reach the page. */
-export const renderMarkdown = (source: string): string =>
-  DOMPurify.sanitize(markdown.parse(source, { async: false }))
+/**
+ * Markdown to sanitized HTML, safe for `v-html`. The only way notes reach the page.
+ * Nothing in the result makes a network request: no styles, media or SVG, and
+ * an image that is not a `data:` image becomes a link showing its alt text.
+ */
+export function renderMarkdown(source: string): string {
+  const body = DOMPurify.sanitize(markdown.parse(source, { async: false }), {
+    USE_PROFILES: { html: true },
+    FORBID_TAGS: ['style', 'video', 'audio', 'source', 'track', 'picture'],
+    FORBID_ATTR: ['style', 'srcset', 'background', 'poster'],
+    RETURN_DOM: true,
+  }) as HTMLElement
+  // e.g. <input type="image" src>
+  for (const el of body.querySelectorAll('[src]:not(img)')) el.removeAttribute('src')
+  for (const img of body.querySelectorAll('img')) {
+    const src = img.getAttribute('src') ?? ''
+    if (/^data:image\//i.test(src)) continue
+    const text = img.getAttribute('alt') || src
+    if (!/^https?:/i.test(src) || img.closest('a')) {
+      img.replaceWith(text)
+      continue
+    }
+    const a = document.createElement('a')
+    Object.assign(a, { href: src, target: '_blank', rel: 'noopener noreferrer', textContent: text })
+    img.replaceWith(a)
+  }
+  return body.innerHTML
+}

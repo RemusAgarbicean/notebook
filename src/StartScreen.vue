@@ -12,12 +12,14 @@ const busy = ref(false)
 
 onMounted(async () => (lastName.value = await props.storage.lastName()))
 
-async function open(getFolder: () => Promise<NotebookFolder | null>, create = false) {
+// `refused` is what to say when no folder comes back; left out for the picker, where that means Cancel.
+async function open(getFolder: () => Promise<NotebookFolder | null>, create = false, refused = '') {
   error.value = ''
   busy.value = true
   try {
     const folder = await getFolder()
-    if (folder && !(await openNotebook(folder, create))) {
+    if (!folder) error.value = refused
+    else if (!(await openNotebook(folder, create))) {
       error.value = `Can't find it: there is no notebook.sqlite in the folder "${folder.name}".`
       lastName.value = null
     }
@@ -50,7 +52,7 @@ const button =
           type="button"
           :disabled="busy"
           :class="[button, 'border-primary bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground']"
-          @click="open(storage.reopen)"
+          @click="open(storage.reopen, false, 'The browser did not give permission to open the folder. Click Reopen and allow it, or pick the folder again.')"
         >
           Reopen
         </button>

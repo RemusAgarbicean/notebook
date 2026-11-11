@@ -106,3 +106,38 @@ test('takeBackup saves pending edits and copies the file under the given reason'
   const backup = folder.backups.get('notebook-2026-11-11-093005-import.sqlite')
   expect(await onDisk(backup, 'select title from team')).toEqual([['Procurement']])
 })
+
+test('daily Backups and reason Backups rotate separately, 14 of each', () => {
+  const dailies = Array.from({ length: 14 }, (_, i) => `notebook-2026-10-${String(i + 1).padStart(2, '0')}.sqlite`)
+  const imports = Array.from({ length: 15 }, (_, i) => `notebook-2026-11-11-0930${String(i).padStart(2, '0')}-import.sqlite`)
+  const upgrade = 'notebook-2026-11-01-080000-pre-upgrade.sqlite'
+
+  // A day of imports evicts no daily Backup, only the oldest reason Backups.
+  expect(backupsToDelete([...dailies, ...imports])).toEqual(['notebook-2026-11-11-093000-import.sqlite'])
+  // And a 15th daily Backup evicts no reason Backup.
+  expect(backupsToDelete([...dailies, 'notebook-2026-10-15.sqlite', upgrade, ...imports.slice(0, 13)])).toEqual([
+    'notebook-2026-10-01.sqlite',
+  ])
+})
+
+test('takeBackup rejects, and copies nothing, when the save before it fails', async () => {
+  const folder = memoryFolder()
+  await openNotebook(folder, true)
+  folder.write = () => Promise.reject(new Error('permission revoked'))
+  addTeam('Procurement')
+
+  await expect(takeBackup('import')).rejects.toThrow('could not be saved')
+
+  expect([...folder.backups.keys()].filter((n) => n.includes('import'))).toEqual([])
+})
+
+test('takeBackup rejects when the file was changed outside the app', async () => {
+  const folder = memoryFolder()
+  await openNotebook(folder, true)
+  folder.modified++
+  addTeam('Procurement')
+
+  await expect(takeBackup('import')).rejects.toThrow('could not be saved')
+
+  expect(folder.backups.size).toBe(0)
+})

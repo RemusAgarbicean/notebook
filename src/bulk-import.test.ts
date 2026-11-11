@@ -156,11 +156,18 @@ test('importing People creates them with their Teams, creating each missing Team
   expect(listRecords('team').map((t) => t.title)).toEqual(['Payments', 'Platform'])
 })
 
-test('an unmatched Owner becomes a Person, the first type the slot offers', async () => {
+test('an unmatched Owner becomes a Team, while an existing Person or Team is matched', async () => {
   createRecord('team', 'Finance')
-  await run('system', 'Title,Owner\nCoupa,"finance, Maria"')
+  createRecord('person', 'Maria')
+  await run('system', 'Title,Owner\nCoupa,"finance, maria, Procurement"')
+  await run('project', 'Title,Owner\nRollout,Change office')
   expect(listRecords('person').map((p) => p.title)).toEqual(['Maria'])
-  expect(listRecords('team').map((t) => t.title)).toEqual(['Finance'])
+  expect(listRecords('team').map((t) => t.title)).toEqual(['Change office', 'Finance', 'Procurement'])
+  expect(slotRecords(slotsOf('system')[0], listRecords('system')[0].id).map((r) => r.title)).toEqual([
+    'Finance',
+    'Maria',
+    'Procurement',
+  ])
 })
 
 test('rows marked red are skipped and the rest are saved with their Tags', async () => {

@@ -145,3 +145,29 @@ test('Mentioned in lists the Records whose notes or answer Mention this one', ()
     { type: 'open_question', id: question, title: 'Who approves?' },
   ])
 })
+
+test('renaming onto a title another Record has keeps that Record\'s Mentions pointing at it', () => {
+  const bookmark = createRecord('bookmark', 'Coupa P2P')
+  const system = createRecord('system', 'Coupa')
+  const note = createRecord('process', 'Buying', { notes: '[[coupa p2p]] and [[Coupa]]' })
+
+  updateRecord('system', system, { title: 'Coupa P2P' })
+
+  const notes = getRecord('process', note)!.notes
+  expect(notes).toBe('[[Bookmark: Coupa P2P]] and [[System: Coupa P2P]]')
+  expect(findMentions(notes).map((m) => resolveMention(m)[0])).toMatchObject([
+    { type: 'bookmark', id: bookmark },
+    { type: 'system', id: system },
+  ])
+})
+
+test('creating a Record with a title another has keeps that Record\'s Mentions pointing at it', () => {
+  const bookmark = createRecord('bookmark', 'Coupa')
+  const note = createRecord('open_question', 'Where?', { answer: 'In [[Coupa]]' })
+
+  createRecord('system', 'coupa')
+
+  const answer = String(getRecord('open_question', note)!.answer)
+  expect(answer).toBe('In [[Bookmark: Coupa]]')
+  expect(resolveMention(findMentions(answer)[0])[0]).toMatchObject({ type: 'bookmark', id: bookmark })
+})

@@ -1,8 +1,8 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
-import { afterEach, beforeEach, expect, test } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App.vue'
 import { current, openRecord } from './navigation'
-import { closeNotebook } from './notebook'
+import { closeNotebook, db } from './notebook'
 import { createRecord, getRecord, listRecords, type RecordRef } from './records'
 import { LABEL } from './relation-slots'
 import { addRelation, hasRelation } from './relations'
@@ -93,4 +93,17 @@ test('the checklist shows due dates, only on a Project page, and leaves other Re
   expect(current.value).toEqual(dated)
   // A Task's own page has no checklist.
   expect(app.find('[data-testid="project-tasks"]').exists()).toBe(false)
+})
+
+test('a Task that cannot be made part of the Project is not created', async () => {
+  const rollout = make('project', 'Coupa rollout')
+  await open(rollout)
+  db.value!.run('delete from label where id = ?', [LABEL.partOf])
+  const failed = vi.fn()
+  app.vm.$.appContext.config.errorHandler = failed
+
+  await addTask('Book kickoff')
+
+  expect(failed).toHaveBeenCalled()
+  expect(listRecords('task')).toEqual([])
 })
