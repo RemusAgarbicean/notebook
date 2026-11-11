@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { vDialog, vFocus } from './dialog'
 import { addLabel, deleteLabel, listLabels, renameLabel, type Label } from './relations'
 
-// The sidebar's "Labels" button and the settings screen it opens.
+// The sidebar's "Relation labels" button and the settings screen it opens.
 const open = ref(false)
 const labels = computed(() => (open.value ? listLabels() : []))
 const error = ref('')
@@ -51,7 +51,7 @@ const input = 'h-7 w-full rounded-md border bg-background px-2'
     @click="((open = true), (error = ''))"
   >
     <Tags class="size-4" />
-    Labels
+    Relation labels
   </button>
 
   <div

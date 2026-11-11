@@ -44,7 +44,7 @@ const cards = computed<Card[]>(() => [
     key: 'open_question',
     type: 'open_question',
     title: 'Open questions',
-    empty: 'No Open questions.',
+    empty: 'Nothing waiting for an answer.',
     rows: rows<Row>(
       `select 'open_question' as type, id, title from open_question
        where status = 'open' order by title collate nocase, id`,

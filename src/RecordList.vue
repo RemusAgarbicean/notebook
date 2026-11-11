@@ -5,7 +5,7 @@ import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
 import { RECORD_FIELDS } from './record-fields'
-import { recordType, type RecordType } from './record-types'
+import { recordsName, recordType, type RecordType } from './record-types'
 import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag } from './records'
 
 const type = computed(() => (typeof list.value === 'string' && list.value !== 'home' ? list.value : null))
@@ -49,8 +49,7 @@ watch(list, () => (text.value = ''))
 const closedWord = computed(() => ({ task: 'done', open_question: 'answered' })[type.value as string])
 const shown = computed(() => filterList(items.value, text.value, !!closedWord.value && hideClosed.value))
 const empty = computed(() => {
-  // The Journal's Records are Journal entries: "No Journal yet" reads wrong.
-  const named = type.value === 'journal_entry' ? 'Journal entries' : heading.value
+  const named = type.value ? recordsName(type.value) : heading.value
   if (!items.value.length) return type.value ? `No ${named} yet. Use New to add the first.` : 'No Records have this Tag.'
   if (text.value.trim()) return `No ${type.value ? named : 'Records'} match "${text.value.trim()}".`
   return `No open ${heading.value}. Hide ${closedWord.value} is on.`
