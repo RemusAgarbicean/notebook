@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ExternalLink, Trash2, X } from 'lucide-vue-next'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
+import ConfirmDialog from './ConfirmDialog.vue'
 import DiagramCanvas from './diagram/DiagramCanvas.vue'
 import { inDiagrams } from './diagram/links'
 import MarkdownField from './MarkdownField.vue'
@@ -52,10 +53,11 @@ function addTagFrom(e: Event) {
   input.value = ''
 }
 
+// Delete asks first, in a dialog.
+const deleting = ref(false)
+const usedIn = computed(() => (deleting.value ? inDiagrams(props).length : 0))
 function remove() {
-  const n = inDiagrams(props).length
-  const used = n ? ` It is used in ${n} Diagram${n > 1 ? 's' : ''}; its Nodes there become plain text.` : ''
-  if (!confirm(`Delete the ${info.value.singular} "${record.value!.title}"? Its Relations and Tags go with it.${used}`)) return
+  deleting.value = false
   deleteRecord(props.type, props.id)
   current.value = null
 }
@@ -74,7 +76,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
 
 <template>
   <p v-if="!record" class="p-4 text-muted-foreground">Select a Record to see its page.</p>
-  <article v-else class="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+  <article v-else class="mx-auto flex max-w-3xl min-w-0 flex-col gap-4 p-6">
     <header class="flex items-center gap-2 text-muted-foreground">
       <component :is="info.icon" class="size-4" />
       <span class="flex-1">{{ info.singular }}</span>
@@ -82,18 +84,35 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
         type="button"
         data-testid="delete-record"
         class="flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-accent hover:text-destructive"
-        @click="remove"
+        @click="deleting = true"
       >
         <Trash2 class="size-3.5" />
         Delete
       </button>
     </header>
+    <ConfirmDialog
+      v-if="deleting"
+      data-testid="confirm-dialog"
+      :title="`Delete the ${info.singular} &quot;${record.title}&quot;?`"
+      confirm-label="Delete"
+      destructive
+      @confirm="remove"
+      @cancel="deleting = false"
+    >
+      <p class="text-muted-foreground">
+        Its Relations and Tags go with it.
+        <template v-if="usedIn">
+          It is used in {{ usedIn }} {{ usedIn > 1 ? 'Diagrams' : 'Diagram' }}; its Nodes there become plain text.
+        </template>
+      </p>
+    </ConfirmDialog>
 
     <input
       ref="title"
       data-testid="record-title"
       aria-label="Title"
       :value="record.title"
+      :title="record.title"
       class="w-full rounded-md bg-transparent text-2xl font-semibold"
       @change="onChange('title', $event)"
     />
@@ -163,18 +182,18 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
 
       <div class="flex min-h-8 items-center gap-2">
         <span class="w-28 shrink-0 text-muted-foreground">Tags</span>
-        <div class="flex flex-1 flex-wrap items-center gap-1">
+        <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
           <span
             v-for="t in tags"
             :key="t.id"
             data-testid="record-tag"
-            class="flex h-6 items-center gap-1 rounded-md bg-secondary pl-2 pr-1 text-xs text-secondary-foreground"
+            class="flex h-6 max-w-full items-center gap-1 rounded-md bg-secondary pl-2 pr-1 text-xs text-secondary-foreground"
           >
-            {{ t.name }}
+            <span class="truncate">{{ t.name }}</span>
             <button
               type="button"
               :aria-label="`Remove Tag ${t.name}`"
-              class="rounded hover:bg-background"
+              class="shrink-0 rounded hover:bg-background"
               @click="removeTag(type, id, t.id)"
             >
               <X class="size-3" />

@@ -105,4 +105,18 @@
   body {
     @apply bg-background text-foreground text-sm;
   }
+  /* One focus ring everywhere, for keyboard use only. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 1px;
+  }
+  /* The one accent color, also on native checkboxes and radios. */
+  input[type='checkbox'],
+  input[type='radio'] {
+    accent-color: var(--primary);
+  }
+  button:not(:disabled),
+  select {
+    cursor: pointer;
+  }
 }

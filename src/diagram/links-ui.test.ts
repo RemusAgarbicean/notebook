@@ -106,16 +106,14 @@ test('a Record page lists the Diagrams it is in, and deleting it warns how many'
   const link = { label: 'Coupa', recordType: 'system', recordId: coupa }
   draw(id, link)
   draw(createRecord('diagram', 'Invoices'), link, link)
-  const confirm = vi.fn((_message: string) => false)
-  vi.stubGlobal('confirm', confirm)
-
   openRecord('system', coupa)
   await flushPromises()
 
   expect(app.findAll('[data-testid="in-diagrams"]').map((d) => d.text())).toEqual(['Invoices', 'S2P overview'])
 
   await app.get('[data-testid="delete-record"]').trigger('click')
-  expect(confirm.mock.calls[0][0]).toContain('used in 2 Diagrams')
+  expect(app.get('[data-testid="confirm-dialog"]').text()).toContain('used in 2 Diagrams')
+  await app.get('[data-testid="dialog-cancel"]').trigger('click')
 
   await app.findAll('[data-testid="in-diagrams"]')[1].trigger('click')
   expect(current.value).toEqual({ type: 'diagram', id })

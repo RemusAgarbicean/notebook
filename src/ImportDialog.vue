@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Upload, X } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
+import { vDialog } from './dialog'
 import { importTargets, matchColumns, parseTable, planImport, runImport, type DuplicateMode } from './bulk-import'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
@@ -85,15 +86,17 @@ async function save() {
   <button
     type="button"
     data-testid="import-open"
-    class="flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground"
+    :aria-label="`Import ${recordType(type).label}`"
+    :title="`Import ${recordType(type).label} from a pasted table or a .csv file`"
+    class="flex size-7 shrink-0 items-center justify-center rounded-md border hover:bg-accent hover:text-accent-foreground"
     @click="start"
   >
     <Upload class="size-3.5" />
-    Import…
   </button>
 
   <div
     v-if="open"
+    v-dialog
     class="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 text-sm text-foreground"
     @click.self="open = false"
     @keydown.esc="open = false"
@@ -103,7 +106,7 @@ async function save() {
       role="dialog"
       aria-modal="true"
       aria-labelledby="import-title"
-      class="flex max-h-full w-full max-w-3xl flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4"
+      class="flex max-h-full w-full max-w-3xl flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
     >
       <header class="flex items-center">
         <h2 id="import-title" class="flex-1 font-semibold">Import {{ recordType(type).label }}</h2>

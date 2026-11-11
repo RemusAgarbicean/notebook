@@ -9,7 +9,8 @@ import { slotsOf } from './relation-slots'
 import { addToSlot, removeFromSlot, slotRecords } from './relations'
 
 // The Relation slots of a Record, as rows among its fixed fields.
-const props = defineProps<{ type: RecordType; id: number }>()
+// `record` is what every page section is handed; the slots only need the type and id.
+const props = defineProps<{ type: RecordType; id: number; record?: unknown }>()
 
 const slots = computed(() =>
   slotsOf(props.type).map((slot) => ({
@@ -23,25 +24,25 @@ const slots = computed(() =>
 <template>
   <div v-for="s in slots" :key="s.slot.name" :data-testid="`slot-${s.slot.name}`" class="flex min-h-8 items-center gap-2">
     <span class="w-28 shrink-0 text-muted-foreground">{{ s.slot.name }}</span>
-    <div class="flex flex-1 flex-wrap items-center gap-1">
+    <div class="flex min-w-0 flex-1 flex-wrap items-center gap-1">
       <span
         v-for="r in s.records"
         :key="`${r.type}:${r.id}`"
-        class="flex h-6 items-center gap-1 rounded-md bg-secondary pl-2 pr-1 text-xs text-secondary-foreground"
+        class="flex h-6 max-w-full items-center gap-1 rounded-md bg-secondary pl-2 pr-1 text-xs text-secondary-foreground"
       >
         <button
           type="button"
           data-testid="slot-record"
-          class="flex items-center gap-1 hover:underline"
+          class="flex min-w-0 items-center gap-1 hover:underline"
           @click="openRecord(r.type, r.id)"
         >
-          <component :is="recordType(r.type).icon" class="size-3" />
-          {{ r.title }}
+          <component :is="recordType(r.type).icon" class="size-3 shrink-0" />
+          <span class="truncate">{{ r.title }}</span>
         </button>
         <button
           type="button"
           :aria-label="`Remove ${r.title}`"
-          class="rounded hover:bg-background"
+          class="shrink-0 rounded hover:bg-background"
           @click="removeFromSlot(s.slot, id, r)"
         >
           <X class="size-3" />

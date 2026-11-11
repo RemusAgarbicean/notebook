@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Tags, Trash2, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
+import { vDialog } from './dialog'
 import { addLabel, deleteLabel, listLabels, renameLabel, type Label } from './relations'
 
 // The sidebar's "Labels" button and the settings screen it opens.
@@ -55,6 +56,7 @@ const input = 'h-7 w-full rounded-md border bg-background px-2'
 
   <div
     v-if="open"
+    v-dialog
     class="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 text-sm text-foreground"
     @click.self="open = false"
     @keydown.esc="open = false"
@@ -64,7 +66,7 @@ const input = 'h-7 w-full rounded-md border bg-background px-2'
       role="dialog"
       aria-modal="true"
       aria-labelledby="labels-title"
-      class="flex max-h-full w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4"
+      class="flex max-h-full w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
     >
       <header class="flex items-center">
         <h2 id="labels-title" class="flex-1 font-semibold">Relation labels</h2>
