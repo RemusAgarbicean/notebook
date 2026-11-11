@@ -116,6 +116,8 @@ test('? opens the shortcuts dialog, which lists them with this platform\'s modif
   expect(keys).toContain(shortcut('K'))
   expect(keys).toContain(shortcut('S'))
   expect(keys).toEqual(expect.arrayContaining(['/', 'N', 'E', '?', 'JK']))
+  // The Diagram's own.
+  expect(keys).toEqual(expect.arrayContaining([shortcut('Z') + shortcut('Shift Z'), 'Tab', shortcut('D'), 'Shift F10']))
 
   await get('shortcuts-dialog').trigger('keydown', { key: 'Escape' })
   expect(app.find('[data-testid="shortcuts-dialog"]').exists()).toBe(false)

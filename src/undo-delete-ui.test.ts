@@ -83,3 +83,16 @@ test('Ctrl+Z while typing is left to the field', async () => {
 test('Ctrl+Z with nothing deleted does nothing', async () => {
   expect(ctrlZ().defaultPrevented).toBe(false)
 })
+
+test('Ctrl+Z anywhere in a Diagram, its toolbar included, is the Diagram\'s undo and brings no deleted Record back', async () => {
+  const id = await deleteOpen('Coupa')
+  openRecord('diagram', createRecord('diagram', 'Overview'))
+  await expect.poll(() => app.find('[data-testid="diagram-canvas"]').attributes('data-ready')).toBe('true')
+
+  ctrlZ(app.get('button[aria-label="Tidy left to right"]').element)
+  ctrlZ(app.get('.vue-flow').element)
+  await flushPromises()
+
+  expect(getRecord('system', id)).toBeNull()
+  expect(current.value?.type).toBe('diagram')
+})

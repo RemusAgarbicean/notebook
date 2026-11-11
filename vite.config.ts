@@ -25,5 +25,12 @@ export default defineConfig({
     // The polyfill fetches; the page must make zero network requests.
     modulePreload: { polyfill: false },
   },
-  test: { environment: 'happy-dom', include: ['src/**/*.test.ts'], setupFiles: ['src/test-setup.ts'] },
+  test: {
+    environment: 'happy-dom',
+    include: ['src/**/*.test.ts'],
+    setupFiles: ['src/test-setup.ts'],
+    // Opening a Notebook loads SQLite, which takes more than the default second on a busy machine.
+    expect: { poll: { timeout: 10_000 } },
+    testTimeout: 20_000,
+  },
 })
