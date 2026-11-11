@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
-import { computed, watch } from 'vue'
+import { computed } from 'vue'
 import BackupsDialog from './BackupsDialog.vue'
 import CommandPalette from './CommandPalette.vue'
 import { fullScreen } from './diagram/full-screen'
+import { useHistory } from './history'
 import Home from './Home.vue'
 import LabelsSettings from './LabelsSettings.vue'
 import { current, list } from './navigation'
@@ -39,8 +40,7 @@ function show(target: typeof list.value) {
   list.value = target
   current.value = null
 }
-// Another Notebook has other Records behind the same ids.
-watch(db, () => show('home'))
+useHistory()
 
 const item =
   'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-sidebar-accent hover:text-sidebar-accent-foreground aria-[current=page]:bg-sidebar-accent aria-[current=page]:font-medium [&>svg]:size-4 [&>svg]:shrink-0'
