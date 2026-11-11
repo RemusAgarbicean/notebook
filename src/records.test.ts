@@ -10,6 +10,7 @@ import {
   getRecord,
   listRecords,
   listTags,
+  recordCounts,
   recordTags,
   recordsWithTag,
   transaction,
@@ -247,4 +248,27 @@ test('a transaction that throws leaves none of its writes, also when transaction
   expect(listRecords('person')).toEqual([])
   // The Notebook still accepts transactions afterwards.
   expect(transaction(() => createRecord('team', 'Finance'))).toBeGreaterThan(0)
+})
+
+test('recordCounts counts every Record per type, but only open Tasks and Open questions', () => {
+  createRecord('system', 'Coupa')
+  createRecord('system', 'SAP')
+  createRecord('task', 'Call Ana')
+  createRecord('task', 'Done already', { done: true })
+  const q = createRecord('open_question', 'Who owns Coupa?')
+  createRecord('open_question', 'Why two ERPs?')
+  updateRecord('open_question', q, { status: 'answered' })
+
+  expect(recordCounts()).toMatchObject({ system: 2, task: 1, open_question: 1, person: 0 })
+})
+
+test('listTags gives each Tag the number of Records that have it', () => {
+  addTag('system', createRecord('system', 'Coupa'), 'S2P')
+  addTag('person', createRecord('person', 'Ana'), 's2p')
+  addTag('person', createRecord('person', 'Bo'), 'finance')
+
+  expect(listTags()).toMatchObject([
+    { name: 'finance', count: 1 },
+    { name: 'S2P', count: 2 },
+  ])
 })

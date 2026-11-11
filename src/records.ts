@@ -225,8 +225,24 @@ export function deleteRecord(type: RecordType, id: number) {
   changed()
 }
 
-/** Every Tag, by name. A Tag exists only while some Record has it. */
-export const listTags = (): Tag[] => rows<Tag>('select id, name from tag order by name collate nocase')
+/** Every Tag, by name, with how many Records have it. A Tag exists only while some Record has it. */
+export const listTags = (): (Tag & { count: number })[] =>
+  rows(
+    `select id, name, (select count(*) from record_tag rt where rt.tag_id = tag.id) as count
+     from tag order by name collate nocase`,
+  )
+
+const OPEN: Partial<Record<RecordType, string>> = { task: 'where done = 0', open_question: "where status = 'open'" }
+
+/** The sidebar's number per type: every Record, but only the open Tasks and Open questions. */
+export const recordCounts = (): Record<RecordType, number> =>
+  Object.fromEntries(
+    rows<{ type: RecordType; n: number }>(
+      RECORD_TYPES.map(({ type }) => `select '${type}' as type, count(*) as n from ${type} ${OPEN[type] ?? ''}`).join(
+        ' union all ',
+      ),
+    ).map((r) => [r.type, r.n]),
+  ) as Record<RecordType, number>
 
 export const recordTags = (type: RecordType, id: number): Tag[] =>
   rows<Tag>(
