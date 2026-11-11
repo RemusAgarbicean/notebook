@@ -177,13 +177,6 @@ test('Delete asks first: cancelling keeps the Record, confirming removes it and 
   expect(app.find('[data-testid="record-title"]').exists()).toBe(false)
 })
 
-test('a Diagram page shows a placeholder for the canvas', async () => {
-  openRecord('diagram', createRecord('diagram', 'S2P overview'))
-  await flushPromises()
-
-  expect(app.find('[data-testid="diagram-placeholder"]').exists()).toBe(true)
-})
-
 test('openRecord shows the Record\'s type in the list and its page', async () => {
   createRecord('task', 'Other task')
   const id = createRecord('task', 'Get Coupa access')

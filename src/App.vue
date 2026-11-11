@@ -2,6 +2,7 @@
 import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
 import { computed, watch } from 'vue'
 import CommandPalette from './CommandPalette.vue'
+import { fullScreen } from './diagram/full-screen'
 import Home from './Home.vue'
 import LabelsSettings from './LabelsSettings.vue'
 import { current, list } from './navigation'
@@ -116,7 +117,7 @@ const item =
     <!-- Home takes the place of both the list and the page column. -->
     <Home v-if="list === 'home'" />
     <template v-else>
-      <RecordList />
+      <RecordList v-if="!fullScreen" />
 
       <main data-testid="page-column" class="flex-1 overflow-y-auto">
         <RecordPage v-if="current" :key="`${current.type}:${current.id}`" :type="current.type" :id="current.id" />

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ExternalLink, Trash2, X } from 'lucide-vue-next'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
+import DiagramCanvas from './diagram/DiagramCanvas.vue'
 import MarkdownField from './MarkdownField.vue'
 import { current } from './navigation'
 import { PAGE_SECTIONS } from './page-sections'
@@ -190,14 +191,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       </div>
     </div>
 
-    <!-- The Diagram canvas replaces this placeholder. -->
-    <p
-      v-if="type === 'diagram'"
-      data-testid="diagram-placeholder"
-      class="rounded-md border border-dashed p-8 text-center text-muted-foreground"
-    >
-      The Diagram canvas is not built yet.
-    </p>
+    <DiagramCanvas v-if="type === 'diagram'" :id="id" :record="record" />
 
     <MarkdownField
       data-testid="notes"
