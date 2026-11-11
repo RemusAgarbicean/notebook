@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ExternalLink, Trash2, X } from 'lucide-vue-next'
+import { CircleAlert, ExternalLink, Trash2, X } from 'lucide-vue-next'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import DiagramCanvas from './diagram/DiagramCanvas.vue'
@@ -66,9 +66,24 @@ const isWebUrl = (v: Value | undefined): v is string => typeof v === 'string' &&
 const when = (iso: Value | undefined) => (iso ? new Date(String(iso)).toLocaleString() : '')
 
 // A Record nobody has edited yet was just created: its title is ready to be typed over.
+// One that already has its title (made in the palette or a picker) starts at its empty required field instead.
 const title = useTemplateRef('title')
+const page = useTemplateRef('page')
+/** Moves the focus to the first required field that is still empty; false when there is none. */
+function leadToRequired() {
+  const empty = page.value?.querySelector<HTMLElement>('[aria-invalid="true"]')
+  empty?.focus()
+  return !!empty
+}
 onMounted(() => {
-  if (record.value && record.value.created_at === record.value.updated_at) title.value?.select()
+  const r = record.value
+  if (!r) return
+  const fresh = r.created_at === r.updated_at
+  if (!(fresh && r.title === `New ${info.value.singular}`) && leadToRequired()) return
+  if (fresh) {
+    title.value?.focus()
+    title.value?.select()
+  }
 })
 
 const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-50'
@@ -76,7 +91,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
 
 <template>
   <p v-if="!record" class="p-4 text-muted-foreground">Select a Record to see its page.</p>
-  <article v-else class="mx-auto flex max-w-3xl min-w-0 flex-col gap-4 p-6">
+  <article v-else ref="page" class="mx-auto flex max-w-3xl min-w-0 flex-col gap-4 p-6">
     <header class="flex items-center gap-2 text-muted-foreground">
       <component :is="info.icon" class="size-4" />
       <span class="flex-1">{{ info.singular }}</span>
@@ -115,6 +130,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       :title="record.title"
       class="w-full rounded-md bg-transparent text-2xl font-semibold"
       @change="onChange('title', $event)"
+      @keydown.enter="leadToRequired"
     />
     <p v-if="error" role="alert" class="text-destructive">{{ error }}</p>
 
@@ -153,10 +169,17 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
             :data-testid="`field-${f.name}`"
             :value="record[f.name]"
             :required="f.required"
-            :class="input"
+            :aria-invalid="f.required && !record[f.name] ? 'true' : undefined"
+            :class="[input, 'aria-invalid:border-destructive']"
             @change="onChange(f.name, $event)"
           />
-          <span v-if="f.required && !record[f.name]" class="shrink-0 text-xs text-destructive">Required</span>
+          <span
+            v-if="f.required && !record[f.name]"
+            class="flex shrink-0 items-center gap-1 text-xs text-destructive"
+          >
+            <CircleAlert class="size-3.5" />
+            Required
+          </span>
           <a
             v-if="f.kind === 'url' && isWebUrl(record[f.name])"
             :href="String(record[f.name])"
