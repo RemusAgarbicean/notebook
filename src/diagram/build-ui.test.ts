@@ -112,3 +112,87 @@ test('a new Node and the text typed into it are one step', async () => {
   await ctrl('z')
   expect(labels()).toEqual(['1', '2'])
 })
+
+// --- Faster building
+
+const typeText = async (text: string) => {
+  await expect.poll(() => app.find('[aria-label="Node text"]').exists()).toBe(true)
+  const input = app.get<HTMLTextAreaElement>('[aria-label="Node text"]')
+  input.element.value = text
+  await input.trigger('blur')
+  await flushPromises()
+}
+const edgeEnds = () => flow().edges.value.map((e) => `${e.source}>${e.target}`)
+
+test('a double-click on the empty canvas adds a Node there, ready for typing', async () => {
+  await open()
+  await app.get('.vue-flow__pane').trigger('dblclick', { clientX: 300, clientY: 200 })
+  await typeText('Ariba')
+
+  expect(labels()).toEqual(['1', '2', 'Ariba'])
+  expect(flow().findNode('3')!.selected).toBe(true)
+})
+
+test('Tab on the selected Node adds a connected child to its right, and another below that', async () => {
+  await open()
+  await select('2')
+  await press('Tab')
+  await typeText('Bank')
+  expect(edgeEnds()).toEqual(['1>2', '2>3'])
+  const [parent, first] = [flow().findNode('2')!, flow().findNode('3')!]
+  expect(first.position.x).toBeGreaterThan(parent.position.x)
+  expect(first.position.y).toBe(parent.position.y)
+  expect(first.selected).toBe(true)
+
+  await select('2')
+  await press('Tab')
+  await typeText('Tax')
+  expect(edgeEnds()).toEqual(['1>2', '2>3', '2>4'])
+  expect(flow().findNode('4')!.position.x).toBe(first.position.x)
+  expect(flow().findNode('4')!.position.y).toBeGreaterThan(first.position.y)
+
+  // One step each.
+  await ctrl('z')
+  expect(labels()).toEqual(['1', '2', 'Bank'])
+})
+
+test('Ctrl+D duplicates the selected Nodes with the Edge between them', async () => {
+  await open()
+  await select('1', '2')
+  await ctrl('d')
+
+  expect(labels()).toEqual(['1', '2', '1', '2'])
+  expect(edgeEnds()).toEqual(['1>2', '3>4'])
+  expect(flow().findNode('3')!.position).toEqual({ x: 24, y: 24 })
+  expect(flow().getSelectedNodes.value.map((n) => n.id)).toEqual(['3', '4'])
+  expect(flow().edges.value[1].label).toBe('invoices')
+})
+
+test('Ctrl+X cuts, Ctrl+V pastes, also into another Diagram', async () => {
+  await open()
+  await select('1', '2')
+  await ctrl('x')
+  expect(labels()).toEqual([])
+  await ctrl('v')
+  expect(labels()).toEqual(['1', '2'])
+  expect(edgeEnds()).toEqual(['1>2'])
+
+  await select('1')
+  await ctrl('c')
+  const other = createRecord('diagram', 'Other')
+  openRecord('diagram', other)
+  await expect.poll(() => getRecord('diagram', other) && app.find('[data-testid="diagram-canvas"]').attributes('data-ready')).toBe('true')
+  await flushPromises()
+  await press('v', { ctrlKey: true })
+  expect(useVueFlow(`diagram-${other}`).nodes.value.map((n) => n.data.label)).toEqual(['1'])
+})
+
+test('the arrow keys nudge the selection, further with Shift', async () => {
+  await open()
+  await select('1', '2')
+  await press('ArrowRight')
+  await press('ArrowDown', { shiftKey: true })
+
+  expect(flow().findNode('1')!.position).toEqual({ x: 4, y: 16 })
+  expect(flow().findNode('2')!.position).toEqual({ x: 204, y: 16 })
+})

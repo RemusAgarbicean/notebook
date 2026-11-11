@@ -5,7 +5,7 @@ import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { Position, useVueFlow, VueFlow, type EdgeComponent, type NodeComponent } from '@vue-flow/core'
+import { Position, useVueFlow, VueFlow, type Edge, type EdgeComponent, type GraphNode, type Node, type NodeComponent } from '@vue-flow/core'
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
@@ -19,7 +19,9 @@ import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
 import { createRecord, getRecord, updateRecord, type Rec, type Titled } from '../records'
-import { greyEdge, MAX_ZOOM, MIN_ZOOM, NODE_TYPE, nextId, parseCanvas, serialiseCanvas, viewportFor } from './canvas'
+import { childPosition, type Box } from './arrange'
+import { clipOf, held, hold, pasted, type Clip } from './clipboard'
+import { greyEdge, MAX_ZOOM, MIN_ZOOM, NODE_TYPE, nextId, parseCanvas, serialiseCanvas, viewportFor, type NodeData } from './canvas'
 import DiagramEdge from './DiagramEdge.vue'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
@@ -46,6 +48,12 @@ const {
   getSelectedNodes,
   getSelectedEdges,
   addSelectedEdges,
+  addSelectedNodes,
+  removeSelectedElements,
+  screenToFlowCoordinate,
+  setCenter,
+  onConnectStart,
+  onConnectEnd,
   removeNodes,
   removeEdges,
   addNodes,
@@ -136,6 +144,7 @@ const flowEl = () => root.value?.querySelector<HTMLElement>('.vue-flow')
 const keepFocus = () => nextTick(() => root.value?.contains(document.activeElement) || flowEl()?.focus({ preventScroll: true }))
 
 function travel(step: typeof undo) {
+  endNudge()
   const to = step(history.value)
   if (to === history.value) return
   history.value = to
@@ -148,21 +157,44 @@ function travel(step: typeof undo) {
 
 // --- Editing
 
-function addNode() {
-  const { x, y, zoom } = viewport.value
-  // Near the middle of what is visible, stepped so Nodes added in a row don't hide each other.
-  const step = (nodes.value.length % 10) * 16
+const box = (n: GraphNode): Box => ({ ...n.position, ...n.dimensions })
+const select = (ids: string[]) => {
+  removeSelectedElements()
+  addSelectedNodes(ids.map((id) => findNode(id)!))
+}
+// Brings a spot of the canvas into view when it is outside it.
+function reveal({ x, y }: { x: number; y: number }) {
+  const { x: left, y: top, zoom } = viewport.value
+  const [sx, sy] = [x * zoom + left, y * zoom + top]
+  const { width, height } = dimensions.value
+  if (sx < 40 || sy < 40 || sx > width - 160 || sy > height - 80) setCenter(x, y, { zoom, duration: 200 })
+}
+
+/** Adds a Node, selects it and, when it has no text yet, opens it for typing. */
+function newNode(position: { x: number; y: number }, data: NodeData = { label: '' }, more: Partial<Node> = {}) {
   const id = nextId(nodes.value)
-  editText(id)
-  addNodes({
-    id,
-    type: NODE_TYPE,
-    position: {
-      x: (dimensions.value.width / 2 - x) / zoom - 40 + step,
-      y: (dimensions.value.height / 2 - y) / zoom - 16 + step,
-    },
-    data: { label: '' },
-  })
+  if (!data.label) editText(id)
+  addNodes({ id, type: NODE_TYPE, position, data, ...more })
+  select([id])
+  reveal(position)
+  return id
+}
+// The top-left corner for a new Node whose middle should be at a point of the view (its centre when none is given).
+function spot(at?: { clientX: number; clientY: number }) {
+  const frame = flowEl()!.getBoundingClientRect()
+  const { x, y } = screenToFlowCoordinate(
+    at ? { x: at.clientX, y: at.clientY } : { x: frame.left + frame.width / 2, y: frame.top + frame.height / 2 },
+  )
+  return { x: x - 40, y: y - 17 }
+}
+function addNode() {
+  const { x, y } = spot()
+  // Stepped so Nodes added in a row don't hide each other.
+  const step = (nodes.value.length % 10) * 16
+  newNode({ x: x + step, y: y + step })
+}
+function onDoubleClick(e: MouseEvent) {
+  if ((e.target as Element).classList.contains('vue-flow__pane')) newNode(spot(e))
 }
 
 // Opens a new Node's text for typing. Adding it and typing its text are one undo step: the Node ends the gesture.
@@ -171,7 +203,90 @@ function editText(id: string) {
   editRequest.value = id
 }
 
-onConnect((connection) => addEdges(greyEdge({ ...connection, id: nextId(edges.value) })))
+const newEdge = (ends: { source: string; target: string }) => greyEdge({ ...ends, id: nextId(edges.value) })
+// A connection let go over the empty canvas makes the Node it should end at.
+let connecting: { nodeId?: string; handleType?: string } | null = null
+onConnectStart((from) => (connecting = from))
+onConnect((connection) => {
+  connecting = null
+  addEdges(newEdge(connection))
+})
+onConnectEnd((event) => {
+  const from = connecting
+  connecting = null
+  const at = event && ('changedTouches' in event ? event.changedTouches[0] : event)
+  if (!from?.nodeId || !at || !(at.target as Element).classList?.contains('vue-flow__pane')) return
+  const id = newNode(spot(at))
+  addEdges(newEdge(from.handleType === 'target' ? { source: id, target: from.nodeId } : { source: from.nodeId, target: id }))
+})
+
+// Tab: a child of the selected Node, placed the way Tidy last ran (or the way the Node already points).
+let lastTidy: Direction = 'LR'
+function addChild(parent: GraphNode) {
+  const direction = parent.sourcePosition === Position.Right ? 'LR' : parent.sourcePosition === Position.Bottom ? 'TB' : lastTidy
+  const children = edges.value.filter((e) => e.source === parent.id).flatMap((e) => findNode(e.target) ?? [])
+  const sides = direction === 'LR' ? { targetPosition: Position.Left, sourcePosition: Position.Right } : {}
+  if (direction === 'LR') updateNode(parent.id, { sourcePosition: Position.Right })
+  const id = newNode(childPosition(box(parent), children.map(box), direction), { label: '' }, sides)
+  addEdges(newEdge({ source: parent.id, target: id }))
+}
+
+// --- Copy, cut, paste and duplicate, with the Diagram's own clipboard.
+
+function selection() {
+  const { nodes, edges } = parseCanvas(content())
+  return clipOf(nodes, edges, selectedIds())
+}
+function add(clip: Clip) {
+  addNodes(clip.nodes as Node[])
+  addEdges((clip.edges as Edge[]).map(greyEdge))
+  select(clip.nodes.map((n) => n.id))
+  keepFocus()
+}
+function copy() {
+  if (selectedIds().length) hold(selection(), loadedFrom)
+  pastes = 0
+}
+function cut() {
+  copy()
+  removeNodes(getSelectedNodes.value)
+  keepFocus()
+}
+// Each paste of the same clip lands a step further on.
+let pastes = 0
+function paste() {
+  const clip = held(loadedFrom)
+  if (!clip?.nodes.length) return
+  // Its top-left Node goes near the middle of the view.
+  const { x, y } = spot()
+  const step = pastes++ * 16 - 60
+  add(pasted(clip, nodes.value, edges.value, {
+    x: x + step - Math.min(...clip.nodes.map((n) => n.position.x)),
+    y: y + step - Math.min(...clip.nodes.map((n) => n.position.y)),
+  }))
+}
+const duplicate = () => add(pasted(selection(), nodes.value, edges.value, { x: 24, y: 24 }))
+
+// The arrow keys move the selection: a small step, a larger one with Shift. Held down, the moves are one undo step.
+const NUDGE = 4
+let nudging = false
+function endNudge() {
+  if (nudging) gestures.value--
+  nudging = false
+}
+const nudgeSoonOver = useDebounceFn(endNudge, 400)
+function onNudge(e: KeyboardEvent) {
+  const by = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]
+  if (!by || !getSelectedNodes.value.length || typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
+  // Vue Flow's own arrow keys (another step, and only with the focus on a Node) are not to run as well.
+  e.preventDefault()
+  e.stopPropagation()
+  if (!nudging) gestures.value++
+  nudging = true
+  const step = NUDGE * (e.shiftKey ? 4 : 1)
+  for (const n of getSelectedNodes.value) n.position = { x: n.position.x + by[0] * step, y: n.position.y + by[1] * step }
+  nudgeSoonOver()
+}
 
 // Double-clicking an Edge, or Enter on a selected one, asks for its label in a dialog.
 const labelling = ref<{ id: string; text: string } | null>(null)
@@ -253,6 +368,9 @@ function onCanvasKey(e: KeyboardEvent) {
     if (e.key !== ' ') editLabel(tabbed)
   } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) openSelectionMenu()
   else if (e.shiftKey) handled = false
+  // Only with the focus on that Node or on the canvas: from any other Node, Tab moves on as it always does.
+  else if (e.key === 'Tab' && picked.length === 1 && !pickedEdges.length && [nodeEl(picked[0].id), flowEl()].includes(e.target as HTMLElement))
+    addChild(picked[0])
   else if (e.key === 'Delete' || e.key === 'Backspace') {
     removeNodes(picked)
     removeEdges(pickedEdges)
@@ -274,10 +392,11 @@ function onCanvasPointerDown(e: PointerEvent) {
 function onAreaKey(e: KeyboardEvent) {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || typing(e.target) || menu.value || labelling.value) return
   const key = e.key.toLowerCase()
-  const action = key === 'z' ? (e.shiftKey ? redo : undo) : key === 'y' && !e.shiftKey ? redo : null
+  const step = key === 'z' ? (e.shiftKey ? redo : undo) : key === 'y' && !e.shiftKey ? redo : null
+  const action = step ? () => travel(step) : e.shiftKey ? null : { d: duplicate, c: copy, x: cut, v: paste }[key]
   if (!action) return
   e.preventDefault()
-  travel(action)
+  action()
 }
 
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
@@ -309,6 +428,7 @@ function unlink(id: string) {
 }
 
 function runTidy(direction: Direction) {
+  lastTidy = direction
   const positions = tidy(
     nodes.value.map((n) => ({ id: n.id, ...n.dimensions })),
     edges.value,
@@ -431,9 +551,12 @@ const tool =
       :min-zoom="MIN_ZOOM"
       :max-zoom="MAX_ZOOM"
       :delete-key-code="null"
+      :zoom-on-double-click="false"
       tabindex="-1"
       class="flex-1 outline-none"
       @keydown="onCanvasKey"
+      @keydown.capture="onNudge"
+      @dblclick="onDoubleClick"
       @pointerdown.capture="onCanvasPointerDown"
     >
       <Background />
