@@ -66,6 +66,8 @@ watch(paletteOpen, () => ((text.value = ''), (active.value = 0)))
 function onKey(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'k') {
     e.preventDefault()
+    // A question that must be answered first: the palette would open behind it.
+    if (document.querySelector('[role="alertdialog"]')) return
     paletteOpen.value = !paletteOpen.value
   }
 }
