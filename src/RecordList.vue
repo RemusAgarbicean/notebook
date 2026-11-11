@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Plus } from 'lucide-vue-next'
 import { computed } from 'vue'
+import ImportDialog from './ImportDialog.vue'
 import { current, list, openRecord } from './navigation'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType } from './record-types'
@@ -46,8 +47,9 @@ function add() {
 
 <template>
   <section data-testid="list-column" class="flex w-72 shrink-0 flex-col border-r">
-    <header class="flex h-12 shrink-0 items-center justify-between border-b px-4">
-      <h1 class="truncate font-semibold">{{ heading }}</h1>
+    <header class="flex h-12 shrink-0 items-center justify-between gap-1 border-b px-4">
+      <h1 class="flex-1 truncate font-semibold">{{ heading }}</h1>
+      <ImportDialog v-if="type && type !== 'diagram'" :key="type" :type="type" />
       <button
         v-if="type"
         type="button"
