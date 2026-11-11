@@ -95,7 +95,7 @@ function add() {
       </li>
     </ul>
     <p v-else data-testid="list-empty" class="p-4 text-muted-foreground">
-      {{ type ? `No ${heading} yet. Use New to add the first.` : 'No Records have this Tag.' }}
+      {{ type ? `No ${type === 'journal_entry' ? 'Journal entries' : heading} yet. Use New to add the first.` : 'No Records have this Tag.' }}
     </p>
   </section>
 </template>

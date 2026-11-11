@@ -146,7 +146,7 @@ async function save() {
               data-testid="import-column"
               class="h-7 rounded-md border bg-background px-1 text-foreground"
             >
-              <option value="">ignore</option>
+              <option value="">Ignore</option>
               <option v-for="t in targets" :key="t.value" :value="t.value">{{ t.label }}</option>
             </select>
           </label>

@@ -117,7 +117,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       <p class="text-muted-foreground">
         Its Relations and Tags go with it.
         <template v-if="usedIn">
-          It is used in {{ usedIn }} {{ usedIn > 1 ? 'Diagrams' : 'Diagram' }}; its Nodes there become plain text.
+          It is used in {{ usedIn }} {{ usedIn > 1 ? 'Diagrams' : 'Diagram' }}; its Nodes there become free text.
         </template>
       </p>
     </ConfirmDialog>
