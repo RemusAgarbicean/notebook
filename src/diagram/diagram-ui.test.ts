@@ -2,7 +2,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from '../App.vue'
 import { current, openRecord } from '../navigation'
-import { closeNotebook, listBackups, restoreBackup, takeBackup } from '../notebook'
+import { closeNotebook, db, listBackups, reloadFromDisk, restoreBackup, saveNow, takeBackup } from '../notebook'
 import { createRecord, getRecord, updateRecord } from '../records'
 import { memoryFolder } from '../storage-memory'
 import { useVueFlow } from '@vue-flow/core'
@@ -10,10 +10,11 @@ import { parseCanvas } from './canvas'
 
 let app: VueWrapper
 let id: number
+let folder: ReturnType<typeof memoryFolder>
 
 beforeEach(async () => {
   closeNotebook()
-  const folder = memoryFolder()
+  folder = memoryFolder()
   app = mount(App, {
     props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
     attachTo: document.body,
@@ -172,4 +173,23 @@ test('a Diagram edited just before a Backup is restored does not write into the 
 
   expect(app.find('[data-testid="diagram-canvas"]').exists()).toBe(false)
   expect(saved().nodes).toEqual([])
+})
+
+test('an open Diagram does not write into the Notebook reloaded from disk, even with nothing pending', async () => {
+  const team = createRecord('team', 'Procurement')
+  const canvas = JSON.stringify({
+    nodes: [{ id: '1', type: 'node', position: { x: 0, y: 0 }, data: { label: 'Procurement', recordType: 'team', recordId: team } }],
+  })
+  updateRecord('diagram', id, { canvas })
+  await saveNow()
+  // The Team is renamed in the app only: the file on disk still says Procurement.
+  db.value!.run("update team set title = 'Buying desk' where id = ?", [team])
+  await open()
+  await expect.poll(nodeTexts).toEqual(['Buying desk'])
+
+  await reloadFromDisk()
+  await flushPromises()
+
+  expect(app.find('[data-testid="diagram-canvas"]').exists()).toBe(false)
+  expect(getRecord('diagram', id)!.canvas).toBe(canvas)
 })

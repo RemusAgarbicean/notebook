@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from './App.vue'
 import { list } from './navigation'
 import { closeNotebook, saveNow, takeBackup } from './notebook'
+import { paletteOpen } from './palette'
 import { createRecord, listRecords } from './records'
 import type { NotebookFolder } from './storage'
 import { downloadFolder } from './storage-download'
@@ -112,4 +113,32 @@ test('a Notebook saved by download explains that it has no Backups folder', asyn
   expect(get('backups-dialog').text()).toContain('no backups folder')
   expect(app.find('[data-testid="backup-now"]').exists()).toBe(false)
   expect(app.find('[data-testid="backup-row"]').exists()).toBe(false)
+})
+
+test('while a Restore is running the screen cannot be closed and keys do not reach the app', async () => {
+  await backedUp()
+  await openDialog()
+  const write = folder.write.bind(folder)
+  let finish = () => {}
+  folder.write = async (bytes) => {
+    await new Promise<void>((r) => (finish = r))
+    return write(bytes)
+  }
+  await get('restore-backup').trigger('click')
+  await get('confirm-restore-yes').trigger('click')
+  await flushPromises()
+
+  const key = (init: KeyboardEventInit) =>
+    document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, ...init }))
+  key({ key: 'Escape' })
+  key({ key: 'k', ctrlKey: true })
+  await get('close-backups').trigger('click')
+  await flushPromises()
+
+  expect(app.find('[data-testid="backups-dialog"]').exists()).toBe(true)
+  expect(paletteOpen.value).toBe(false)
+
+  finish()
+  await expect.poll(() => app.find('[data-testid="backups-dialog"]').exists()).toBe(false)
+  expect(titles()).toEqual(['Procurement'])
 })

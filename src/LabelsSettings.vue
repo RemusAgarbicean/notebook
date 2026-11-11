@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Tags, Trash2, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
-import { vDialog } from './dialog'
+import { vDialog, vFocus } from './dialog'
 import { addLabel, deleteLabel, listLabels, renameLabel, type Label } from './relations'
 
 // The sidebar's "Labels" button and the settings screen it opens.
@@ -154,8 +154,3 @@ const input = 'h-7 w-full rounded-md border bg-background px-2'
     </div>
   </div>
 </template>
-
-<script lang="ts">
-// The dialog takes the focus when it opens, so Escape closes it.
-const vFocus = { mounted: (el: HTMLElement) => el.focus() }
-</script>

@@ -189,6 +189,9 @@ const labelParts = () => root.value!.querySelectorAll<SVGElement>('.vue-flow__ed
 async function exportPng() {
   const before = { ...viewport.value }
   exporting.value = true // switches the canvas to its light colors, see the styles below
+  // html-to-image fetches the images and fonts it comes across. A Diagram has none, and the app never goes online.
+  const realFetch = window.fetch
+  window.fetch = () => Promise.reject(new Error('The Notebook does not fetch anything.'))
   try {
     // html-to-image only captures what is in view.
     await fitView({ padding: 0.1 })
@@ -204,6 +207,7 @@ async function exportPng() {
     })
     Object.assign(document.createElement('a'), { href: url, download: `${props.record.title}.png` }).click()
   } finally {
+    window.fetch = realFetch
     for (const el of labelParts()) Object.assign(el.style, { fill: '', fontSize: '' })
     exporting.value = false
     setViewport(before)

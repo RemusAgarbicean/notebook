@@ -21,12 +21,14 @@ const button = 'h-8 rounded-md border px-3 font-medium'
 </script>
 
 <template>
-  <!-- keydown.stop: keys typed here are not for the page behind (the Diagram's Delete and Esc). -->
+  <!-- These keys are not for the page behind (the Diagram's Delete and Esc); Ctrl+S and Ctrl+K still are. -->
   <div
     v-dialog
     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 text-sm text-foreground"
     @click.self="$emit('cancel')"
-    @keydown.stop
+    @keydown.delete.stop
+    @keydown.esc.stop
+    @keydown.enter.stop
     @keydown.esc="$emit('cancel')"
   >
     <form

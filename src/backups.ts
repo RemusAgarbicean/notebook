@@ -33,7 +33,8 @@ export type BackupInfo = { date: string; time: string | null; kind: string }
 
 /** What a Backup's file name says: its day, its time (a daily Backup has none) and why it was taken. Null for other files. */
 export function describeBackup(fileName: string): BackupInfo | null {
-  const m = /^notebook-(\d{4}-\d{2}-\d{2})(?:-(\d{2})(\d{2})(\d{2})-(.+))?\.sqlite$/.exec(fileName)
+  // A trailing -2, -3… tells apart Backups taken for the same reason in the same second.
+  const m = /^notebook-(\d{4}-\d{2}-\d{2})(?:-(\d{2})(\d{2})(\d{2})-(.+?)(?:-\d+)?)?\.sqlite$/.exec(fileName)
   if (!m) return null
   const [, date, h, min, s, reason] = m
   return reason ? { date, time: `${h}:${min}:${s}`, kind: KINDS[reason] ?? reason } : { date, time: null, kind: 'Daily' }
@@ -52,15 +53,18 @@ export function backupName(reason?: string) {
 }
 
 /**
- * Copies notebook.sqlite as it is on disk into backups/, then rotates.
+ * Writes `bytes`, or else notebook.sqlite as it is on disk, into backups/, then rotates.
  * Without a reason the name is the day's Backup, `notebook-YYYY-MM-DD.sqlite`;
- * with one it is `notebook-YYYY-MM-DD-HHMMSS-<reason>.sqlite`.
+ * with one it is `notebook-YYYY-MM-DD-HHMMSS-<reason>.sqlite`, never an existing file's name.
  */
-export async function writeBackup(folder: NotebookFolder, reason?: string) {
-  const bytes = await folder.read()
+export async function writeBackup(folder: NotebookFolder, reason?: string, bytes?: Uint8Array | null) {
+  bytes ??= await folder.read()
   if (!bytes) return
-  await folder.writeBackup(backupName(reason), bytes)
-  for (const old of backupsToDelete(await folder.listBackups())) await folder.deleteBackup(old)
+  const taken = await folder.listBackups()
+  let name = backupName(reason)
+  for (let n = 2; reason && taken.includes(name); n++) name = backupName(`${reason}-${n}`)
+  await folder.writeBackup(name, bytes)
+  for (const old of backupsToDelete([...taken, name])) await folder.deleteBackup(old)
 }
 
 /** Takes the day's Backup unless it already exists. Call before overwriting the file. */

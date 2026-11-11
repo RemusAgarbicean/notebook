@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Plus, Search } from 'lucide-vue-next'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { vDialog } from './dialog'
+import { vDialog, vFocus } from './dialog'
 import { globalSearch } from './global-search'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
@@ -140,7 +140,3 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-
-<script lang="ts">
-const vFocus = { mounted: (el: HTMLElement) => el.focus() }
-</script>

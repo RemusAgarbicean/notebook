@@ -165,3 +165,12 @@ test('cancelling the folder picker shows no message', async () => {
 
   expect(app.find('[role="alert"]').exists()).toBe(false)
 })
+
+test('the start screen stays usable while a file chooser that never answers is open', async () => {
+  const app = await start({ ...fakeStorage(null), pick: () => new Promise(() => {}) })
+
+  await app.findAll('button').find((b) => b.text() === 'Pick folder')!.trigger('click')
+  await flushPromises()
+
+  expect(app.findAll('button').map((b) => b.attributes('disabled'))).toEqual([undefined, undefined])
+})

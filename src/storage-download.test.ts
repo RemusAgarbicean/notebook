@@ -7,7 +7,7 @@ import { closeNotebook, db, markDirty, openNotebook, saveNow, takeBackup } from 
 import { saveStatus } from './save-status'
 import { loadSqlite } from './sqlite'
 import type { NotebookStorage } from './storage'
-import { downloadFolder } from './storage-download'
+import { download, downloadFolder } from './storage-download'
 import { memoryFolder } from './storage-memory'
 
 beforeEach(() => {
@@ -185,7 +185,54 @@ test('the sidebar shows what is not downloaded yet and Download Notebook downloa
   await flushPromises()
 
   expect(files.map((f) => f.name)).toEqual(['notebook.sqlite'])
-  expect(status()).toBe('Nothing new to download')
+  // What happened, not a promise that the file landed.
+  expect(status()).toMatch(/^Downloaded \d\d:\d\d$/)
+  expect(app.findAll('button').some((b) => b.text() === 'Download Notebook')).toBe(true)
+})
+
+test('Retry on the Not saved banner downloads again after a download that failed', async () => {
+  const { files, save } = downloads()
+  let fail = true
+  const { app, click } = await start(
+    fallbackStorage((bytes, name) => {
+      if (fail) throw new Error('blocked')
+      save(bytes, name)
+    }),
+  )
+  await click('Create new Notebook')
+  await expect.poll(() => app.find('[data-testid="save-status"]').exists()).toBe(true)
+  addTeam('Payments')
+  await click('Download Notebook')
+  await saveNow()
+  await flushPromises()
+  expect(app.find('[data-testid="not-saved-banner"]').exists()).toBe(true)
+
+  fail = false
+  await click('Retry')
+  await saveNow()
+  await flushPromises()
+
+  expect(files.map((f) => f.name)).toEqual(['notebook.sqlite'])
+  expect(app.find('[data-testid="not-saved-banner"]').exists()).toBe(false)
+})
+
+test('a download clicks a link that is in the page and keeps its URL alive for a while', () => {
+  URL.createObjectURL ??= () => 'blob:x'
+  URL.revokeObjectURL ??= () => {}
+  const revoke = vi.spyOn(URL, 'revokeObjectURL')
+  let inPage: boolean | undefined
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (this: HTMLAnchorElement) {
+    inPage = this.isConnected
+  })
+
+  download(new Uint8Array([1]), 'notebook.sqlite')
+
+  expect(inPage).toBe(true)
+  expect(revoke).not.toHaveBeenCalled()
+  vi.advanceTimersByTime(60_000)
+  expect(revoke).toHaveBeenCalled()
+  expect(document.querySelector('a[download]')).toBeNull()
+  vi.restoreAllMocks()
 })
 
 test('with a folder there is no Download Notebook button', async () => {

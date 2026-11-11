@@ -15,9 +15,10 @@ onMounted(async () => (lastName.value = await props.storage.lastName()))
 // `refused` is what to say when no folder comes back; left out for the picker, where that means Cancel.
 async function open(getFolder: () => Promise<NotebookFolder | null>, create = false, refused = '') {
   error.value = ''
-  busy.value = true
   try {
+    // Not busy yet: a file chooser that is cancelled may never answer, and the buttons must keep working.
     const folder = await getFolder()
+    busy.value = true
     if (!folder) error.value = refused
     else if (!(await openNotebook(folder, create))) {
       // Not reached on the fallback: a picked file always has bytes.

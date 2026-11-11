@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Upload, X } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
-import { vDialog } from './dialog'
+import { vDialog, vFocus } from './dialog'
 import { importTargets, matchColumns, parseTable, planImport, runImport, type DuplicateMode } from './bulk-import'
 import { recordType, type RecordType } from './record-types'
 import { listRecords } from './records'
@@ -214,8 +214,3 @@ async function save() {
     </div>
   </div>
 </template>
-
-<script lang="ts">
-// The dialog takes the focus when it opens, so Escape closes it.
-const vFocus = { mounted: (el: HTMLElement) => el.focus() }
-</script>

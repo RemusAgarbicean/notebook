@@ -131,3 +131,51 @@ test('sizes read as KB or MB', () => {
   expect(formatSize(40960)).toBe('40 KB')
   expect(formatSize(3 * 1024 * 1024 + 512 * 1024)).toBe('3.5 MB')
 })
+
+test('restoring backs up what is in the app even when notebook.sqlite is gone from the folder', async () => {
+  const { folder, backup } = await backedUp()
+  await saveNow()
+  folder.file = null // deleted or moved outside the app
+
+  await restoreBackup(backup)
+
+  expect(
+    await onDisk(folder.backups.get('notebook-2026-11-11-093005-restore.sqlite'), 'select title from team order by id'),
+  ).toEqual([['Procurement'], ['Analytics']])
+  expect(teams()).toEqual(['Procurement'])
+})
+
+// E
+test('a save asked for while a restore is writing waits for it instead of writing over the restored file', async () => {
+  const { folder, backup } = await backedUp()
+  await saveNow()
+  const write = folder.write.bind(folder)
+  const listBackups = folder.listBackups.bind(folder)
+  let release = () => {}
+  let reached = () => {}
+  let racing = false
+  folder.listBackups = async () => {
+    if (racing) {
+      racing = false
+      reached()
+      await new Promise<void>((r) => (release = r))
+    }
+    return listBackups()
+  }
+  folder.write = async (bytes) => {
+    // The restore's write: an edit sneaks in and its save gets as far as it can before the file lands.
+    addTeam('Late')
+    racing = true
+    void saveNow()
+    await Promise.race([new Promise<void>((r) => (reached = r)), vi.advanceTimersByTimeAsync(50)])
+    racing = false
+    await write(bytes)
+    release()
+  }
+
+  await restoreBackup(backup)
+  await saveNow()
+
+  expect(teams()).toEqual(['Procurement'])
+  expect(await onDisk(folder.file, 'select title from team')).toEqual([['Procurement']])
+})
