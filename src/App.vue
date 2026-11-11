@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
 import { computed, watch } from 'vue'
+import LabelsSettings from './LabelsSettings.vue'
 import { current, list } from './navigation'
 import { db } from './notebook'
 import RecordList from './RecordList.vue'
@@ -99,6 +100,7 @@ const item =
       </nav>
 
       <footer class="border-t border-sidebar-border px-2 py-2 text-xs text-muted-foreground">
+        <LabelsSettings />
         <ThemeSwitch />
         <div data-testid="save-status" role="status" class="px-2 pt-2">
           {{ SAVE_STATUS_LABELS[saveStatus] }}
