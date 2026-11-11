@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
+import { caretSpot, placePopup } from './caret'
 import { renderMarkdown } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
 import type { Titled } from './records'
@@ -17,6 +18,18 @@ const area = useTemplateRef('area')
 const options = ref<Titled[]>([])
 const active = ref(0)
 let from = 0 // where the `[[` being completed starts
+// The list opens at the caret. Its size is known without measuring: w-72, and h-8 rows inside p-1 and a border.
+const WIDTH = 288
+const spot = ref({ left: '0px', top: '0px' })
+function place(el: HTMLTextAreaElement) {
+  const size = { width: WIDTH, height: options.value.length * 32 + 10 }
+  const box = el.getBoundingClientRect()
+  // Not past the textarea's right side either: there the page column would grow a scrollbar.
+  const room = { width: Math.min(innerWidth, box.right), height: innerHeight }
+  const at = placePopup(caretSpot(el, el.selectionStart), size, room)
+  // The list is positioned in the textarea's wrapper, which starts where the textarea does.
+  spot.value = { left: `${at.left - box.left}px`, top: `${at.top - box.top}px` }
+}
 
 // Edit puts the caret in the text.
 function toggle() {
@@ -31,6 +44,7 @@ function onInput() {
   from = open?.index ?? 0
   options.value = open ? suggestMentions(open[1]) : []
   active.value = 0
+  if (options.value.length) place(el)
 }
 
 function pick(record: Titled) {
@@ -82,12 +96,13 @@ function onKeydown(e: KeyboardEvent) {
         @keydown="onKeydown"
         @blur="options = []"
       />
-      <!-- shortcut: the list sits under the textarea, not at the caret; move it if that feels far away. -->
       <ul
         v-if="options.length"
         role="listbox"
         aria-label="Mention a Record"
-        class="absolute left-0 top-full z-10 mt-1 w-72 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+        data-testid="mention-list"
+        :style="spot"
+        class="absolute z-10 w-72 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
       >
         <!-- mousedown, not click: a click would blur the textarea and close the list first. -->
         <li
