@@ -23,6 +23,19 @@ const ROWS: { keys: string[]; does: string }[] = [
   { keys: ['?'], does: 'Show these shortcuts' },
 ]
 
+const DIAGRAM_ROWS: typeof ROWS = [
+  { keys: [shortcut('Z'), shortcut('Shift Z')], does: 'Undo and redo' },
+  { keys: ['Double-click'], does: 'On the canvas: a new Node. On a Node or Edge: its text or options' },
+  { keys: ['Tab'], does: 'A connected Node after the selected one' },
+  { keys: ['Enter', 'F2'], does: 'Edit the selected Node, Frame or Edge; Shift Enter breaks the line' },
+  { keys: [shortcut('D')], does: 'Duplicate the selection' },
+  { keys: [shortcut('C'), shortcut('X'), shortcut('V')], does: 'Copy, cut and paste, also into another Diagram' },
+  { keys: ['←↑↓→'], does: 'Nudge the selection; with Shift, further' },
+  { keys: ['Delete'], does: 'Remove the selection' },
+  { keys: ['Shift F10'], does: 'The menu of the selected Node or Edge, like a right-click' },
+  { keys: ['Esc'], does: 'Deselect the Node in focus; leave full screen' },
+]
+
 const find = <T extends HTMLElement>(selector: string) => document.querySelector<T>(selector)
 
 // Each shortcut presses the control a mouse would, so the two can't drift apart.
@@ -89,7 +102,7 @@ const kbd = 'rounded border bg-muted px-1.5 py-0.5 font-sans text-xs'
       role="dialog"
       aria-modal="true"
       aria-labelledby="shortcuts-title"
-      class="flex max-h-full w-full max-w-md flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
+      class="flex max-h-full w-full max-w-lg flex-col gap-3 overflow-y-auto rounded-lg border bg-background p-4 shadow-lg"
     >
       <header class="flex items-center">
         <h2 id="shortcuts-title" class="flex-1 font-semibold">Keyboard shortcuts</h2>
@@ -112,8 +125,17 @@ const kbd = 'rounded border bg-muted px-1.5 py-0.5 font-sans text-xs'
           <dd>{{ r.does }}</dd>
         </template>
       </dl>
+      <h3 class="pt-1 text-xs font-medium text-muted-foreground">In a Diagram</h3>
+      <dl class="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2">
+        <template v-for="r in DIAGRAM_ROWS" :key="r.does">
+          <dt data-testid="shortcut-keys" class="flex flex-wrap gap-1">
+            <kbd v-for="k in r.keys" :key="k" :class="kbd">{{ k }}</kbd>
+          </dt>
+          <dd>{{ r.does }}</dd>
+        </template>
+      </dl>
       <p class="text-muted-foreground">
-        The single keys work when you are not typing in a field. The browser's Back and Forward move between the places
+        The single keys work when you are not typing in a field or working in a Diagram. The browser's Back and Forward move between the places
         you have been.
       </p>
     </div>

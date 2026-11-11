@@ -97,8 +97,8 @@ test('double-clicking a Node edits its text', async () => {
   await expect.poll(nodeTexts).toEqual(['Coupa'])
 
   await app.get('[data-testid="diagram-node"]').trigger('dblclick')
-  const input = app.get('[data-testid="diagram-node"] input')
-  ;(input.element as HTMLInputElement).value = 'Coupa P2P'
+  const input = app.get('[data-testid="diagram-node"] textarea')
+  ;(input.element as HTMLTextAreaElement).value = 'Coupa P2P'
   await input.trigger('blur')
 
   expect(nodeTexts()).toEqual(['Coupa P2P'])
