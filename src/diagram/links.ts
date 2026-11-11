@@ -25,6 +25,12 @@ const diagramsLinking = (target: RecordRef) =>
 export const inDiagrams = (target: RecordRef): Titled[] =>
   diagramsLinking(target).map(({ id, title }) => ({ type: 'diagram', id, title }))
 
+/** A linked Node's data as a free-text Node holding `title`; without one (the Record is gone) it keeps its snapshot. */
+export function unlinked(data: NodeData, title: string | undefined): NodeData {
+  const { recordType: _type, recordId: _id, ...rest } = data
+  return { ...rest, label: title ?? data.label }
+}
+
 /**
  * Turns every Node linked to a Record into a free-text Node holding the Record's
  * title. Call it before the Record is deleted, inside the caller's transaction.
@@ -33,12 +39,8 @@ export function unlinkNodes(target: RecordRef) {
   const title = getRecord(target.type, target.id)?.title
   for (const { id, canvas } of diagramsLinking(target)) {
     const saved = JSON.parse(canvas)
-    for (const { data } of saved.nodes as { data: NodeData }[]) {
-      if (!linksTo(data, target)) continue
-      delete data.recordType
-      delete data.recordId
-      data.label = title ?? data.label
-    }
+    for (const node of saved.nodes as { data: NodeData }[])
+      if (linksTo(node.data, target)) node.data = unlinked(node.data, title)
     db.value!.run('update diagram set canvas = ? where id = ?', [JSON.stringify(saved), id])
   }
 }

@@ -9,18 +9,18 @@ import { Position, useVueFlow, VueFlow, type NodeComponent } from '@vue-flow/cor
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
-import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus } from 'lucide-vue-next'
+import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, Unlink } from 'lucide-vue-next'
 import { markRaw, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
-import { createRecord, updateRecord, type Rec, type Titled } from '../records'
+import { createRecord, getRecord, updateRecord, type Rec, type Titled } from '../records'
 import { greyEdge, NODE_TYPE, nextId, parseCanvas, serialiseCanvas } from './canvas'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
 import { fullScreen } from './full-screen'
-import { linkOf, withLiveTitles } from './links'
+import { linkOf, unlinked, withLiveTitles } from './links'
 import { tidy, type Direction } from './layout'
 
 // The Record page is keyed by Record, so this mounts once per opened Diagram.
@@ -147,6 +147,13 @@ function makeRecord(id: string) {
   link(id, { type: makeType.value, id: createRecord(makeType.value, title), title })
 }
 
+// The Node keeps the Record's title as its own text; the Record itself is untouched.
+function unlink(id: string) {
+  const link = linkOf(findNode(id)!.data)!
+  updateNodeData(id, (n) => unlinked(n.data, getRecord(link.type, link.id)?.title), { replace: true })
+  menu.value = null
+}
+
 function runTidy(direction: Direction) {
   const positions = tidy(
     nodes.value.map((n) => ({ id: n.id, ...n.dimensions })),
@@ -256,6 +263,17 @@ const tool =
             Make Record
           </button>
         </form>
+        <button
+          v-if="linkOf(menuNode()!.data)"
+          type="button"
+          role="menuitem"
+          data-testid="unlink-node"
+          class="flex h-6 items-center gap-1 rounded-md border px-2 text-xs hover:bg-accent hover:text-accent-foreground"
+          @click="unlink(menu.ids[0])"
+        >
+          <Unlink class="size-3" />
+          Unlink
+        </button>
         <RecordPicker label="Link to a Record" @pick="link(menu.ids[0], $event)" />
       </div>
     </div>

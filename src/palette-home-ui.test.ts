@@ -196,3 +196,21 @@ test('clicking a Record on a Home card opens its page', async () => {
   expect(current.value).toEqual({ type: 'task', id })
   expect(app.find('[data-testid="page-column"]').exists()).toBe(true)
 })
+
+test("Today's log on Home opens today's log Journal entry, creating it only the first time", async () => {
+  await get('todays-log').trigger('click')
+  await flushPromises()
+
+  const [entry] = listRecords('journal_entry')
+  expect(entry).toMatchObject({ kind: 'log', title: `${new Date().toLocaleDateString('sv')} log` })
+  expect(current.value).toEqual({ type: 'journal_entry', id: entry.id })
+  expect(list.value).toBe('journal_entry')
+
+  list.value = 'home'
+  current.value = null
+  await flushPromises()
+  await get('todays-log').trigger('click')
+
+  expect(listRecords('journal_entry')).toHaveLength(1)
+  expect(current.value).toEqual({ type: 'journal_entry', id: entry.id })
+})

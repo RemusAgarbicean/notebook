@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
 import { computed, watch } from 'vue'
+import BackupsDialog from './BackupsDialog.vue'
 import CommandPalette from './CommandPalette.vue'
 import { fullScreen } from './diagram/full-screen'
 import Home from './Home.vue'
@@ -11,7 +12,7 @@ import { paletteOpen } from './palette'
 import RecordList from './RecordList.vue'
 import RecordPage from './RecordPage.vue'
 import { RECORD_TYPES } from './record-types'
-import { listTags } from './records'
+import { listTags, recordCounts } from './records'
 import DownloadNotebook from './DownloadNotebook.vue'
 import { saveStatusLabel } from './save-status'
 import StartScreen from './StartScreen.vue'
@@ -29,6 +30,8 @@ const { storage = window.showDirectoryPicker ? fsaStorage : downloadStorage } = 
 }>()
 
 const tags = computed(() => (db.value ? listTags() : []))
+const counts = computed<Partial<ReturnType<typeof recordCounts>>>(() => (db.value ? recordCounts() : {}))
+const count = 'ml-auto pl-2 text-xs font-normal text-muted-foreground tabular-nums'
 
 // Choosing something in the sidebar changes the list and closes the open page.
 function show(target: typeof list.value) {
@@ -91,6 +94,7 @@ const item =
         >
           <component :is="t.icon" />
           {{ t.label }}
+          <span v-if="counts[t.type]" data-testid="count" :class="count">{{ counts[t.type] }}</span>
         </button>
 
         <h2 class="px-2 pt-4 pb-1 text-xs font-medium text-muted-foreground">Tags</h2>
@@ -105,12 +109,14 @@ const item =
         >
           <Tag />
           <span class="truncate">{{ t.name }}</span>
+          <span data-testid="count" :class="count">{{ t.count }}</span>
         </button>
         <p v-if="!tags.length" class="px-2 text-muted-foreground">No Tags yet</p>
       </nav>
 
       <footer class="border-t border-sidebar-border px-2 py-2 text-xs text-muted-foreground">
         <LabelsSettings />
+        <BackupsDialog />
         <ThemeSwitch />
         <div data-testid="save-status" role="status" class="px-2 pt-2">
           {{ saveStatusLabel }}
