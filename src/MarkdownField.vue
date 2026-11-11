@@ -1,13 +1,53 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref, useTemplateRef } from 'vue'
 import { renderMarkdown } from './markdown'
+import { mentionFor, openMention, suggestMentions, type Titled } from './mentions'
+import { RECORD_FIELDS } from './record-fields'
 
 // A markdown textarea with a rendered view, used for notes and an Open question's answer.
 const props = defineProps<{ modelValue: string; label: string }>()
-defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 // Empty text opens ready to type; existing text opens rendered.
 const editing = ref(!props.modelValue)
+
+// Mention autocomplete: open while the caret sits in an unclosed `[[`.
+const area = useTemplateRef('area')
+const options = ref<Titled[]>([])
+const active = ref(0)
+let from = 0 // where the `[[` being completed starts
+
+function onInput() {
+  const el = area.value!
+  emit('update:modelValue', el.value)
+  const open = /\[\[([^[\]\n]*)$/.exec(el.value.slice(0, el.selectionStart))
+  from = open?.index ?? 0
+  options.value = open ? suggestMentions(open[1]) : []
+  active.value = 0
+}
+
+function pick(record: Titled) {
+  const el = area.value!
+  const before = el.value.slice(0, from) + mentionFor(record)
+  emit('update:modelValue', before + el.value.slice(el.selectionStart))
+  options.value = []
+  // Once the new text is in the textarea, put the caret behind the Mention.
+  nextTick(() => {
+    el.focus()
+    el.setSelectionRange(before.length, before.length)
+  })
+}
+
+function onKeydown(e: KeyboardEvent) {
+  const n = options.value.length
+  if (!n) return
+  if (e.key === 'ArrowDown') active.value = (active.value + 1) % n
+  else if (e.key === 'ArrowUp') active.value = (active.value + n - 1) % n
+  else if (e.key === 'Enter' || e.key === 'Tab') pick(options.value[active.value])
+  else if (e.key === 'Escape') options.value = []
+  else return
+  e.preventDefault()
+}
 </script>
 
 <template>
@@ -22,17 +62,43 @@ const editing = ref(!props.modelValue)
         {{ editing ? 'Done' : 'Edit' }}
       </button>
     </div>
-    <textarea
-      v-if="editing"
-      :value="modelValue"
-      :aria-label="label"
-      rows="8"
-      placeholder="Markdown"
-      class="w-full rounded-md border bg-background p-2 font-mono"
-      @input="$emit('update:modelValue', ($event.target as HTMLTextAreaElement).value)"
-    />
+    <div v-if="editing" class="relative">
+      <textarea
+        ref="area"
+        :value="modelValue"
+        :aria-label="label"
+        rows="8"
+        placeholder="Markdown. Type [[ to mention a Record."
+        class="block w-full rounded-md border bg-background p-2 font-mono"
+        @input="onInput"
+        @keydown="onKeydown"
+        @blur="options = []"
+      />
+      <!-- shortcut: the list sits under the textarea, not at the caret; move it if that feels far away. -->
+      <ul
+        v-if="options.length"
+        role="listbox"
+        aria-label="Mention a Record"
+        class="absolute left-0 top-full z-10 mt-1 w-72 rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+      >
+        <!-- mousedown, not click: a click would blur the textarea and close the list first. -->
+        <li
+          v-for="(o, i) in options"
+          :key="`${o.type}:${o.id}`"
+          role="option"
+          data-testid="mention-option"
+          :aria-selected="i === active"
+          class="flex h-8 cursor-default items-center gap-2 rounded px-2"
+          :class="i === active && 'bg-accent text-accent-foreground'"
+          @mousedown.prevent="pick(o)"
+        >
+          <span class="truncate">{{ o.title }}</span>
+          <span class="ml-auto shrink-0 text-xs text-muted-foreground">{{ RECORD_FIELDS[o.type].singular }}</span>
+        </li>
+      </ul>
+    </div>
     <!-- renderMarkdown sanitizes its output. -->
-    <div v-else data-testid="markdown-view" class="markdown" v-html="renderMarkdown(modelValue)" />
+    <div v-else data-testid="markdown-view" class="markdown" @click="openMention" v-html="renderMarkdown(modelValue)" />
   </section>
 </template>
 
@@ -60,6 +126,10 @@ const editing = ref(!props.modelValue)
 }
 .markdown a {
   text-decoration: underline;
+}
+.markdown .mention-broken {
+  color: var(--destructive);
+  text-decoration: underline dashed;
 }
 .markdown :is(code, pre) {
   font-family: ui-monospace, monospace;

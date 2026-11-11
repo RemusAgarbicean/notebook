@@ -1,4 +1,5 @@
 import type { Component } from 'vue'
+import MentionedIn from './MentionedIn.vue'
 import type { RecordType } from './record-types'
 
 /**
@@ -14,4 +15,4 @@ export type PageSection = {
 }
 
 // Shown in array order within each slot.
-export const PAGE_SECTIONS: PageSection[] = []
+export const PAGE_SECTIONS: PageSection[] = [{ slot: 'below', component: MentionedIn }]
