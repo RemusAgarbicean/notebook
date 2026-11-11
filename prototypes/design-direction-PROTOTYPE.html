@@ -1,0 +1,421 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway. Question: what does Notebook's visual style look like? (follows issue #15)
+     Layout A + search Home (issue #9). Three colour/surface directions, switch with the bottom bar or the arrow keys.
+     Line icons only (inline SVG, Lucide-style), no emoji. Sample data only, nothing is saved. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notebook design direction</title>
+<style>
+  /* shadcn/ui look: tokens, radius 0.5rem, Button/Badge/Card/Command/Sidebar/Tabs styles. System font (no bundled font). */
+  * { box-sizing: border-box; border-color: var(--border); }
+  html, body { height: 100%; }
+  body { margin: 0; font: 14px/1.43 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif; color: var(--text); background: var(--bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
+  code, kbd { font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  svg.i { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  a { color: inherit; cursor: pointer; text-decoration: none; font-weight: 500; }
+  a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .notes a { text-decoration: underline; text-underline-offset: 4px; text-decoration-color: var(--primary); }
+  .rlink { display: inline-flex; align-items: center; gap: 8px; }
+  .rlink svg { color: var(--muted); }
+  .broken { color: var(--danger); text-decoration: underline dashed; text-underline-offset: 4px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  /* Button: default variant = outline; .primary, .ghost; .icon = size icon */
+  button { font: inherit; font-size: 14px; font-weight: 500; color: var(--text); border: 1px solid var(--border); background: var(--bg); border-radius: 6px; padding: 0 12px; height: 32px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); transition: background-color .15s, color .15s; }
+  button:hover { background: var(--muted-bg); }
+  button:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  button.primary { background: var(--primary); color: var(--primary-fg); border-color: transparent; }
+  button.primary:hover { background: var(--primary); opacity: .9; }
+  button.ghost { border-color: transparent; background: transparent; box-shadow: none; }
+  button.ghost:hover { background: var(--muted-bg); }
+  button.icon { width: 32px; padding: 0; }
+  button.sm { height: 28px; padding: 0 10px; font-size: 12px; } button.sm.icon { width: 28px; padding: 0; }
+  kbd { display: inline-flex; align-items: center; height: 20px; font-size: 10px; font-weight: 500; border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; color: var(--muted); background: var(--muted-bg); }
+  /* Badge */
+  .tag { display: inline-flex; align-items: center; border-radius: 6px; padding: 2px 10px; font-size: 12px; font-weight: 600; background: var(--muted-bg); color: var(--text); border: 1px solid transparent; }
+  .badge-o { display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; padding: 2px 10px; font-size: 12px; font-weight: 600; border: 1px solid var(--border); }
+  .badge-o svg { width: 12px; height: 12px; }
+  .badge-o.open { color: var(--warn); } .badge-o.ans { color: var(--ok); }
+  .sep { height: 1px; background: var(--border); margin: 16px 0; }
+  .vsep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
+  .app { display: grid; grid-template-columns: 240px 300px 1fr; height: 100vh; }
+  .app.wide { grid-template-columns: 240px 1fr; }
+
+  /* Sidebar */
+  nav { background: var(--side); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 8px; overflow: auto; }
+  nav .brand { display: flex; align-items: center; gap: 8px; padding: 8px; }
+  nav .logo { width: 32px; height: 32px; border-radius: 8px; background: var(--primary); color: var(--primary-fg); display: grid; place-items: center; }
+  nav .brand b { font-weight: 600; line-height: 1.1; } nav .brand span { font-size: 12px; color: var(--muted); }
+  nav .search { width: 100%; justify-content: flex-start; color: var(--muted); font-weight: 400; margin: 6px 0 4px; box-shadow: none; }
+  nav .search kbd { margin-left: auto; }
+  nav .label { font-size: 12px; font-weight: 500; color: var(--muted); height: 32px; display: flex; align-items: center; padding: 0 8px; margin-top: 8px; }
+  nav .item { display: flex; align-items: center; gap: 8px; padding: 0 8px; height: 32px; border-radius: 6px; cursor: pointer; }
+  nav .item:hover { background: var(--muted-bg); }
+  nav .item.on { background: var(--muted-bg); font-weight: 500; }
+  nav .item .n { margin-left: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  nav .tags { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 8px; }
+  nav .foot { margin-top: auto; padding: 8px 0 0; display: flex; flex-direction: column; gap: 8px; }
+  /* Tabs (theme switch) */
+  .tabs { display: flex; background: var(--muted-bg); border-radius: 8px; padding: 3px; gap: 2px; }
+  .tabs button { flex: 1; height: 28px; border: 0; background: transparent; box-shadow: none; color: var(--muted); font-size: 12px; padding: 0 6px; gap: 5px; }
+  .tabs button svg { width: 14px; height: 14px; }
+  .tabs button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 2px 0 rgb(0 0 0 / .08); }
+  .status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); padding: 0 8px 4px; }
+  .status svg { color: var(--ok); width: 14px; height: 14px; }
+
+  /* List column */
+  .list { border-right: 1px solid var(--border); overflow: auto; background: var(--bg); }
+  .list .head { position: sticky; top: 0; z-index: 1; background: var(--bg); display: flex; align-items: center; gap: 8px; height: 52px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--border); }
+  .list .head b { font-weight: 600; } .list .head .sp { margin-left: auto; display: flex; gap: 4px; }
+  .row { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 32px; padding: 8px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+  .row:hover { background: var(--hover); }
+  .row.sel { background: var(--muted-bg); }
+  .row .t { font-weight: 500; }
+  .row .sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row.done .t { color: var(--muted); text-decoration: line-through; }
+
+  /* Record page */
+  .page { overflow: auto; padding: 24px 32px 90px; }
+  .crumb { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+  .crumb svg { width: 14px; height: 14px; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0 0 16px; letter-spacing: -.025em; line-height: 1.2; }
+  h2 { font-size: 14px; font-weight: 600; margin: 24px 0 8px; display: flex; align-items: center; gap: 8px; }
+  h2 button { margin-left: auto; }
+  .fields { display: grid; grid-template-columns: 110px 1fr; column-gap: 16px; }
+  .fields > label { color: var(--muted); padding: 6px 0; font-weight: 500; font-size: 13px; }
+  .fields > div { padding: 4px 0; min-height: 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .notes { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; background: transparent; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
+  .notes p { margin: 0 0 6px; } .notes p:last-child { margin: 0; } .notes ol, .notes ul { margin: 0; padding-left: 20px; }
+  .grp { font-size: 12px; color: var(--muted); font-weight: 500; margin: 10px 0 4px; }
+  .lnk { padding: 3px 0; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 28px; }
+
+  /* Home: Cards */
+  .home { grid-column: 2 / 4; overflow: auto; padding: 48px 40px 90px; }
+  .hero { max-width: 980px; margin: 0 auto 28px; }
+  .hero h1 { margin-bottom: 4px; } .hero p { margin: 0 0 16px; color: var(--muted); }
+  .hero button { width: 100%; height: 44px; justify-content: flex-start; padding: 0 14px; color: var(--muted); font-weight: 400; border-radius: 8px; }
+  .hero button kbd { margin-left: auto; }
+  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; max-width: 980px; margin: 0 auto; }
+  .card { border: 1px solid var(--border); border-radius: 12px; background: var(--bg); box-shadow: 0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1); overflow: hidden; }
+  .card .ch { display: flex; align-items: center; gap: 8px; padding: 16px 16px 10px; font-weight: 600; letter-spacing: -.01em; }
+  .card .ch svg { color: var(--muted); }
+  .card .ch .n { margin-left: auto; }
+  .card .row { flex-direction: row; align-items: center; gap: 8px; border: 0; padding: 6px 16px; }
+  .card .row .sub { margin-left: auto; }
+  .card .body { padding-bottom: 8px; }
+
+  /* Diagram */
+  .dwrap { display: flex; flex-direction: column; overflow: hidden; }
+  .dbar { display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 12px 0 16px; border-bottom: 1px solid var(--border); }
+  .dbar .title { font-weight: 600; display: flex; align-items: center; gap: 8px; margin-right: 8px; }
+  .sw { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; padding: 0; box-shadow: none; }
+  .sw.none { background: var(--bg); position: relative; overflow: hidden; }
+  .sw.none::after { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1.5px; background: var(--danger); transform: rotate(45deg); }
+  .canvas { position: relative; flex: 1; background-color: var(--bg); background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 20px 20px; overflow: hidden; }
+  .canvas svg.edges { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .canvas svg.edges path { fill: none; stroke: var(--edge); stroke-width: 1.5; }
+  .canvas svg.edges text { fill: var(--muted); font-size: 11px; }
+  .node { position: absolute; transform: translate(-50%, -50%); display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 6px; background: var(--node-none); border: 1px solid var(--border); white-space: nowrap; user-select: none; cursor: default; font-weight: 500; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
+  .node svg { color: var(--muted); }
+  .node.linked { border: 1.5px solid var(--primary); cursor: pointer; }
+  .node.linked svg { color: var(--primary); }
+  .node.selected { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--ring); }
+  .mini { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); overflow: hidden; box-shadow: 0 1px 2px 0 rgb(0 0 0 / .05); }
+  .mini button { border: 0; border-radius: 0; box-shadow: none; width: 32px; }
+  .hint { position: absolute; left: 12px; bottom: 12px; font-size: 12px; color: var(--muted); }
+
+  /* Command (palette) */
+  .scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .8); display: flex; justify-content: center; align-items: flex-start; padding-top: 14vh; z-index: 50; }
+  .palette { width: min(560px, 92vw); background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1); overflow: hidden; }
+  .palette .in { display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--border); }
+  .palette .in svg { opacity: .5; }
+  .palette input { flex: 1; border: 0; background: transparent; color: var(--text); height: 44px; font: inherit; font-size: 14px; outline: none; }
+  .palette input::placeholder { color: var(--muted); }
+  .palette .res { max-height: 320px; overflow: auto; padding: 4px; }
+  .palette .gh { padding: 6px 8px; font-size: 12px; font-weight: 500; color: var(--muted); }
+  .palette .r { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
+  .palette .r .ty { margin-left: auto; font-size: 12px; color: var(--muted); letter-spacing: .02em; }
+  .palette .r.hi { background: var(--muted-bg); }
+  .palette .empty { padding: 24px; text-align: center; color: var(--muted); }
+  .palette .foot { display: flex; gap: 14px; padding: 8px 12px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+
+  /* prototype switcher: deliberately not part of the design */
+  #switcher { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; border-radius: 999px; padding: 5px 7px; display: flex; gap: 10px; align-items: center; box-shadow: 0 6px 20px #0006; z-index: 100; font-size: 13px; }
+  #switcher button { background: #333; color: #fff; border: 0; border-radius: 999px; width: 28px; height: 28px; padding: 0; box-shadow: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="switcher">
+  <button onclick="cycle(-1)" title="Previous direction (left arrow)" aria-label="Previous"><svg class="i" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+  <span id="vlabel"></span>
+  <button onclick="cycle(1)" title="Next direction (right arrow)" aria-label="Next"><svg class="i" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+</div>
+<script>
+// ---------- icons (Lucide-style line icons, inline SVG) ----------
+const P = {
+  system: '<rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>',
+  process: '<rect x="3" y="3" width="8" height="8" rx="2"/><path d="M7 11v4a2 2 0 0 0 2 2h4"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
+  person: '<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  team: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  acronym: '<path d="M4 7V4h16v3M9 20h6M12 4v16"/>',
+  question: '<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/>',
+  bookmark: '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>',
+  task: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 12 2 2 4-4"/>',
+  journal: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2zM22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>',
+  diagram: '<rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3M12 12V8"/>',
+  search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/>',
+  home: '<path d="M3 10 12 3l9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
+  plus: '<path d="M5 12h14M12 5v14"/>',
+  import: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  maximize: '<path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/>',
+  minimize: '<path d="M8 3v3a2 2 0 0 1-2 2H3M21 8h-3a2 2 0 0 1-2-2V3M3 16h3a2 2 0 0 1 2 2v3M16 21v-3a2 2 0 0 1 2-2h3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  circle: '<circle cx="12" cy="12" r="9"/>',
+  ext: '<path d="M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+  tidyH: '<path d="M3 12h4M17 12h4M7 9v6h10V9z"/>',
+  tidyV: '<path d="M12 3v4M12 17v4M9 7h6v10H9z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>',
+  moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+  laptop: '<path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55A1 1 0 0 1 20.38 20H3.62a1 1 0 0 1-.9-1.45L4 16"/>',
+  zin: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M11 8v6M8 11h6"/>',
+  zout: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3M8 11h6"/>',
+  fit: '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  notebook: '<path d="M2 6h4M2 10h4M2 14h4M2 18h4"/><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M16 2v20"/>',
+  enter: '<path d="M9 10 4 15l5 5"/><path d="M20 4v7a4 4 0 0 1-4 4H4"/>',
+};
+const ic = (k, extra = '') => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true" ${extra}>${P[k]}</svg>`;
+
+// ---------- design directions: shadcn/ui themes (HSL values from shadcn's theme presets) ----------
+const DIRS = {
+  A: { name: 'Zinc (shadcn default)',
+    light: { bg: '0 0% 100%', text: '240 10% 3.9%', 'muted-bg': '240 4.8% 95.9%', muted: '240 3.8% 46.1%', border: '240 5.9% 90%', primary: '240 5.9% 10%', 'primary-fg': '0 0% 98%', side: '0 0% 98%', ring: '240 10% 3.9%' },
+    dark:  { bg: '240 10% 3.9%', text: '0 0% 98%', 'muted-bg': '240 3.7% 15.9%', muted: '240 5% 64.9%', border: '240 3.7% 15.9%', primary: '0 0% 98%', 'primary-fg': '240 5.9% 10%', side: '240 5.9% 10%', ring: '240 4.9% 83.9%' } },
+  B: { name: 'Slate + Blue',
+    light: { bg: '0 0% 100%', text: '222.2 84% 4.9%', 'muted-bg': '210 40% 96.1%', muted: '215.4 16.3% 46.9%', border: '214.3 31.8% 91.4%', primary: '221.2 83.2% 53.3%', 'primary-fg': '210 40% 98%', side: '210 40% 98%', ring: '221.2 83.2% 53.3%' },
+    dark:  { bg: '222.2 84% 4.9%', text: '210 40% 98%', 'muted-bg': '217.2 32.6% 17.5%', muted: '215 20.2% 65.1%', border: '217.2 32.6% 17.5%', primary: '217.2 91.2% 59.8%', 'primary-fg': '222.2 47.4% 11.2%', side: '222.2 47.4% 8%', ring: '224.3 76.3% 48%' } },
+  C: { name: 'Stone + Violet',
+    light: { bg: '0 0% 100%', text: '20 14.3% 4.1%', 'muted-bg': '60 4.8% 95.9%', muted: '25 5.3% 44.7%', border: '20 5.9% 90%', primary: '262.1 83.3% 57.8%', 'primary-fg': '210 20% 98%', side: '60 9.1% 97.8%', ring: '262.1 83.3% 57.8%' },
+    dark:  { bg: '20 14.3% 4.1%', text: '60 9.1% 97.8%', 'muted-bg': '12 6.5% 15.1%', muted: '24 5.4% 63.9%', border: '12 6.5% 15.1%', primary: '263.4 70% 50.4%', 'primary-fg': '210 20% 98%', side: '24 9.8% 7%', ring: '263.4 70% 50.4%' } },
+};
+const COMMON = { light: { ok: '#15803d', warn: '#b45309', danger: '#dc2626' }, dark: { ok: '#4ade80', warn: '#fbbf24', danger: '#f87171' } };
+// Node fill palette, stored on a Node by name; each has a light and a dark shade.
+const NODE = { none: ['#ffffff', '#26262a'], grey: ['#f1f5f9', '#334155'], red: ['#fee2e2', '#5b2526'], orange: ['#ffedd5', '#5a3616'], green: ['#dcfce7', '#173f2a'], blue: ['#dbeafe', '#1e3a5f'], purple: ['#ede9fe', '#3b2b60'] };
+
+// ---------- sample data ----------
+const TYPES = {
+  system: ['Systems', 'System'], process: ['Processes', 'Process'], person: ['People', 'Person'], team: ['Teams', 'Team'], acronym: ['Acronyms', 'Acronym'],
+  question: ['Open questions', 'Open question'], bookmark: ['Bookmarks', 'Bookmark'], task: ['Tasks', 'Task'], journal: ['Journal', 'Journal entry'], diagram: ['Diagrams', 'Diagram'],
+};
+const R = [
+  { id: 's1', type: 'system', title: 'Coupa', f: { summary: 'Procure-to-pay suite: requisitions, POs, invoices', url: 'https://company.coupahost.com' }, tags: ['S2P'], notes: 'Where [[PO]]s are raised. Feeds spend data to [[SAP]] nightly.\nAsk [[Maria Lopez]] about approval chains.', upd: '2 h ago' },
+  { id: 's2', type: 'system', title: 'SAP', f: { summary: 'ERP, finance and vendor master data', url: '' }, tags: ['ERP'], notes: 'Source of truth for vendor master. Extracts land in [[Snowflake]].', upd: 'yesterday' },
+  { id: 's3', type: 'system', title: 'Tableau', f: { summary: 'Dashboards for spend analytics', url: 'https://tableau.company.com' }, tags: ['BI'], notes: 'The [[Spend Cube]] dashboard lives here.', upd: 'yesterday' },
+  { id: 's4', type: 'system', title: 'Snowflake', f: { summary: 'Data warehouse', url: '' }, tags: ['data'], notes: 'Procurement schema: PROC_ANALYTICS.', upd: '3 d ago' },
+  { id: 'pr1', type: 'process', title: 'Source-to-Pay', f: {}, tags: ['S2P'], notes: '1. Sourcing event\n2. Contract\n3. Requisition in [[Coupa]]\n4. [[PO]] approved\n5. Goods receipt\n6. Invoice matched in [[SAP]] ([[GR/IR]])', upd: '3 d ago' },
+  { id: 'p1', type: 'person', title: 'Maria Lopez', f: { role: 'Coupa platform lead', email: 'maria.lopez@company.com', go_to_for: 'Coupa config, approval chains' }, tags: [], notes: 'Very responsive on Teams. Prefers short questions.', upd: '1 h ago' },
+  { id: 'p2', type: 'person', title: 'Jonas Berg', f: { role: 'Manager, Procurement Data & AI', email: 'jonas.berg@company.com', go_to_for: 'Priorities, stakeholders' }, tags: ['1:1'], notes: 'Weekly 1:1 on Mondays.', upd: '2 d ago' },
+  { id: 't1', type: 'team', title: 'Procurement Data & AI', f: {}, tags: [], notes: 'My team. Owns the [[Spend Cube]].', upd: '4 d ago' },
+  { id: 't2', type: 'team', title: 'P2P Operations', f: {}, tags: [], notes: '', upd: '4 d ago' },
+  { id: 'a1', type: 'acronym', title: 'PO', f: { expansion: 'Purchase Order' }, tags: ['S2P'], notes: 'Created in [[Coupa]] after a requisition is approved.', upd: '5 d ago' },
+  { id: 'a2', type: 'acronym', title: 'S2P', f: { expansion: 'Source-to-Pay' }, tags: [], notes: 'See [[Source-to-Pay]].', upd: '5 d ago' },
+  { id: 'a3', type: 'acronym', title: 'GR/IR', f: { expansion: 'Goods Receipt / Invoice Receipt' }, tags: ['finance'], notes: 'Clearing account in [[SAP]].', upd: 'today' },
+  { id: 'q1', type: 'question', title: 'Why do some POs skip approval?', f: { status: 'open', answer: '' }, tags: [], notes: 'Seen in the [[Spend Cube]]: about 4% of POs under 500 EUR.', upd: 'today' },
+  { id: 'q2', type: 'question', title: 'What is the refresh cadence of the spend data?', f: { status: 'answered', answer: 'Nightly at 02:00 CET from [[SAP]].' }, tags: [], notes: '', upd: 'yesterday' },
+  { id: 'b1', type: 'bookmark', title: 'Spend Cube', f: { url: 'https://tableau.company.com/views/SpendCube' }, tags: ['BI'], notes: 'Main spend dashboard.', upd: '2 d ago' },
+  { id: 'b2', type: 'bookmark', title: 'Coupa admin guide', f: { url: 'https://docs.company.com/coupa' }, tags: [], notes: '', upd: '6 d ago' },
+  { id: 'k1', type: 'task', title: 'Request Snowflake access', f: { done: false, due: '2026-11-13' }, tags: [], notes: 'Ticket via IT portal.', upd: 'today' },
+  { id: 'k2', type: 'task', title: 'Read the S2P policy', f: { done: true, due: '' }, tags: [], notes: '', upd: '3 d ago' },
+  { id: 'k3', type: 'task', title: 'Map vendor master fields', f: { done: false, due: '2026-11-20' }, tags: ['data'], notes: '', upd: 'yesterday' },
+  { id: 'j1', type: 'journal', title: '2026-11-11 log', f: { date: '2026-11-11', kind: 'log' }, tags: [], notes: 'Learned [[GR/IR]]. Got [[Tableau]] access.', upd: 'today' },
+  { id: 'j2', type: 'journal', title: '1:1 with Jonas', f: { date: '2026-11-10', kind: 'meeting' }, tags: ['1:1'], notes: '- First project: spend classification\n- Meet [[Maria Lopez]] this week', upd: 'yesterday' },
+  { id: 'd1', type: 'diagram', title: 'Procurement data flow', f: {}, tags: [], notes: '', upd: 'today',
+    nodes: [ { id: 'n1', x: 14, y: 30, rec: 's1', c: 'blue' }, { id: 'n2', x: 38, y: 30, rec: 's2', c: 'blue' }, { id: 'n3', x: 62, y: 30, rec: 's4', c: 'none' }, { id: 'n4', x: 85, y: 30, rec: 's3', c: 'green' },
+             { id: 'n5', x: 38, y: 66, text: 'Vendor master', c: 'orange' }, { id: 'n6', x: 85, y: 66, rec: 'b1', c: 'green' }, { id: 'n7', x: 14, y: 66, text: 'Requisition approval', c: 'grey' }, { id: 'n8', x: 62, y: 66, text: 'Classification model?', c: 'purple' } ],
+    edges: [ ['n1', 'n2', 'nightly'], ['n2', 'n3', 'extract'], ['n3', 'n4', ''], ['n2', 'n5', ''], ['n4', 'n6', ''], ['n7', 'n1', ''], ['n3', 'n8', 'feeds'] ] },
+];
+const LABELS = { owns: 'owned by', 'member of': 'has member', 'ask about': 'go-to for', attended: 'attended by', uses: 'used by', 'part of': 'contains', 'related to': 'related to', 'answered by': 'answers' };
+const REL = [ ['p1', 'owns', 's1'], ['t1', 'owns', 's3'], ['t2', 'owns', 's1'], ['p1', 'member of', 't2'], ['p2', 'member of', 't1'], ['p1', 'ask about', 'q1'], ['p2', 'attended', 'j2'],
+  ['s1', 'part of', 'pr1'], ['s2', 'part of', 'pr1'], ['t1', 'uses', 's4'], ['b1', 'related to', 's3'], ['q2', 'answered by', 's4'] ];
+const SLOTS = { system: ['owns', 'Owner', 'from'], person: ['member of', 'Team', 'to'], question: ['ask about', 'Ask', 'from'], journal: ['attended', 'Attendees', 'from'] };
+
+// ---------- helpers ----------
+const get = id => R.find(r => r.id === id);
+const byType = t => R.filter(r => r.type === t);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const rl = r => `<a class="rlink" onclick="go('${r.id}')">${ic(r.type)}${esc(r.title)}</a>`;
+const mention = s => s.replace(/\[\[(.+?)\]\]/g, (m, t) => { const r = R.find(x => x.title.toLowerCase() === t.toLowerCase()); return r ? `<a onclick="go('${r.id}')">${t}</a>` : `<span class="broken">${t}</span>`; });
+function md(s) { // tiny stand-in for marked: numbered and bulleted lists, paragraphs
+  const lines = esc(s).split('\n'); let h = '', list = null;
+  for (const l of lines) {
+    const m = l.match(/^(\d+\.|-)\s+(.*)/);
+    const want = m ? (m[1] === '-' ? 'ul' : 'ol') : null;
+    if (list && list !== want) { h += `</${list}>`; list = null; }
+    if (want && !list) { h += `<${want}>`; list = want; }
+    h += m ? `<li>${mention(m[2])}</li>` : l ? `<p>${mention(l)}</p>` : '';
+  }
+  return h + (list ? `</${list}>` : '');
+}
+const mentionedIn = r => R.filter(x => x !== r && (x.notes + (x.f.answer || '')).toLowerCase().includes(`[[${r.title.toLowerCase()}]]`));
+const inDiagrams = r => R.filter(d => d.nodes?.some(n => n.rec === r.id));
+function relsOf(r) {
+  const slot = SLOTS[r.type], out = {};
+  for (const [a, l, b] of REL) {
+    if (slot && l === slot[0] && (slot[2] === 'from' ? b : a) === r.id) continue;
+    if (a === r.id) (out[l] ??= []).push(get(b));
+    if (b === r.id) (out[LABELS[l]] ??= []).push(get(a));
+  }
+  return out;
+}
+function slotVal(r) {
+  const s = SLOTS[r.type]; if (!s) return null;
+  return [s[1], REL.filter(([a, l, b]) => l === s[0] && (s[2] === 'from' ? b : a) === r.id).map(([a, , b]) => get(s[2] === 'from' ? a : b))];
+}
+const subline = r => ({ system: r.f.summary, person: r.f.role, acronym: r.f.expansion, question: r.f.status === 'answered' ? 'Answered' : 'Open',
+  bookmark: r.f.url?.replace(/^https?:\/\//, ''), task: r.f.due ? 'Due ' + r.f.due : '', journal: r.f.date + ' · ' + r.f.kind, diagram: r.nodes?.length + ' Nodes' }[r.type] || 'Updated ' + r.upd);
+
+// ---------- state ----------
+const S = { dir: new URLSearchParams(location.search).get('variant') || 'A', theme: 'system', view: 'home', type: 'system', id: 's1', wide: false, palette: false, q: '', hi: 0, sel: new Set() };
+function go(id) { const r = get(id); S.type = r.type; S.id = id; S.view = 'rec'; S.palette = false; S.sel.clear(); if (r.type !== 'diagram') S.wide = false; render(); }
+function showType(t) { S.type = t; S.id = byType(t)[0]?.id; S.view = 'rec'; S.wide = false; S.sel.clear(); render(); }
+function home() { S.view = 'home'; S.wide = false; render(); }
+function setTheme(t) { S.theme = t; render(); }
+
+// ---------- views ----------
+function sidebar() {
+  const tags = [...new Set(R.flatMap(x => x.tags))];
+  return `<nav>
+    <div class="brand"><span class="logo">${ic('notebook')}</span><div><b>Notebook</b><br><span>notebook.sqlite</span></div></div>
+    <button class="search" onclick="openPalette()">${ic('search')}Search<kbd>⌘K</kbd></button>
+    <div class="item ${S.view === 'home' ? 'on' : ''}" onclick="home()">${ic('home')}Home</div>
+    <div class="label">Records</div>
+    ${Object.entries(TYPES).map(([t, [many]]) => `<div class="item ${S.view === 'rec' && S.type === t ? 'on' : ''}" onclick="showType('${t}')">${ic(t)}${many}<span class="n">${byType(t).length}</span></div>`).join('')}
+    <div class="label">Tags</div>
+    <div class="tags">${tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>
+    <div class="foot">
+      <div class="tabs" role="tablist" aria-label="Theme">
+        ${[['system', 'laptop', 'System'], ['light', 'sun', 'Light'], ['dark', 'moon', 'Dark']].map(([k, i, l]) => `<button class="${S.theme === k ? 'on' : ''}" onclick="setTheme('${k}')" title="${l}">${ic(i)}${l}</button>`).join('')}
+      </div>
+      <div class="status">${ic('check')}Saved</div>
+    </div>
+  </nav>`;
+}
+function listCol() {
+  const xs = byType(S.type);
+  return `<div class="list"><div class="head"><b>${ic(S.type)}${TYPES[S.type][0]}</b><span class="sp">
+      ${S.type !== 'diagram' ? `<button class="sm ghost icon" title="Import…">${ic('import')}</button>` : ''}<button class="sm primary" title="New ${TYPES[S.type][1]}">${ic('plus')}New</button></span></div>
+    ${xs.map(x => `<div class="row ${x.id === S.id ? 'sel' : ''} ${x.f.done ? 'done' : ''}" onclick="go('${x.id}')"><span class="t">${esc(x.title)}</span><span class="sub">${esc(subline(x))}</span></div>`).join('')}</div>`;
+}
+function fields(r) {
+  const f = r.f, rows = [];
+  const add = (k, v) => rows.push(`<label>${k}</label><div>${v || '<span class="muted">Empty</span>'}</div>`);
+  if (r.type === 'acronym') add('Expansion', esc(f.expansion));
+  if (r.type === 'system') { add('Summary', esc(f.summary)); add('URL', f.url && `<a class="rlink">${esc(f.url)}${ic('ext')}</a>`); }
+  if (r.type === 'person') { add('Role', esc(f.role)); add('Email', esc(f.email)); add('Go to for', esc(f.go_to_for)); }
+  if (r.type === 'bookmark') add('URL', `<a class="rlink">${esc(f.url)}${ic('ext')}</a>`);
+  if (r.type === 'question') add('Status', f.status === 'answered' ? `<span class="badge-o ans">${ic('check')}Answered</span>` : `<span class="badge-o open">${ic('circle')}Open</span><button class="sm">Mark answered</button>`);
+  if (r.type === 'task') { add('Done', f.done ? `<span class="badge-o ans">${ic('check')}Done</span>` : `<span class="badge-o open">${ic('circle')}Open</span>`); add('Due', esc(f.due)); }
+  if (r.type === 'journal') { add('Date', esc(f.date)); add('Kind', esc(f.kind)); }
+  const sv = slotVal(r);
+  if (sv) add(sv[0], sv[1].map(rl).join('') + `<button class="sm ghost icon" title="Add">${ic('plus')}</button>`);
+  add('Tags', r.tags.map(t => `<span class="tag">${esc(t)}</span>`).join('') + `<button class="sm ghost icon" title="Add Tag">${ic('plus')}</button>`);
+  return `<div class="fields">${rows.join('')}</div>`;
+}
+function links(r) {
+  const rels = relsOf(r), m = mentionedIn(r), d = inDiagrams(r);
+  const list = xs => xs.length ? xs.map(x => `<div class="lnk">${rl(x)}</div>`).join('') : '<div class="muted small">None</div>';
+  return `<h2>Relations <button class="sm">${ic('plus')}Relation</button></h2>
+    ${Object.keys(rels).length ? Object.entries(rels).map(([k, xs]) => `<div class="grp">${k}</div>${list(xs)}`).join('') : '<div class="muted small">None</div>'}
+    <div class="two"><div><h2>Mentioned in</h2>${list(m)}</div><div><h2>In Diagrams</h2>${list(d)}</div></div>`;
+}
+function recordPage(r) {
+  const answer = r.type === 'question' && r.f.answer ? `<h2>Answer <button class="sm">${ic('plus')}Make Record</button></h2><div class="notes">${md(r.f.answer)}</div>` : '';
+  return `<div class="page"><div class="crumb">${ic(r.type)}${TYPES[r.type][1]}</div><h1>${esc(r.title)}</h1>${fields(r)}${answer}
+    <h2>Notes</h2><div class="notes">${md(r.notes) || '<span class="muted">Write markdown. Type [[ to mention a Record.</span>'}</div>${links(r)}</div>`;
+}
+function diagramPage(d) {
+  const pos = Object.fromEntries(d.nodes.map(n => [n.id, n]));
+  const W = 1000, H = 600; // edges drawn in a 1000x600 box stretched to the canvas
+  const edges = d.edges.map(([a, b, l]) => { const A = pos[a], B = pos[b], x1 = A.x * 10, y1 = A.y * 6, x2 = B.x * 10, y2 = B.y * 6, mx = (x1 + x2) / 2;
+    return `<path d="M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}" vector-effect="non-scaling-stroke"/>` + (l ? `<text x="${mx}" y="${(y1 + y2) / 2 - 8}" text-anchor="middle">${esc(l)}</text>` : ''); }).join('');
+  const dark = isDark();
+  const nodes = d.nodes.map(n => { const r = n.rec && get(n.rec);
+    return `<div class="node ${r ? 'linked' : ''} ${S.sel.has(n.id) ? 'selected' : ''}" style="left:${n.x}%;top:${n.y}%;background:${NODE[n.c][dark ? 1 : 0]}"
+      onclick="selNode(event,'${n.id}')" ${r ? `ondblclick="go('${r.id}')" title="Double-click to open ${esc(r.title)}"` : 'title="Free text. Right-click: Make Record"'}>${r ? ic(r.type) + esc(r.title) : esc(n.text)}</div>`; }).join('');
+  const swatches = S.sel.size ? `<span class="vsep"></span><span class="small muted">Fill</span>${Object.keys(NODE).map(c => `<button class="sw ${c === 'none' ? 'none' : ''}" title="${c}" style="background:${c === 'none' ? '' : NODE[c][dark ? 1 : 0]}" onclick="fill('${c}')"></button>`).join('')}` : '';
+  return `<div class="dwrap">
+    <div class="dbar"><span class="title">${ic('diagram')}${esc(d.title)}</span>
+      <button class="sm">${ic('plus')}Node</button><button class="sm" title="Tidy left to right">${ic('tidyH')}Tidy</button><button class="sm icon" title="Tidy top down">${ic('tidyV')}</button>
+      <button class="sm" title="Export PNG (always light)">${ic('download')}PNG</button>${swatches}
+      <span style="margin-left:auto"></span><button class="sm ghost icon" title="${S.wide ? 'Exit full screen' : 'Full screen'}" onclick="S.wide=!S.wide;render()">${ic(S.wide ? 'minimize' : 'maximize')}</button></div>
+    <div class="canvas" onclick="if(event.target===this){S.sel.clear();render()}"><svg class="edges" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${edges}</svg>${nodes}
+      <div class="mini"><button class="ghost icon" title="Zoom in">${ic('zin')}</button><button class="ghost icon" title="Zoom out">${ic('zout')}</button><button class="ghost icon" title="Fit">${ic('fit')}</button></div>
+      <div class="hint">Click a Node to select it (Shift for several), then pick a fill. Double-click a linked Node to open its Record.</div></div></div>`;
+}
+function selNode(e, id) { e.stopPropagation(); if (!e.shiftKey) S.sel.clear(); S.sel.has(id) && e.shiftKey ? S.sel.delete(id) : S.sel.add(id); render(); }
+function fill(c) { const d = get(S.id); d.nodes.forEach(n => { if (S.sel.has(n.id)) n.c = c; }); render(); }
+function homePage() {
+  const card = (icon, title, xs, sub) => `<div class="card"><div class="ch">${ic(icon)}${title}<span class="n tag">${xs.length}</span></div><div class="body">
+    ${xs.map(x => `<div class="row" onclick="go('${x.id}')">${rl(x)}<span class="sub">${esc(sub(x))}</span></div>`).join('') || '<div class="row muted">Nothing here</div>'}</div></div>`;
+  const recent = R.filter(x => /today|h ago/.test(x.upd)).slice(0, 6);
+  return `<div class="home"><div class="hero"><h1>Good morning</h1><p>Wednesday, 11 November</p><button onclick="openPalette()">${ic('search')}Search your Notebook<kbd>⌘K</kbd></button></div><div class="cards">
+    ${card('task', 'Open Tasks', byType('task').filter(x => !x.f.done), x => x.f.due ? 'Due ' + x.f.due : '')}
+    ${card('question', 'Open questions', byType('question').filter(x => x.f.status === 'open'), x => '')}
+    ${card('journal', 'Journal', byType('journal'), x => x.f.date)}
+    ${card('enter', 'Recently edited', recent, x => x.upd)}</div></div>`;
+}
+function paletteHtml() {
+  const q = S.q.toLowerCase().trim();
+  const res = (q ? R.filter(r => (r.title + ' ' + Object.values(r.f).join(' ') + ' ' + r.notes + ' ' + r.tags.join(' ')).toLowerCase().includes(q)) : R.slice(0, 7));
+  S.hi = Math.min(S.hi, Math.max(res.length - 1, 0));
+  const create = S.q.trim() ? ['acronym', 'person', 'system'].map(t => `<div class="r">${ic('plus')}Create ${TYPES[t][1]} “${esc(S.q.trim())}”</div>`).join('') : '';
+  return `<div class="scrim" onclick="if(event.target===this){S.palette=false;render()}"><div class="palette">
+    <div class="in">${ic('search')}<input id="pq" placeholder="Search titles, fields, notes and Tags" value="${esc(S.q)}" oninput="S.q=this.value;S.hi=0;render()"></div>
+    <div class="res">${res.length ? '<div class="gh">Records</div>' : ''}${res.map((r, i) => `<div class="r ${i === S.hi ? 'hi' : ''}" onclick="go('${r.id}')">${ic(r.type)}${esc(r.title)}<span class="ty">${TYPES[r.type][1]}</span></div>`).join('') || '<div class="empty">No results found.</div>'}${create ? '<div class="gh">Create</div>' + create : ''}</div>
+    <div class="foot"><span><kbd>↑</kbd> <kbd>↓</kbd> move</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span></div></div></div>`;
+}
+function openPalette() { S.palette = true; S.q = ''; S.hi = 0; render(); }
+
+// ---------- render ----------
+const mq = matchMedia('(prefers-color-scheme: dark)');
+const isDark = () => S.theme === 'dark' || (S.theme === 'system' && mq.matches);
+function applyTokens() {
+  const mode = isDark() ? 'dark' : 'light', d = DIRS[S.dir][mode], st = document.documentElement.style;
+  const t = { ...Object.fromEntries(Object.entries(d).map(([k, v]) => [k, `hsl(${v})`])), ...COMMON[mode],
+    hover: `hsl(${d['muted-bg']} / .5)`, dot: `hsl(${d.border})`, edge: `hsl(${d.muted})`, 'node-none': `hsl(${d.bg})` };
+  for (const [k, v] of Object.entries(t)) st.setProperty('--' + k, v);
+  st.colorScheme = mode;
+}
+function render() {
+  if (!DIRS[S.dir]) S.dir = 'A';
+  applyTokens();
+  const r = get(S.id);
+  let cols;
+  if (S.view === 'home') cols = homePage();
+  else if (r?.type === 'diagram' && S.wide) cols = diagramPage(r);
+  else cols = listCol() + (r ? (r.type === 'diagram' ? diagramPage(r) : recordPage(r)) : '<div class="page muted">Nothing here yet</div>');
+  document.getElementById('app').innerHTML = `<div class="app ${S.wide && S.view !== 'home' ? 'wide' : ''}">${sidebar()}${cols}</div>` + (S.palette ? paletteHtml() : '');
+  document.getElementById('vlabel').textContent = `${S.dir}  ${DIRS[S.dir].name}`;
+  if (S.palette) { const i = document.getElementById('pq'); i.focus(); i.setSelectionRange(99, 99); }
+}
+function cycle(d) { const ks = Object.keys(DIRS); S.dir = ks[(ks.indexOf(S.dir) + d + ks.length) % ks.length]; try { history.replaceState(null, '', '?variant=' + S.dir); } catch {} render(); }
+mq.addEventListener?.('change', render);
+addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); S.palette ? (S.palette = false, render()) : openPalette(); return; }
+  if (e.key === 'Escape') { if (S.palette) S.palette = false; else if (S.wide) S.wide = false; else S.sel.clear(); render(); return; }
+  if (S.palette && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); S.hi = Math.max(0, S.hi + (e.key === 'ArrowDown' ? 1 : -1)); render(); return; }
+  if (S.palette && e.key === 'Enter') { document.querySelector('.palette .r.hi')?.click(); return; }
+  if (document.activeElement?.matches('input, textarea, [contenteditable]')) return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+render();
+</script>
+</body>
+</html>
