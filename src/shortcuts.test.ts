@@ -47,8 +47,10 @@ test('nothing fires while a dialog or the palette is open', () => {
   expect(press('?', {}, '<div role="alertdialog"><button data-target></button></div>')).toBeNull()
 })
 
-test('nothing fires on a Diagram canvas, which has keys of its own', () => {
-  expect(press('n', {}, '<div class="vue-flow"><div data-target tabindex="0"></div></div>')).toBeNull()
+test('nothing fires anywhere in a Diagram, which has keys of its own: not on its canvas, not on its toolbar', () => {
+  expect(press('n', {}, '<section class="diagram-canvas"><div class="vue-flow"><div data-target tabindex="0"></div></div></section>')).toBeNull()
+  expect(press('n', {}, '<section class="diagram-canvas"><div class="vue-flow" data-target tabindex="-1"></div></section>')).toBeNull()
+  for (const key of ['n', 'e', '/', 'j', 'k', '?']) expect(press(key, {}, '<section class="diagram-canvas"><button data-target></button></section>')).toBeNull()
 })
 
 test('the arrow keys move through the list only from inside it', () => {

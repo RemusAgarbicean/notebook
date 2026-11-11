@@ -20,7 +20,7 @@ import {
   AlignVerticalDistributeCenter,
   Grid3x3,
 } from 'lucide-vue-next'
-import { ArrowDown, ArrowRight, ClipboardCopy, Frame, ImageDown, Maximize2, Minimize2, Plus, Redo2, SquareMenu, Undo2, Unlink } from 'lucide-vue-next'
+import { ArrowDown, ArrowRight, ClipboardCopy, Frame, ImageDown, Maximize2, Minimize2, Redo2, SquareMenu, SquarePlus, Undo2, Unlink } from 'lucide-vue-next'
 import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
@@ -350,7 +350,7 @@ function paste() {
     y: y + step - Math.min(...clip.nodes.map((n) => n.position.y)),
   }))
 }
-const duplicate = () => add(pasted(selection(), nodes.value, edges.value, { x: 24, y: 24 }))
+const duplicate = () => selectedIds().length && add(pasted(selection(), nodes.value, edges.value, { x: 24, y: 24 }))
 
 // --- Arranging by hand: align and distribute the selected Nodes. A Frame takes its contents along.
 
@@ -663,8 +663,9 @@ async function copyPng() {
   }
 }
 
+const group = 'flex items-center'
 const tool =
-  'flex h-7 items-center gap-1 rounded-md px-2 text-xs hover:bg-accent disabled:opacity-40 aria-pressed:bg-accent [&>svg]:size-3.5'
+  'flex h-7 min-w-7 items-center justify-center gap-1 rounded-md px-1.5 text-xs hover:bg-accent disabled:opacity-40 aria-pressed:bg-accent [&>svg]:size-3.5'
 </script>
 
 <template>
@@ -678,75 +679,98 @@ const tool =
     @keydown="onAreaKey"
     :class="[fullScreen ? 'fixed inset-y-0 right-0 left-56 z-10' : 'h-[32rem] rounded-md border', { exporting }]"
   >
-    <div class="flex flex-wrap items-center gap-1 border-b p-1">
-      <button type="button" :class="tool" aria-label="Undo" :title="`Undo (${shortcut('Z')})`" :disabled="!history.past.length" @click="travel(undo)">
-        <Undo2 />
-      </button>
-      <button type="button" :class="tool" aria-label="Redo" :title="`Redo (${shortcut('Shift Z')})`" :disabled="!history.future.length" @click="travel(redo)">
-        <Redo2 />
-      </button>
-      <button type="button" :class="tool" aria-label="Add Node" @click="addNode()"><Plus />Add Node</button>
-      <button type="button" :class="tool" aria-label="Add Frame" title="Add Frame: a titled box behind the Nodes, around the selection if there is one" @click="addFrame">
-        <Frame />Frame
-      </button>
-      <RecordPicker data-testid="add-record" class="w-32" label="Add Record" @pick="addRecord" />
-      <FillPicker class="px-2" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
-      <ShapePicker :disabled="!getSelectedNodes.length" @pick="setShape(selectedIds(), $event)" />
-      <!-- click.stop: the click that opens the menu must not close it the way one elsewhere does. -->
-      <button
-        type="button"
-        data-testid="node-menu-button"
-        :class="tool"
-        aria-haspopup="menu"
-        aria-label="Node menu"
-        :disabled="!getSelectedNodes.length"
-        title="Node menu: fill, Link, Make Record (Shift+F10)"
-        @click.stop="openSelectionMenu"
-      >
-        <SquareMenu />
-      </button>
-      <button type="button" :class="tool" aria-label="Tidy left to right" title="Tidy left to right" @click="runTidy('LR')">
-        Tidy<ArrowRight />
-      </button>
-      <button type="button" :class="tool" aria-label="Tidy top down" title="Tidy top down" @click="runTidy('TB')">
-        Tidy<ArrowDown />
-      </button>
-      <button type="button" :class="tool" aria-label="Snap to grid" title="Snap to grid" :aria-pressed="snap" @click="snap = !snap">
-        <Grid3x3 />
-      </button>
-      <button
-        v-for="[how, name, icon] in ALIGNMENTS"
-        :key="how"
-        type="button"
-        :class="tool"
-        :aria-label="name"
-        :title="name"
-        :disabled="getSelectedNodes.length < 2"
-        @click="arrange(align(pickedBoxes(), how))"
-      >
-        <component :is="icon" />
-      </button>
-      <button
-        v-for="[axis, name, icon] in DISTRIBUTIONS"
-        :key="axis"
-        type="button"
-        :class="tool"
-        :aria-label="name"
-        :title="name"
-        :disabled="getSelectedNodes.length < 3"
-        @click="arrange(distribute(pickedBoxes(), axis))"
-      >
-        <component :is="icon" />
-      </button>
+    <!-- Groups of icon buttons; each names itself to a screen reader and in its tooltip, with its shortcut. -->
+    <div data-testid="diagram-toolbar" role="toolbar" aria-label="Diagram" class="relative flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-2 py-1">
+      <div role="group" aria-label="History" :class="group">
+        <button type="button" :class="tool" aria-label="Undo" :title="`Undo (${shortcut('Z')})`" :disabled="!history.past.length" @click="travel(undo)">
+          <Undo2 />
+        </button>
+        <button type="button" :class="tool" aria-label="Redo" :title="`Redo (${shortcut('Shift Z')})`" :disabled="!history.future.length" @click="travel(redo)">
+          <Redo2 />
+        </button>
+      </div>
+      <div role="group" aria-label="Add" :class="group">
+        <button type="button" :class="tool" aria-label="Add Node" title="Add Node (double-click the canvas; Tab adds one after the selected Node)" @click="addNode()">
+          <SquarePlus />
+        </button>
+        <button type="button" :class="tool" aria-label="Add Frame" title="Add Frame: a titled box behind the Nodes, around the selection if there is one" @click="addFrame">
+          <Frame />
+        </button>
+        <RecordPicker data-testid="add-record" class="ml-1 w-28" label="Add Record" title="Add Record: a Node linked to a Record" @pick="addRecord" />
+      </div>
+      <div role="group" aria-label="Selected Nodes" :class="group">
+        <FillPicker class="px-1" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
+        <ShapePicker :disabled="!getSelectedNodes.length" @pick="setShape(selectedIds(), $event)" />
+        <!-- click.stop: the click that opens the menu must not close it the way one elsewhere does. -->
+        <button
+          type="button"
+          data-testid="node-menu-button"
+          :class="tool"
+          aria-haspopup="menu"
+          aria-label="Node menu"
+          :disabled="!getSelectedNodes.length"
+          title="Node menu: fill, shape, Link, Make Record (Shift F10 or right-click)"
+          @click.stop="openSelectionMenu"
+        >
+          <SquareMenu />
+        </button>
+      </div>
+      <div role="group" aria-label="Arrange" :class="group">
+        <button type="button" :class="tool" aria-label="Tidy left to right" title="Tidy left to right" @click="runTidy('LR')">
+          Tidy<ArrowRight />
+        </button>
+        <button type="button" :class="tool" aria-label="Tidy top down" title="Tidy top down" @click="runTidy('TB')">
+          Tidy<ArrowDown />
+        </button>
+        <button type="button" :class="tool" aria-label="Snap to grid" title="Snap to grid (kept with this Diagram)" :aria-pressed="snap" @click="snap = !snap">
+          <Grid3x3 />
+        </button>
+        <button
+          v-for="[how, name, icon] in ALIGNMENTS"
+          :key="how"
+          type="button"
+          :class="tool"
+          :aria-label="name"
+          :title="`${name} (two or more Nodes selected)`"
+          :disabled="getSelectedNodes.length < 2"
+          @click="arrange(align(pickedBoxes(), how))"
+        >
+          <component :is="icon" />
+        </button>
+        <button
+          v-for="[axis, name, icon] in DISTRIBUTIONS"
+          :key="axis"
+          type="button"
+          :class="tool"
+          :aria-label="name"
+          :title="`${name} (three or more Nodes selected)`"
+          :disabled="getSelectedNodes.length < 3"
+          @click="arrange(distribute(pickedBoxes(), axis))"
+        >
+          <component :is="icon" />
+        </button>
+      </div>
       <span class="flex-1" />
-      <span v-if="notice" data-testid="diagram-notice" role="status" class="px-1 text-xs text-muted-foreground">{{ notice }}</span>
-      <button type="button" :class="tool" aria-label="Copy PNG" title="Copy the Diagram as a PNG to the clipboard" :disabled="exporting" @click="copyPng">
-        <ClipboardCopy />Copy PNG
-      </button>
-      <button type="button" :class="tool" :disabled="exporting" @click="exportPng"><ImageDown />Export PNG</button>
-      <button type="button" :class="tool" :aria-pressed="fullScreen" @click="fullScreen = !fullScreen">
-        <component :is="fullScreen ? Minimize2 : Maximize2" />Full screen
-      </button>
+      <!-- Under the toolbar's end, over the canvas: it comes and goes without moving anything. -->
+      <span
+        v-if="notice"
+        data-testid="diagram-notice"
+        role="status"
+        class="absolute top-full right-2 z-10 mt-1 rounded-md border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
+      >
+        {{ notice }}
+      </span>
+      <div role="group" aria-label="Picture and view" :class="group">
+        <button type="button" :class="tool" aria-label="Copy PNG" title="Copy the Diagram as a PNG to the clipboard" :disabled="exporting" @click="copyPng">
+          <ClipboardCopy />
+        </button>
+        <button type="button" :class="tool" aria-label="Export PNG" title="Export PNG: download the Diagram as a picture" :disabled="exporting" @click="exportPng">
+          <ImageDown />
+        </button>
+        <button type="button" :class="tool" aria-label="Full screen" :title="fullScreen ? 'Leave full screen (Esc)' : 'Full screen'" :aria-pressed="fullScreen" @click="fullScreen = !fullScreen">
+          <component :is="fullScreen ? Minimize2 : Maximize2" />
+        </button>
+      </div>
     </div>
 
     <VueFlow

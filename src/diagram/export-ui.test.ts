@@ -71,7 +71,7 @@ test('a browser without a clipboard for this page downloads too', async () => {
 })
 
 test('Export PNG downloads the picture under the Diagram\'s title', async () => {
-  await app.findAll('button').find((b) => b.text() === 'Export PNG')!.trigger('click')
+  await app.get('button[aria-label="Export PNG"]').trigger('click')
   await expect.poll(() => downloads).toEqual(['S2P overview.png'])
   expect(notice().exists()).toBe(false)
 })
