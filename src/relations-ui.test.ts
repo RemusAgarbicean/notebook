@@ -212,3 +212,25 @@ test('a label can be added and an unused one deleted from the Labels screen', as
   await get('close-labels').trigger('click')
   expect(app.find('[data-testid="labels-dialog"]').exists()).toBe(false)
 })
+
+test('the Labels screen refuses a reading another label has, says which, and keeps what was typed or saved', async () => {
+  await get('open-labels').trigger('click')
+  const alert = () => get('labels-dialog').get('[role="alert"]').text()
+
+  await get('new-label-forward').setValue('reports to')
+  await get('new-label-reverse').setValue('Owns')
+  await get('add-label').trigger('submit')
+
+  expect(alert()).toBe('"Owns" is already a reading of the label "owns / owned by"')
+  expect(labelRows()).toHaveLength(8)
+  expect((get('new-label-forward').element as HTMLInputElement).value).toBe('reports to')
+
+  await all('label-row')[4].get('[data-testid="label-reverse"]').setValue('has member')
+  expect(alert()).toBe('"has member" is already a reading of the label "member of / has member"')
+  expect(labelRows()[4].slice(0, 2)).toEqual(['uses', 'used by'])
+
+  await get('new-label-reverse').setValue('manages')
+  await get('add-label').trigger('submit')
+  expect(labelRows().at(-1)).toEqual(['reports to', 'manages', '0', false])
+  expect(get('labels-dialog').find('[role="alert"]').exists()).toBe(false)
+})

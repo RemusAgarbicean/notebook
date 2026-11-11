@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { Plus, Search } from 'lucide-vue-next'
+import { CircleAlert, Plus, Search } from 'lucide-vue-next'
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
-import { createRecord, isClosed, listRecords, listTags, recordsWithTag } from './records'
+import { createRecord, incompleteRecords, isClosed, listRecords, listTags, recordsWithTag } from './records'
 
 const type = computed(() => (typeof list.value === 'string' && list.value !== 'home' ? list.value : null))
 const tagId = computed(() => (typeof list.value === 'object' ? list.value.tag : null))
@@ -39,6 +39,9 @@ const items = computed(() => {
   return []
 })
 
+// Records with an empty required field get a marker in their row.
+const missing = computed(() => new Map(incompleteRecords().map((r) => [`${r.type}:${r.id}`, r.missing])))
+
 // The filter box narrows the rows; Tasks and Open questions can also leave out the closed ones.
 const text = ref('')
 const rows = useTemplateRef('rows')
@@ -46,8 +49,10 @@ watch(list, () => (text.value = ''))
 const closedWord = computed(() => ({ task: 'done', open_question: 'answered' })[type.value as string])
 const shown = computed(() => filterList(items.value, text.value, !!closedWord.value && hideClosed.value))
 const empty = computed(() => {
-  if (!items.value.length) return type.value ? `No ${heading.value} yet. Use New to add the first.` : 'No Records have this Tag.'
-  if (text.value.trim()) return `No ${type.value ? heading.value : 'Records'} match "${text.value.trim()}".`
+  // The Journal's Records are Journal entries: "No Journal yet" reads wrong.
+  const named = type.value === 'journal_entry' ? 'Journal entries' : heading.value
+  if (!items.value.length) return type.value ? `No ${named} yet. Use New to add the first.` : 'No Records have this Tag.'
+  if (text.value.trim()) return `No ${type.value ? named : 'Records'} match "${text.value.trim()}".`
   return `No open ${heading.value}. Hide ${closedWord.value} is on.`
 })
 const open = (r: { type: RecordType; id: number }) => (current.value = { type: r.type, id: r.id })
@@ -117,6 +122,16 @@ function add() {
           <span class="min-w-0 flex-1">
             <span class="block truncate font-medium" :class="{ 'line-through': r.closed }">{{ r.title }}</span>
             <span v-if="r.sub" class="block truncate text-xs text-muted-foreground">{{ r.sub }}</span>
+          </span>
+          <span
+            v-if="missing.has(`${r.type}:${r.id}`)"
+            data-testid="incomplete"
+            role="img"
+            :aria-label="`Incomplete: ${missing.get(`${r.type}:${r.id}`)} is empty`"
+            :title="`Incomplete: ${missing.get(`${r.type}:${r.id}`)} is empty`"
+            class="mt-0.5 shrink-0 text-muted-foreground"
+          >
+            <CircleAlert class="size-3.5" />
           </span>
         </button>
       </li>

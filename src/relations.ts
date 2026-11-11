@@ -41,9 +41,24 @@ export const listLabels = (): Label[] =>
      from label l order by l.id`,
   ).map((l) => ({ ...l, deletable: !l.protected && !l.uses }))
 
-function clean(forward: string, reverse: string) {
+const fold = (reading: string) => reading.trim().toLocaleLowerCase()
+
+// Trims the readings and refuses one that another label already has, ignoring case: the "+ Relation" list
+// would show it twice. A label's own two readings may be the same, like the seeded "related to".
+// On a rename (`id` given) only a reading that changes is checked, so a label that already shares one stays editable.
+function clean(forward: string, reverse: string, id?: number) {
   const pair = [forward.trim(), reverse.trim()]
   if (!pair[0] || !pair[1]) throw new Error('Both readings are required')
+  const labels = listLabels()
+  const own = labels.find((l) => l.id === id)
+  for (const reading of pair) {
+    if (own && [own.forward, own.reverse].some((r) => fold(r) === fold(reading))) continue
+    const taken = labels.find((l) => l.id !== id && [l.forward, l.reverse].some((r) => fold(r) === fold(reading)))
+    if (taken)
+      throw new Error(
+        `"${reading}" is already a reading of the label "${taken.forward === taken.reverse ? taken.forward : `${taken.forward} / ${taken.reverse}`}"`,
+      )
+  }
   return pair
 }
 
@@ -57,7 +72,7 @@ export function addLabel(forward: string, reverse: string): number {
 
 /** Renames a label; every Relation using it reads the new way at once. */
 export function renameLabel(id: number, forward: string, reverse: string) {
-  db.value!.run('update label set forward = ?, reverse = ? where id = ?', [...clean(forward, reverse), id])
+  db.value!.run('update label set forward = ?, reverse = ? where id = ?', [...clean(forward, reverse, id), id])
   changed()
 }
 

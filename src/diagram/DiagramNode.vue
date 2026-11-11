@@ -44,12 +44,21 @@ function commit() {
   updateNodeData(props.id, { label: input.value!.value.trim() })
 }
 
+// Ending the edit with a key keeps the focus on the Node, so the canvas's keys go on working.
+const root = useTemplateRef('root')
+function end(save: boolean) {
+  if (save) commit()
+  editing.value = false
+  root.value?.closest<HTMLElement>('.vue-flow__node')?.focus({ preventScroll: true })
+}
+
 // A Node without text was just added: its text is ready to be typed.
 onMounted(() => props.data.label || edit())
 </script>
 
 <template>
   <div
+    ref="root"
     data-testid="diagram-node"
     class="diagram-node"
     :class="{ linked: link }"
@@ -65,8 +74,8 @@ onMounted(() => props.data.label || edit())
       class="nodrag nopan w-32 bg-transparent text-center outline-none"
       :value="data.label"
       @blur="commit"
-      @keydown.enter="commit"
-      @keydown.esc.stop="editing = false"
+      @keydown.enter="end(true)"
+      @keydown.esc.stop="end(false)"
     />
     <span v-else class="whitespace-pre-wrap">
       <component :is="recordType(link.type).icon" v-if="link" class="mr-1 inline size-3.5 align-text-bottom" />

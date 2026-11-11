@@ -5,19 +5,21 @@ import '@vue-flow/controls/dist/style.css'
 import '@vue-flow/minimap/dist/style.css'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
-import { Position, useVueFlow, VueFlow, type NodeComponent } from '@vue-flow/core'
+import { Position, useVueFlow, VueFlow, type EdgeComponent, type NodeComponent } from '@vue-flow/core'
 import { MiniMap } from '@vue-flow/minimap'
 import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
-import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, Unlink } from 'lucide-vue-next'
-import { markRaw, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, SquareMenu, Unlink } from 'lucide-vue-next'
+import { markRaw, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import { focusable, vDialog } from '../dialog'
 import { db } from '../notebook'
 import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
 import { createRecord, getRecord, updateRecord, type Rec, type Titled } from '../records'
-import { greyEdge, NODE_TYPE, nextId, parseCanvas, serialiseCanvas } from './canvas'
+import { greyEdge, MAX_ZOOM, MIN_ZOOM, NODE_TYPE, nextId, parseCanvas, serialiseCanvas, viewportFor } from './canvas'
+import DiagramEdge from './DiagramEdge.vue'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
@@ -30,6 +32,8 @@ const props = defineProps<{ id: number; record: Rec }>()
 
 // The cast: the Node component declares only the props it uses.
 const nodeTypes = { [NODE_TYPE]: markRaw(DiagramNode) as unknown as NodeComponent }
+// Every Edge is drawn by ours; `default` is the type of an Edge that names none, so nothing is stored.
+const edgeTypes = { default: markRaw(DiagramEdge) as unknown as EdgeComponent }
 const flowId = `diagram-${props.id}`
 const {
   nodes,
@@ -37,6 +41,10 @@ const {
   viewport,
   dimensions,
   getSelectedNodes,
+  getSelectedEdges,
+  addSelectedEdges,
+  removeNodes,
+  removeEdges,
   addNodes,
   addEdges,
   updateNode,
@@ -110,9 +118,10 @@ function addNode() {
 
 onConnect((connection) => addEdges(greyEdge({ ...connection, id: nextId(edges.value) })))
 
-// Double-clicking an Edge asks for its label in a dialog.
+// Double-clicking an Edge, or Enter on a selected one, asks for its label in a dialog.
 const labelling = ref<{ id: string; text: string } | null>(null)
-onEdgeDoubleClick(({ edge }) => (labelling.value = { id: edge.id, text: String(edge.label ?? '') }))
+const editLabel = (edge: { id: string; label?: unknown }) => (labelling.value = { id: edge.id, text: String(edge.label ?? '') })
+onEdgeDoubleClick(({ edge }) => editLabel(edge))
 function saveLabel() {
   const { id, text } = labelling.value!
   labelling.value = null
@@ -126,17 +135,84 @@ function setFill(ids: string[], fill: FillName | null) {
 }
 const selectedIds = () => getSelectedNodes.value.map((n) => n.id)
 
-// The right-click menu acts on the whole selection when the clicked Node is part of it.
+// The Node menu acts on the whole selection when the clicked Node is part of it.
 const menu = ref<{ x: number; y: number; ids: string[] } | null>(null)
-onNodeContextMenu(({ event, node }) => {
-  event.preventDefault()
-  const { clientX, clientY } = event as MouseEvent
+const menuEl = useTemplateRef('menuEl')
+const nodeEl = (id: string) => root.value?.querySelector<HTMLElement>(`.vue-flow__node[data-id="${CSS.escape(id)}"]`)
+
+function openMenu(ids: string[], clientX: number, clientY: number) {
+  // The Node takes the focus first, so closing the menu gives it back to the canvas.
+  nodeEl(ids[0])?.focus({ preventScroll: true })
   // Kept on screen: the menu is at most this big.
   const x = Math.max(0, Math.min(clientX, innerWidth - 250))
   const y = Math.max(0, Math.min(clientY, innerHeight - 150))
-  menu.value = { x, y, ids: node.selected ? selectedIds() : [node.id] }
+  menu.value = { x, y, ids }
+  nextTick(() => menuEl.value && focusable(menuEl.value)[0]?.focus())
+}
+onNodeContextMenu(({ event, node }) => {
+  event.preventDefault()
+  const { clientX, clientY } = event as MouseEvent
+  openMenu(node.selected ? selectedIds() : [node.id], clientX, clientY)
 })
+// From the keyboard or the toolbar: the menu of the selection, under its first Node.
+let openedByKey = 0
+function openSelectionMenu() {
+  const ids = selectedIds()
+  if (!ids.length) return
+  const at = nodeEl(ids[0])?.getBoundingClientRect()
+  openMenu(ids, at?.left ?? 0, (at?.bottom ?? 0) + 4)
+  openedByKey = Date.now()
+}
+// The browser's own menu would follow the context-menu key and cover ours.
+function onContextMenu(e: Event) {
+  if (Date.now() - openedByKey > 1000) return
+  e.preventDefault()
+  e.stopPropagation()
+}
 useEventListener(window, 'click', () => (menu.value = null))
+
+const typing = (target: EventTarget | null) =>
+  target instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable)
+
+// The arrow keys walk the menu's controls; a text box or a select keeps them for itself, and Tab moves on.
+function onMenuKey(e: KeyboardEvent) {
+  // A plain key in the menu is not one of the page's single-key shortcuts; Esc and Ctrl+K or S still pass.
+  if (e.key !== 'Escape' && !e.ctrlKey && !e.metaKey) e.stopPropagation()
+  const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key]
+  if (!step || typing(e.target)) return
+  e.preventDefault()
+  const stops = focusable(menuEl.value!)
+  stops[(stops.indexOf(document.activeElement as HTMLElement) + step + stops.length) % stops.length]?.focus()
+}
+
+// The canvas's own keys, on top of Vue Flow's (Tab to a Node, Space or Enter selects it, the arrows move it).
+// They count only while the focus is on the canvas, and never while typing a Node's text.
+function onCanvasKey(e: KeyboardEvent) {
+  if (typing(e.target) || e.ctrlKey || e.metaKey || e.altKey) return
+  const [picked, pickedEdges] = [getSelectedNodes.value, getSelectedEdges.value]
+  let handled = true
+  // Vue Flow means to select an Edge on Space or Enter, but binds the key under a name that never fires.
+  const tabbed = e.target instanceof Element && findEdge(e.target.closest('.vue-flow__edge')?.getAttribute('data-id') ?? '')
+  if (tabbed && !e.shiftKey && [' ', 'Enter', 'F2'].includes(e.key)) {
+    addSelectedEdges([tabbed])
+    if (e.key !== ' ') editLabel(tabbed)
+  } else if (e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) openSelectionMenu()
+  else if (e.shiftKey) handled = false
+  else if (e.key === 'Delete' || e.key === 'Backspace') {
+    removeNodes(picked)
+    removeEdges(pickedEdges)
+  } else if ((e.key === 'Enter' || e.key === 'F2') && picked.length === 1 && !pickedEdges.length)
+    // The same as a double-click: edits a Node's text, or opens the Record of a linked one.
+    nodeEl(picked[0].id)?.querySelector('.diagram-node')?.dispatchEvent(new MouseEvent('dblclick'))
+  else if ((e.key === 'Enter' || e.key === 'F2') && pickedEdges.length === 1 && !picked.length) editLabel(pickedEdges[0])
+  else handled = false
+  if (handled) e.preventDefault()
+}
+// A click on the canvas gives it the focus, so the keys above follow the mouse.
+function onCanvasPointerDown(e: PointerEvent) {
+  const flow = e.currentTarget as HTMLElement
+  if (!typing(e.target) && !flow.contains(document.activeElement)) flow.focus({ preventScroll: true })
+}
 
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (e.key !== 'Escape') return
@@ -183,6 +259,8 @@ function runTidy(direction: Direction) {
 
 const root = useTemplateRef('root')
 const exporting = ref(false)
+// Pixels of the canvas left free around the outermost Nodes and Edges.
+const EXPORT_MARGIN = 32
 
 const labelParts = () => root.value!.querySelectorAll<SVGElement>('.vue-flow__edge-textbg, .vue-flow__edge-text')
 
@@ -193,12 +271,28 @@ async function exportPng() {
   const realFetch = window.fetch
   window.fetch = () => Promise.reject(new Error('The Notebook does not fetch anything.'))
   try {
-    // html-to-image only captures what is in view.
-    await fitView({ padding: 0.1 })
+    // html-to-image only captures what is in view. Not fitView: it fits the Nodes and lets an Edge that bows out past them be cut off.
+    const flow = root.value!.querySelector<HTMLElement>('.vue-flow')!
+    const frame = flow.getBoundingClientRect()
+    const { x, y, zoom } = viewport.value
+    const rects = [...flow.querySelectorAll('.vue-flow__node, .vue-flow__edge-path, .vue-flow__edge-textwrapper')]
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width || r.height)
+    if (rects.length) {
+      const [left, top, right, bottom] = [
+        Math.min(...rects.map((r) => r.left)),
+        Math.min(...rects.map((r) => r.top)),
+        Math.max(...rects.map((r) => r.right)),
+        Math.max(...rects.map((r) => r.bottom)),
+      ]
+      // From screen to canvas coordinates.
+      const bounds = { x: (left - frame.left - x) / zoom, y: (top - frame.top - y) / zoom, width: (right - left) / zoom, height: (bottom - top) / zoom }
+      await setViewport(viewportFor(bounds, frame, EXPORT_MARGIN))
+    }
     await new Promise(requestAnimationFrame)
     // html-to-image loses what CSS gives SVG, so the label parts get it inline for the capture.
     for (const el of labelParts()) Object.assign(el.style, { fill: getComputedStyle(el).fill, fontSize: getComputedStyle(el).fontSize })
-    const url = await toPng(root.value!.querySelector<HTMLElement>('.vue-flow')!, {
+    const url = await toPng(flow, {
       backgroundColor: '#ffffff',
       pixelRatio: 2,
       skipFonts: true,
@@ -225,11 +319,25 @@ const tool =
     data-testid="diagram-canvas"
     :data-ready="ready"
     class="diagram-canvas flex flex-col bg-background"
+    @contextmenu.capture="onContextMenu"
     :class="[fullScreen ? 'fixed inset-y-0 right-0 left-56 z-10' : 'h-[32rem] rounded-md border', { exporting }]"
   >
     <div class="flex flex-wrap items-center gap-1 border-b p-1">
       <button type="button" :class="tool" @click="addNode"><Plus />Add Node</button>
       <FillPicker class="px-2" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
+      <!-- click.stop: the click that opens the menu must not close it the way one elsewhere does. -->
+      <button
+        type="button"
+        data-testid="node-menu-button"
+        :class="tool"
+        aria-haspopup="menu"
+        aria-label="Node menu"
+        :disabled="!getSelectedNodes.length"
+        title="Node menu: fill, Link, Make Record (Shift+F10)"
+        @click.stop="openSelectionMenu"
+      >
+        <SquareMenu />
+      </button>
       <button type="button" :class="tool" aria-label="Tidy left to right" title="Tidy left to right" @click="runTidy('LR')">
         Tidy<ArrowRight />
       </button>
@@ -243,7 +351,18 @@ const tool =
       </button>
     </div>
 
-    <VueFlow :id="flowId" :node-types="nodeTypes" :delete-key-code="['Backspace', 'Delete']" class="flex-1">
+    <VueFlow
+      :id="flowId"
+      :node-types="nodeTypes"
+      :edge-types="edgeTypes"
+      :min-zoom="MIN_ZOOM"
+      :max-zoom="MAX_ZOOM"
+      :delete-key-code="null"
+      tabindex="-1"
+      class="flex-1 outline-none"
+      @keydown="onCanvasKey"
+      @pointerdown.capture="onCanvasPointerDown"
+    >
       <Background />
       <Controls />
       <MiniMap pannable zoomable :width="120" :height="80" />
@@ -251,10 +370,13 @@ const tool =
 
     <div
       v-if="menu"
+      ref="menuEl"
+      v-dialog
       role="menu"
       aria-label="Node"
       class="fixed z-20 flex flex-col gap-1 rounded-md border bg-popover p-2 text-popover-foreground shadow-md"
       :style="{ left: `${menu.x}px`, top: `${menu.y}px` }"
+      @keydown="onMenuKey"
     >
       <span class="text-xs text-muted-foreground">Fill</span>
       <FillPicker @pick="setFill(menu.ids, $event)" />
@@ -361,6 +483,18 @@ const tool =
 }
 .diagram-canvas .vue-flow__edge.selected .vue-flow__edge-path {
   stroke-width: 2.5 !important;
+}
+/* Where the Tab key is: Vue Flow's theme removes the outline and offers nothing for custom Nodes or styled Edges. */
+.diagram-canvas:not(.exporting) .vue-flow__node:focus-visible .diagram-node {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+}
+.diagram-canvas:not(.exporting) .vue-flow__edge:focus-visible {
+  outline: none;
+}
+.diagram-canvas:not(.exporting) .vue-flow__edge:focus-visible .vue-flow__edge-path {
+  stroke: var(--dg-text) !important;
+  stroke-dasharray: 5 3;
 }
 .dark .diagram-canvas .vue-flow__controls-button,
 .dark .diagram-canvas .vue-flow__minimap {

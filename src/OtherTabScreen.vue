@@ -11,7 +11,7 @@ import { tabLock } from './tab-lock'
         <span class="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
           <NotebookText class="size-5" />
         </span>
-        <h1 class="text-xl leading-tight font-semibold tracking-tight">Notebook is open in another tab</h1>
+        <h1 class="text-xl leading-tight font-semibold tracking-tight">The Notebook is open in another tab</h1>
       </header>
       <p
         v-if="tabLock.refused.value"

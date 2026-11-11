@@ -175,6 +175,18 @@ export const todaysLog = (): number =>
   rows<{ id: number }>("select id from journal_entry where date = ? and kind = 'log' order by id limit 1", [today()])[0]
     ?.id ?? createRecord('journal_entry', '', { kind: 'log' })
 
+/** Every Record with an empty required field, by title, with the label of the first such field. No column says so: it follows from `RECORD_FIELDS`. */
+export function incompleteRecords(): (Titled & { missing: string })[] {
+  const selects = RECORD_TYPES.flatMap(({ type }) => {
+    const required = RECORD_FIELDS[type].fields.filter((f) => f.required)
+    if (!required.length) return []
+    const empty = (f: Field) => `coalesce(${f.name}, '') = ''`
+    const missing = `case ${required.map((f) => `when ${empty(f)} then '${f.label}'`).join(' ')} end`
+    return `select '${type}' as type, id, title, ${missing} as missing from ${type} where ${required.map(empty).join(' or ')}`
+  })
+  return rows<Titled & { missing: string }>(selects.join(' union all ')).sort(byTitle)
+}
+
 export const getRecord = (type: RecordType, id: number): Rec | null =>
   rows<Rec>(`select * from ${table(type)} where id = ?`, [id])[0] ?? null
 

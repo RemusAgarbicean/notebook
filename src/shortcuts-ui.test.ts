@@ -74,6 +74,8 @@ test('j and k move the focus through the list, starting from the open Record', a
   createRecord('system', 'SAP')
   openRecord('system', coupa)
   await flushPromises()
+  // A Record nobody has edited opens with its title selected, and a key typed there is text.
+  ;(document.activeElement as HTMLElement).blur()
 
   await press('j')
   expect(document.activeElement?.textContent).toContain('SAP')

@@ -1,22 +1,33 @@
 <script setup lang="ts">
-import { NotebookPen, Search } from 'lucide-vue-next'
-import { computed } from 'vue'
+import { CircleAlert, NotebookPen, Search } from 'lucide-vue-next'
+import { computed, type Component } from 'vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
 import { shortcut } from './platform'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
-import { rows, todaysLog } from './records'
+import { incompleteRecords, rows, todaysLog } from './records'
 import { LABEL } from './relation-slots'
 
-// The landing page: a search box that opens the palette, then five cards.
+// The landing page: a search box that opens the palette, then the cards.
 type Row = { type: RecordType; id: number; title: string; grey?: string | null; right?: string | null }
 
 // "Task part of Project", by label id because the label can be renamed.
 const IN_PROJECT = `r.from_type = 'task' and r.label_id = ${LABEL.partOf} and r.to_type = 'project'`
 const LATEST = 8
 
-const cards = computed<{ key: string; title: string; type?: RecordType; empty: string; rows: Row[] }[]>(() => [
+type Card = { key: string; title: string; type?: RecordType; icon?: Component; empty: string; rows: Row[] }
+const cards = computed<Card[]>(() => [
+  // Only there while some Record has an empty required field.
+  ...[
+    {
+      key: 'incomplete',
+      title: 'Needs attention',
+      icon: CircleAlert,
+      empty: '',
+      rows: incompleteRecords().map((r) => ({ ...r, right: `${r.missing} is empty` })),
+    },
+  ].filter((c) => c.rows.length),
   {
     key: 'task',
     type: 'task',
@@ -96,7 +107,11 @@ const cards = computed<{ key: string; title: string; type?: RecordType; empty: s
           class="rounded-lg border bg-card p-3 text-card-foreground"
         >
           <h2 :id="`home-card-${c.key}`" class="flex items-center gap-2 px-2 pb-2 font-semibold">
-            <component :is="recordType(c.type).icon" v-if="c.type" class="size-4 text-muted-foreground" />
+            <component
+              :is="c.type ? recordType(c.type).icon : c.icon"
+              v-if="c.type || c.icon"
+              class="size-4 text-muted-foreground"
+            />
             {{ c.title }}
             <button
               v-if="c.key === 'journal_entry'"

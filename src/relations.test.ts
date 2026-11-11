@@ -208,3 +208,32 @@ test('searching Records matches titles ignoring case, within the offered types',
   expect(searchRecords('coup', ['person', 'team']).map((r) => r.title)).toEqual(['Émile Coupat'])
   expect(searchRecords('', ['team']).map((r) => r.title)).toEqual(['Analytics'])
 })
+
+test('a reading that another label already has is refused, whichever side and whatever the case', () => {
+  expect(() => addLabel('Owned by', 'possesses')).toThrow('"Owned by" is already a reading of the label "owns / owned by"')
+  expect(() => addLabel('reports to', ' USES ')).toThrow('"USES" is already a reading of the label "uses / used by"')
+  expect(() => addLabel('near', 'related to')).toThrow('"related to" is already a reading of the label "related to"')
+  expect(listLabels()).toHaveLength(8)
+
+  expect(() => renameLabel(USES, 'uses', 'contains')).toThrow('"contains" is already a reading of the label "part of / contains"')
+  expect(label(USES)).toMatchObject({ forward: 'uses', reverse: 'used by' })
+})
+
+test('a label may read the same both ways, like the seeded "related to", and keep or recase its own readings', () => {
+  const id = addLabel('next to', 'next to')
+  renameLabel(id, 'Next to', 'next to')
+  renameLabel(USES, 'used by', 'uses')
+
+  expect(label(id)).toMatchObject({ forward: 'Next to', reverse: 'next to' })
+  expect(label(USES)).toMatchObject({ forward: 'used by', reverse: 'uses' })
+})
+
+test('a label that already shares a reading (made before the check) can still have its other reading renamed', () => {
+  db.value!.run("insert into label (forward, reverse) values ('uses', 'is needed by')")
+  const id = listLabels().at(-1)!.id
+
+  renameLabel(id, 'uses', 'needed by')
+
+  expect(label(id)).toMatchObject({ forward: 'uses', reverse: 'needed by' })
+  expect(() => renameLabel(id, 'Uses', 'owns')).toThrow('"owns" is already a reading')
+})
