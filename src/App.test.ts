@@ -137,6 +137,8 @@ test('the sidebar shows search, Home, all 11 Record types with icons and Tags', 
 
 test('the list and page columns sit next to the sidebar', async () => {
   const { app } = await openApp()
+  // Home spans both columns, so a type is chosen first.
+  await app.get('[data-testid="record-type"]').trigger('click')
   expect(app.find('[data-testid="list-column"]').exists()).toBe(true)
   expect(app.find('[data-testid="page-column"]').exists()).toBe(true)
 })
