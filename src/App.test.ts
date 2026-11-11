@@ -2,6 +2,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, expect, test } from 'vitest'
 import App from './App.vue'
 import { db, markDirty, saveNow } from './notebook'
+import { shortcut } from './platform'
 import type { NotebookFolder, NotebookStorage } from './storage'
 import { memoryFolder } from './storage-memory'
 
@@ -114,7 +115,7 @@ test('the sidebar shows search, Home, all 11 Record types with icons and Tags', 
   const sidebar = (await openApp()).app.get('[data-testid="sidebar"]')
 
   expect(sidebar.text()).toContain('Notebook')
-  expect(sidebar.get('[data-testid="search"]').text()).toContain('⌘K')
+  expect(sidebar.get('[data-testid="search"]').text()).toContain(shortcut('K'))
   expect(sidebar.text()).toContain('Home')
   expect(sidebar.text()).toContain('Tags')
 
@@ -163,4 +164,13 @@ test('cancelling the folder picker shows no message', async () => {
   await flushPromises()
 
   expect(app.find('[role="alert"]').exists()).toBe(false)
+})
+
+test('the start screen stays usable while a file chooser that never answers is open', async () => {
+  const app = await start({ ...fakeStorage(null), pick: () => new Promise(() => {}) })
+
+  await app.findAll('button').find((b) => b.text() === 'Pick folder')!.trigger('click')
+  await flushPromises()
+
+  expect(app.findAll('button').map((b) => b.attributes('disabled'))).toEqual([undefined, undefined])
 })

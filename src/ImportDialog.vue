@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { Upload, X } from 'lucide-vue-next'
 import { computed, ref, watch } from 'vue'
-import { vDialog } from './dialog'
+import { vDialog, vFocus } from './dialog'
 import { importTargets, matchColumns, parseTable, planImport, runImport, type DuplicateMode } from './bulk-import'
-import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
 import { listRecords } from './records'
 import { manualSave } from './save-status'
@@ -155,7 +154,7 @@ async function save() {
 
         <fieldset class="flex flex-wrap gap-4">
           <legend class="mb-1 text-xs text-muted-foreground">
-            Rows whose title a {{ RECORD_FIELDS[type].singular }} already has
+            Rows whose title is already in {{ recordType(type).label }}
           </legend>
           <label class="flex items-center gap-1">
             <input v-model="mode" type="radio" value="skip" data-testid="import-skip" />
@@ -215,8 +214,3 @@ async function save() {
     </div>
   </div>
 </template>
-
-<script lang="ts">
-// The dialog takes the focus when it opens, so Escape closes it.
-const vFocus = { mounted: (el: HTMLElement) => el.focus() }
-</script>

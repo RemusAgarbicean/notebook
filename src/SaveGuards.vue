@@ -2,7 +2,7 @@
 // What the user sees when edits cannot reach the disk: the Not saved banner
 // and the Reload/Overwrite choice.
 import { ref } from 'vue'
-import { vDialog } from './dialog'
+import { vDialog, vFocus } from './dialog'
 import { db, overwriteDisk, reloadFromDisk, saveNow, saveProblem } from './notebook'
 import { download } from './storage-download'
 
@@ -31,7 +31,7 @@ const onRed = 'border-white hover:bg-white/15'
     class="fixed right-0 bottom-0 left-56 z-40 flex flex-wrap items-center justify-center gap-3 bg-red-600 px-4 py-2 text-white"
   >
     <span><strong>Not saved.</strong> Your edits are kept here until a save works.</span>
-    <button type="button" :class="[button, onRed]" @click="saveNow()">Retry</button>
+    <button type="button" :class="[button, onRed]" @click="saveNow(true)">Retry</button>
     <button type="button" :class="[button, onRed]" @click="downloadCopy">
       Download a copy
     </button>
@@ -68,8 +68,3 @@ const onRed = 'border-white hover:bg-white/15'
     </div>
   </div>
 </template>
-
-<script lang="ts">
-// The default choice has the focus, so Enter picks it.
-const vFocus = { mounted: (el: HTMLElement) => el.focus() }
-</script>

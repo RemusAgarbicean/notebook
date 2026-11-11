@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { History, X } from 'lucide-vue-next'
+import { useEventListener } from '@vueuse/core'
 import { ref } from 'vue'
-import { vDialog } from './dialog'
+import { vDialog, vFocus } from './dialog'
 import { formatSize } from './backups'
 import { listBackups, restoreBackup, takeBackup, type BackupFile } from './notebook'
 import { manualSave } from './save-status'
@@ -27,6 +28,19 @@ async function attempt(action: () => Promise<unknown>) {
     busy.value = false
   }
 }
+
+// A restore replaces the database: nothing may be typed, opened or closed until it is through.
+useEventListener(
+  window,
+  'keydown',
+  (e) => {
+    if (!busy.value) return
+    e.stopImmediatePropagation()
+    e.preventDefault()
+  },
+  { capture: true },
+)
+const close = () => busy.value || (open.value = false)
 
 const refresh = () => attempt(async () => (backups.value = await listBackups()))
 
@@ -68,8 +82,8 @@ const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent 
     v-if="open"
     v-dialog
     class="fixed inset-0 z-30 flex items-center justify-center bg-black/50 p-4 text-sm text-foreground"
-    @click.self="open = false"
-    @keydown.esc="open = false"
+    @click.self="close"
+    @keydown.esc="close"
   >
     <div
       data-testid="backups-dialog"
@@ -86,7 +100,7 @@ const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent 
           data-testid="close-backups"
           aria-label="Close"
           class="rounded-md p-1 hover:bg-accent"
-          @click="open = false"
+          @click="close"
         >
           <X class="size-4" />
         </button>
@@ -173,8 +187,3 @@ const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent 
     </div>
   </div>
 </template>
-
-<script lang="ts">
-// The dialog takes the focus when it opens, so Escape closes it.
-const vFocus = { mounted: (el: HTMLElement) => el.focus() }
-</script>

@@ -1,8 +1,8 @@
 import type { Database } from 'sql.js'
 import { ref, shallowRef } from 'vue'
-import { backupName, dailyBackup, describeBackup, writeBackup, type BackupInfo } from './backups'
+import { dailyBackup, describeBackup, writeBackup, type BackupInfo } from './backups'
 import { MIGRATIONS, migrate, schemaVersion } from './migrations'
-import { manualSave, saveStatus } from './save-status'
+import { downloadedAt, manualSave, saveStatus } from './save-status'
 import { loadSqlite } from './sqlite'
 import type { NotebookFolder } from './storage'
 
@@ -19,6 +19,15 @@ export const saveProblem = ref<null | 'failed' | 'changed'>(null)
 let folder: NotebookFolder | null = null
 let timer: ReturnType<typeof setTimeout> | undefined
 let queue = Promise.resolve()
+// Saves, Backups and restores run one after the other, so two never write the file at the same time.
+function enqueue<T>(job: () => Promise<T>): Promise<T> {
+  const run = queue.then(job)
+  queue = run.then(
+    () => {},
+    () => {},
+  )
+  return run
+}
 // The file's lastModified as of our last load or save.
 let knownModified: number | null = null
 
@@ -56,6 +65,7 @@ export async function openNotebook(target: NotebookFolder, create = false): Prom
   knownModified = modified
   db.value = opened
   manualSave.value = !!target.manual
+  downloadedAt.value = null
   saveStatus.value = 'saved'
   saveProblem.value = null
   return true
@@ -67,6 +77,7 @@ export function closeNotebook() {
   folder = null
   db.value = null
   manualSave.value = false
+  downloadedAt.value = null
   saveStatus.value = 'saved'
   saveProblem.value = null
 }
@@ -86,46 +97,54 @@ export function markDirty() {
  */
 export function saveNow(asked = false): Promise<void> {
   clearTimeout(timer)
-  // Queued so two saves never write the file at the same time.
-  return (queue = queue.then(async () => {
-    if (!db.value || !folder || saveProblem.value === 'changed') return
-    if (folder.manual ? !asked : saveStatus.value !== 'unsaved') return
-    saveStatus.value = 'saving'
-    try {
-      const onDisk = await folder.lastModified()
-      // A file that is gone is simply written again.
-      if (onDisk !== null && onDisk !== knownModified) {
-        saveProblem.value = 'changed'
-        saveStatus.value = 'unsaved'
-        return
-      }
-      if (!folder.manual) await dailyBackup(folder)
-      // export() frees prepared statements and resets pragmas such as foreign_keys.
-      await folder.write(db.value.export())
-      knownModified = await folder.lastModified()
-      saveProblem.value = null
-      // An edit made during the write has already set the status back to 'unsaved'.
-      if (saveStatus.value === 'saving') saveStatus.value = 'saved'
-    } catch {
+  return enqueue(() => save(asked))
+}
+
+async function save(asked: boolean) {
+  if (!db.value || !folder || saveProblem.value === 'changed') return
+  if (folder.manual ? !asked : saveStatus.value !== 'unsaved') return
+  saveStatus.value = 'saving'
+  try {
+    const onDisk = await folder.lastModified()
+    // A file that is gone is simply written again.
+    if (onDisk !== null && onDisk !== knownModified) {
+      saveProblem.value = 'changed'
       saveStatus.value = 'unsaved'
-      saveProblem.value = 'failed'
+      return
     }
-  }))
+    if (!folder.manual) await dailyBackup(folder)
+    // export() frees prepared statements and resets pragmas such as foreign_keys.
+    await folder.write(db.value.export())
+    knownModified = await folder.lastModified()
+    saveProblem.value = null
+    if (folder.manual) downloadedAt.value = new Date().toTimeString().slice(0, 5)
+    // An edit made during the write has already set the status back to 'unsaved'.
+    if (saveStatus.value === 'saving') saveStatus.value = 'saved'
+  } catch {
+    saveStatus.value = 'unsaved'
+    saveProblem.value = 'failed'
+  }
 }
 
 /**
- * Saves, then copies notebook.sqlite to backups/ as
+ * Saves, then writes the Notebook as it is in the app to backups/ as
  * `notebook-YYYY-MM-DD-HHMMSS-<reason>.sqlite` (reason e.g. 'import').
- * Rejects when the save did not reach the disk (the copy would miss the
- * latest edits) or the copy cannot be written.
+ * What is in the app, not the file: that is what an import or a restore is
+ * about to replace, also when notebook.sqlite was moved or deleted meanwhile.
+ * Rejects when the save did not reach the disk or the Backup cannot be written.
  */
-export async function takeBackup(reason: string): Promise<void> {
-  // No backups/ to write to: the user gets the Notebook as it is now as a download.
-  if (folder?.manual && db.value) return folder.writeBackup(backupName(reason), db.value.export())
-  await saveNow()
-  if (saveProblem.value)
-    throw new Error('The Notebook could not be saved, so no Backup was taken. Fix the save problem first.')
-  if (folder) await writeBackup(folder, reason)
+export const takeBackup = (reason: string): Promise<void> => enqueue(() => backUp(reason))
+
+async function backUp(reason: string) {
+  if (!folder || !db.value) return
+  // Without backups/ nothing is written unasked: the Backup is a download of the Notebook as it is now.
+  if (!folder.manual) {
+    clearTimeout(timer)
+    await save(false)
+    if (saveProblem.value)
+      throw new Error('The Notebook could not be saved, so no Backup was taken. Fix the save problem first.')
+  }
+  await writeBackup(folder, reason, db.value.export())
 }
 
 /** A file in backups/, with what its name says about it. */
@@ -151,15 +170,19 @@ export async function listBackups(): Promise<BackupFile[]> {
  * is not a Notebook, was saved by a newer app or the current state cannot be
  * backed up. An older Backup is upgraded on the way in.
  */
-export async function restoreBackup(fileName: string): Promise<void> {
+export const restoreBackup = (fileName: string): Promise<void> => enqueue(() => restore(fileName))
+
+async function restore(fileName: string) {
   const target = folder
   if (!target) return
   const bytes = await target.readBackup(fileName)
   if (!bytes) throw new Error(`"${fileName}" is no longer in the folder's backups.`)
   const restored = await parse(bytes, fileName)
-  migrate(restored) // throws for a Backup newer than the app, before anything is touched
-  await takeBackup('restore')
-  clearTimeout(timer)
+  // Before anything is touched. migrate() says "This Notebook": here it is the Backup that is newer.
+  if (schemaVersion(restored) > MIGRATIONS.length)
+    throw new Error('This Backup was saved by a newer version of the app, so this one cannot restore it. Use the newer notebook.html.')
+  migrate(restored)
+  await backUp('restore')
   await target.write(restored.export())
   await openNotebook(target)
 }

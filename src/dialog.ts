@@ -3,6 +3,9 @@ import type { Directive } from 'vue'
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
+/** Gives the element the focus when it appears: a dialog's default button, so Enter and Esc reach it. */
+export const vFocus: Directive<HTMLElement> = { mounted: (el) => el.focus() }
+
 const openers = new WeakMap<HTMLElement, Element | null>()
 
 /** The elements Tab stops at inside `el`, in order. */
@@ -25,7 +28,9 @@ export const vDialog: Directive<HTMLElement> = {
       if (e.key !== 'Tab') return
       const stops = focusable(el)
       const edge = e.shiftKey ? stops[0] : stops.at(-1)
-      if (!stops.length || document.activeElement === edge || !el.contains(document.activeElement)) {
+      // The dialog itself has the focus after a click on its text.
+      const at = document.activeElement
+      if (!stops.length || at === edge || at === el || !el.contains(at)) {
         e.preventDefault()
         ;(e.shiftKey ? stops.at(-1) : stops[0])?.focus()
       }

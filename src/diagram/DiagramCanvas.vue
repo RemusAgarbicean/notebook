@@ -12,6 +12,7 @@ import { toPng } from 'html-to-image'
 import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus, Unlink } from 'lucide-vue-next'
 import { markRaw, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
+import { db } from '../notebook'
 import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
@@ -62,9 +63,11 @@ const snapshot = () => {
   return serialiseCanvas({ ...canvas, nodes: withLiveTitles(canvas.nodes) })
 }
 let last = ''
+// A restore or a reload swaps the database while this is still mounted: its canvas belongs to the old one.
+const loadedFrom = db.value
 
 function save() {
-  if (!ready.value) return
+  if (!ready.value || db.value !== loadedFrom) return
   const json = snapshot()
   if (json === last) return
   last = json
@@ -186,6 +189,9 @@ const labelParts = () => root.value!.querySelectorAll<SVGElement>('.vue-flow__ed
 async function exportPng() {
   const before = { ...viewport.value }
   exporting.value = true // switches the canvas to its light colors, see the styles below
+  // html-to-image fetches the images and fonts it comes across. A Diagram has none, and the app never goes online.
+  const realFetch = window.fetch
+  window.fetch = () => Promise.reject(new Error('The Notebook does not fetch anything.'))
   try {
     // html-to-image only captures what is in view.
     await fitView({ padding: 0.1 })
@@ -201,6 +207,7 @@ async function exportPng() {
     })
     Object.assign(document.createElement('a'), { href: url, download: `${props.record.title}.png` }).click()
   } finally {
+    window.fetch = realFetch
     for (const el of labelParts()) Object.assign(el.style, { fill: '', fontSize: '' })
     exporting.value = false
     setViewport(before)

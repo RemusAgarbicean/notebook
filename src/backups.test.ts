@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
-import { backupsToDelete } from './backups'
+import { backupsToDelete, describeBackup, writeBackup } from './backups'
 import { db, markDirty, openNotebook, saveNow, takeBackup } from './notebook'
 import { loadSqlite } from './sqlite'
 import { memoryFolder } from './storage-memory'
@@ -140,4 +140,20 @@ test('takeBackup rejects when the file was changed outside the app', async () =>
   await expect(takeBackup('import')).rejects.toThrow('could not be saved')
 
   expect(folder.backups.size).toBe(0)
+})
+
+test('two Backups for the same reason in the same second are both kept', async () => {
+  const folder = memoryFolder(new Uint8Array([1]))
+
+  await writeBackup(folder, 'import')
+  folder.file = new Uint8Array([2])
+  await writeBackup(folder, 'import')
+
+  const names = [...folder.backups.keys()]
+  expect(names).toHaveLength(2)
+  expect(folder.backups.get(names[0])).toEqual(new Uint8Array([1]))
+  expect(names.map((n) => describeBackup(n))).toEqual([
+    { date: '2026-11-11', time: '09:30:05', kind: 'Before import' },
+    { date: '2026-11-11', time: '09:30:05', kind: 'Before import' },
+  ])
 })
