@@ -18,6 +18,12 @@ const options = ref<Titled[]>([])
 const active = ref(0)
 let from = 0 // where the `[[` being completed starts
 
+// Edit puts the caret in the text.
+function toggle() {
+  editing.value = !editing.value
+  if (editing.value) nextTick(() => area.value?.focus())
+}
+
 function onInput() {
   const el = area.value!
   emit('update:modelValue', el.value)
@@ -59,7 +65,7 @@ function onKeydown(e: KeyboardEvent) {
         type="button"
         :aria-label="`${editing ? 'Done editing' : 'Edit'} ${label}`"
         class="h-6 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-        @click="editing = !editing"
+        @click="toggle"
       >
         {{ editing ? 'Done' : 'Edit' }}
       </button>
@@ -71,7 +77,7 @@ function onKeydown(e: KeyboardEvent) {
         :aria-label="label"
         rows="8"
         placeholder="Markdown. Type [[ to mention a Record."
-        class="block w-full rounded-md border bg-background p-2 font-mono"
+        class="block max-h-[70vh] min-h-40 w-full rounded-md border bg-background p-2 font-mono [field-sizing:content]"
         @input="onInput"
         @keydown="onKeydown"
         @blur="options = []"

@@ -14,7 +14,12 @@ export const focusable = (el: HTMLElement) => [...el.querySelectorAll<HTMLElemen
  */
 export const vDialog: Directive<HTMLElement> = {
   // Before the children mount: one of them takes the focus.
-  created: (el) => void openers.set(el, document.activeElement),
+  created(el) {
+    openers.set(el, document.activeElement)
+    // A click on the dialog's text keeps the focus inside it, so Esc and Tab still reach it.
+    el.tabIndex = -1
+    el.style.outline = 'none'
+  },
   mounted(el) {
     el.addEventListener('keydown', (e) => {
       if (e.key !== 'Tab') return
