@@ -1,8 +1,11 @@
 import type { Edge, Node, ViewportTransform } from '@vue-flow/core'
 import type { FillName } from './fills'
 
-/** What a Node carries. `fill` is a palette name, absent for no fill. */
-export type NodeData = { label: string; fill?: FillName }
+/**
+ * What a Node carries. `fill` is a palette name, absent for no fill. A linked
+ * Node also has its Record's type and id, and `label` is then the title snapshot.
+ */
+export type NodeData = { label: string; fill?: FillName; recordType?: string; recordId?: number }
 
 /** The JSON kept in `diagram.canvas`. */
 export type Canvas = { nodes: Node<NodeData>[]; edges: Edge[]; viewport: ViewportTransform }

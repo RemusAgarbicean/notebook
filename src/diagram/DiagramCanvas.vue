@@ -11,12 +11,16 @@ import { useDebounceFn, useEventListener } from '@vueuse/core'
 import { toPng } from 'html-to-image'
 import { ArrowDown, ArrowRight, ImageDown, Maximize2, Minimize2, Plus } from 'lucide-vue-next'
 import { markRaw, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
-import { updateRecord, type Rec } from '../records'
+import { RECORD_FIELDS } from '../record-fields'
+import RecordPicker from '../RecordPicker.vue'
+import { RECORD_TYPES, type RecordType } from '../record-types'
+import { createRecord, updateRecord, type Rec, type RecordRef } from '../records'
 import { greyEdge, NODE_TYPE, nextId, parseCanvas, serialiseCanvas } from './canvas'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
 import { fullScreen } from './full-screen'
+import { linkOf, withLiveTitles } from './links'
 import { tidy, type Direction } from './layout'
 
 // The Record page is keyed by Record, so this mounts once per opened Diagram.
@@ -36,6 +40,7 @@ const {
   updateNode,
   updateNodeData,
   findEdge,
+  findNode,
   setNodes,
   setEdges,
   setViewport,
@@ -50,7 +55,11 @@ const {
 // --- Save and restore: the canvas JSON lives in `diagram.canvas` and rides the normal autosave.
 
 const ready = ref(false)
-const snapshot = () => serialiseCanvas(toObject())
+// Each save refreshes the title snapshot of the linked Nodes.
+const snapshot = () => {
+  const canvas = toObject()
+  return serialiseCanvas({ ...canvas, nodes: withLiveTitles(canvas.nodes) })
+}
 let last = ''
 
 function save() {
@@ -122,6 +131,21 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (menu.value) menu.value = null
   else fullScreen.value = false
 })
+
+// --- Links to Records: offered for one Node at a time.
+
+const menuNode = () => (menu.value?.ids.length === 1 ? findNode(menu.value.ids[0]) : undefined)
+const makeType = ref<RecordType>('system')
+
+function link(id: string, { type, id: recordId, title }: RecordRef & { title: string }) {
+  updateNodeData(id, { recordType: type, recordId, label: title })
+  menu.value = null
+}
+// The Node's text becomes the new Record's title.
+function makeRecord(id: string) {
+  const title = String(findNode(id)!.data.label).trim()
+  link(id, { type: makeType.value, id: createRecord(makeType.value, title), title })
+}
 
 function runTidy(direction: Direction) {
   const positions = tidy(
@@ -211,6 +235,29 @@ const tool =
     >
       <span class="text-xs text-muted-foreground">Fill</span>
       <FillPicker @pick="setFill(menu.ids, $event)" />
+      <!-- click.stop: a click in here must not close the menu the way one elsewhere does. -->
+      <div v-if="menuNode()" class="flex w-56 flex-col gap-1" @click.stop>
+        <span class="text-xs text-muted-foreground">Record</span>
+        <form
+          v-if="!linkOf(menuNode()!.data) && menuNode()!.data.label.trim()"
+          data-testid="make-record"
+          class="flex gap-1"
+          @submit.prevent="makeRecord(menu.ids[0])"
+        >
+          <select
+            v-model="makeType"
+            data-testid="make-record-type"
+            aria-label="Type of the new Record"
+            class="h-6 min-w-0 flex-1 rounded-md border bg-background px-2 text-xs"
+          >
+            <option v-for="t in RECORD_TYPES" :key="t.type" :value="t.type">{{ RECORD_FIELDS[t.type].singular }}</option>
+          </select>
+          <button type="submit" class="h-6 shrink-0 rounded-md border px-2 text-xs hover:bg-accent hover:text-accent-foreground">
+            Make Record
+          </button>
+        </form>
+        <RecordPicker label="Link to a Record" @pick="link(menu.ids[0], $event)" />
+      </div>
     </div>
   </section>
 </template>
@@ -222,12 +269,15 @@ const tool =
   --dg-node: #ffffff;
   --dg-text: #18181b;
   --dg-border: #a1a1aa;
+  /* The theme's primary, the one accent color. */
+  --dg-link: #18181b;
 }
 .dark .diagram-canvas:not(.exporting) {
   --dg-bg: #18181b;
   --dg-node: #27272a;
   --dg-text: #fafafa;
   --dg-border: #71717a;
+  --dg-link: #e4e4e7;
 }
 .diagram-canvas .vue-flow {
   background: var(--dg-bg);
@@ -242,6 +292,9 @@ const tool =
   color: var(--dg-text);
   font-size: 0.75rem;
   text-align: center;
+}
+.diagram-node.linked {
+  border: 2px solid var(--dg-link);
 }
 .dark .diagram-canvas:not(.exporting) .diagram-node {
   background: var(--fill-dark, var(--dg-node));

@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 import AnswerFlow from './AnswerFlow.vue'
+import InDiagrams from './InDiagrams.vue'
 import MentionedIn from './MentionedIn.vue'
 import ProjectTasks from './ProjectTasks.vue'
 import type { RecordType } from './record-types'
@@ -26,4 +27,5 @@ export const PAGE_SECTIONS: PageSection[] = [
   { slot: 'below', component: ProjectTasks, types: ['project'] },
   { slot: 'below', component: RelationsSection },
   { slot: 'below', component: MentionedIn },
+  { slot: 'below', component: InDiagrams },
 ]

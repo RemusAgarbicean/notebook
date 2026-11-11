@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { unlinkNodes } from './diagram/links'
 import { renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
@@ -158,11 +159,12 @@ export function updateRecord(type: RecordType, id: number, patch: Patch) {
 
 const DROP_UNUSED_TAGS = 'delete from tag where id not in (select tag_id from record_tag)'
 
-/** Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001). */
+/** Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001), and unlinks its Nodes. */
 export function deleteRecord(type: RecordType, id: number) {
   const d = db.value!
   d.run('begin')
   try {
+    unlinkNodes({ type, id })
     d.run(
       'delete from relation where (from_type = ? and from_id = ?) or (to_type = ? and to_id = ?)',
       [type, id, type, id],
