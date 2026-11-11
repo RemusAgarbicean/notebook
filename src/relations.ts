@@ -1,7 +1,6 @@
 import { db } from './notebook'
-import type { Found } from './record-search'
 import type { RecordType } from './record-types'
-import { changed, getRecord, rows, type RecordRef } from './records'
+import { changed, getRecord, rows, sameRecord, type RecordRef, type Titled } from './records'
 import { LABEL, slotsOf, type RelationSlot } from './relation-slots'
 
 export type Label = {
@@ -27,10 +26,9 @@ export type RelationEntry = {
   reading: string
   /** Whether the Record it is seen from is the `from` end. */
   forward: boolean
-  other: Found
+  other: Titled
 }
 
-const same = (a: RecordRef, b: RecordRef) => a.type === b.type && a.id === b.id
 const ends = (from: RecordRef, labelId: number, to: RecordRef) => [from.type, from.id, labelId, to.type, to.id]
 const WHERE = 'from_type = ? and from_id = ? and label_id = ? and to_type = ? and to_id = ?'
 
@@ -86,7 +84,7 @@ export const readings = (): Reading[] =>
 
 /** Saves from → label → to. Refuses a self-relation and a duplicate. Opens no transaction of its own. */
 export function addRelation(from: RecordRef, labelId: number, to: RecordRef) {
-  if (same(from, to)) throw new Error("A Record can't relate to itself")
+  if (sameRecord(from, to)) throw new Error("A Record can't relate to itself")
   if (!rows('select 1 from label where id = ?', [labelId]).length) throw new Error('That label no longer exists')
   if (hasRelation(from, labelId, to)) throw new Error('That Relation already exists')
   db.value!.run(
@@ -129,7 +127,7 @@ export function recordRelations(record: RecordRef): RelationEntry[] {
     .flatMap((r) => {
       const from = { type: r.from_type, id: r.from_id }
       const to = { type: r.to_type, id: r.to_id }
-      const forward = same(from, record)
+      const forward = sameRecord(from, record)
       const other = forward ? to : from
       const title = getRecord(other.type, other.id)?.title
       // A Relation whose other Record is gone (edited outside the app) is not shown.
@@ -167,7 +165,7 @@ export function groupRelations(record: RecordRef): { reading: string; entries: R
 // ---- Relation slots
 
 /** The Records in a slot of the Record with this id, by title. */
-export const slotRecords = (slot: RelationSlot, id: number): Found[] =>
+export const slotRecords = (slot: RelationSlot, id: number): Titled[] =>
   recordRelations({ type: slot.type, id })
     .filter((e) => inSlot(slot, e))
     .map((e) => e.other)

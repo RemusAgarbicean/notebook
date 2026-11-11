@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
 import { renderMarkdown } from './markdown'
-import { mentionFor, openMention, suggestMentions, type Titled } from './mentions'
+import { mentionFor, openMention, suggestMentions } from './mentions'
+import type { Titled } from './records'
 import { RECORD_FIELDS } from './record-fields'
 
 // A markdown textarea with a rendered view, used for notes and an Open question's answer.

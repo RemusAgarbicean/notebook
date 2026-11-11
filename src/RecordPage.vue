@@ -158,6 +158,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
         :type="type"
         :id="id"
         :record="record"
+        v-bind="s.props"
       />
 
       <div class="flex min-h-8 items-center gap-2">
@@ -210,6 +211,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
       :type="type"
       :id="id"
       :record="record"
+      v-bind="s.props"
     />
 
     <footer class="border-t pt-2 text-xs text-muted-foreground">

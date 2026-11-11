@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { unlinkNodes } from './diagram/links'
-import { renameMentions } from './mentions'
+import { keepMentions, renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
 import { RECORD_TYPES, type RecordType } from './record-types'
@@ -14,6 +14,8 @@ export type Rec = {
   updated_at: string
 } & Record<string, Value>
 export type RecordRef = { type: RecordType; id: number }
+/** A Record with its title: what searches, pickers and Mentions pass around. */
+export type Titled = RecordRef & { title: string }
 export type Tag = { id: number; name: string }
 /** What callers may pass for a field; booleans are stored as 0/1. */
 export type Patch = Record<string, Value | boolean | undefined>
@@ -40,6 +42,56 @@ export function rows<T = Record<string, Value>>(sql: string, params: Value[] = [
   )
 }
 
+/** A title as it is compared: trimmed and lower-cased in JS, because SQLite's `nocase` only folds ASCII. */
+export const foldTitle = (s: string) => s.trim().toLocaleLowerCase()
+/** Whether two titles are the same ignoring case. */
+export const sameTitle = (a: string, b: string) => foldTitle(a) === foldTitle(b)
+/** Whether two refs point at the same Record. */
+export const sameRecord = (a: RecordRef, b: RecordRef) => a.type === b.type && a.id === b.id
+/** Orders Records by title ignoring case, then id. */
+export const byTitle = (a: Titled, b: Titled) =>
+  a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) || a.id - b.id
+
+let depth = 0
+/**
+ * Runs `work` in one transaction: all of its writes or none. A call inside
+ * another joins the outer transaction. `work` must not await.
+ */
+export function transaction<T>(work: () => T): T {
+  if (depth) return work()
+  const d = db.value!
+  d.run('begin')
+  depth++
+  try {
+    const result = work()
+    d.run('commit')
+    return result
+  } catch (e) {
+    d.run('rollback')
+    // Writes inside `work` already bumped `revision`; readers must see them gone.
+    changed()
+    throw e
+  } finally {
+    depth--
+  }
+}
+
+let titles: { db: unknown; revision: number; all: Titled[] } | undefined
+/** Every Record's title, in sidebar order then by id. Reactive like `rows`; treat the array as read-only. */
+export function recordTitles(): Titled[] {
+  if (titles?.db !== db.value || titles.revision !== revision.value)
+    titles = {
+      db: db.value,
+      revision: revision.value,
+      all: rows<Titled & { ord?: number }>(
+        RECORD_TYPES.map(({ type }, i) => `select ${i} as ord, '${type}' as type, id, title from ${type}`).join(
+          ' union all ',
+        ) + ' order by ord, id',
+      ).map(({ type, id, title }) => ({ type, id, title })),
+    }
+  return titles.all
+}
+
 // Types reach SQL as table names, and can come from stored rows, so they are checked.
 function table(type: RecordType): RecordType {
   if (!RECORD_TYPES.some((t) => t.type === type)) throw new Error(`Unknown Record type: ${type}`)
@@ -53,17 +105,17 @@ export const today = () => new Date().toLocaleDateString('sv')
 const TITLE: Field = { name: 'title', label: 'Title', kind: 'text', required: true }
 const NOTES: Field = { name: 'notes', label: 'Notes', kind: 'markdown', required: true }
 
-// The automatic timestamps: [field, value that counts as closed, timestamp column].
-const CLOSED: Partial<Record<RecordType, [field: string, value: Value, stamp: string]>> = {
-  task: ['done', 1, 'done_at'],
-  project: ['status', 'done', 'done_at'],
-  open_question: ['status', 'answered', 'answered_at'],
+// The automatic timestamps: `stamp` is set while `field` holds `value`, which counts as closed.
+const CLOSED: Partial<Record<RecordType, { field: string; value: Value; stamp: string }>> = {
+  task: { field: 'done', value: 1, stamp: 'done_at' },
+  project: { field: 'status', value: 'done', stamp: 'done_at' },
+  open_question: { field: 'status', value: 'answered', stamp: 'answered_at' },
 }
 
 /** Whether a Task is done, a Project is done or an Open question is answered. */
 export function isClosed(type: RecordType, record: Record<string, Value>): boolean {
   const rule = CLOSED[type]
-  return !!rule && record[rule[0]] === rule[1]
+  return !!rule && record[rule.field] === rule.value
 }
 
 // Validates a patch and turns it into column values. Throws with a message fit for the user.
@@ -102,16 +154,20 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
   const values = normalize(type, { ...patch, title })
   for (const f of RECORD_FIELDS[type].fields) if (f.required) values[f.name] ??= ''
   const rule = CLOSED[type]
-  if (rule && values[rule[0]] === rule[1]) values[rule[2]] = now()
+  if (rule && values[rule.field] === rule.value) values[rule.stamp] = now()
 
   const columns = Object.keys(values)
-  db.value!.run(
-    `insert into ${table(type)} (${columns.join(', ')}) values (${columns.map(() => '?').join(', ')})`,
-    Object.values(values),
-  )
-  const id = db.value!.exec('select last_insert_rowid()')[0].values[0][0] as number
-  changed()
-  return id
+  return transaction(() => {
+    // Mentions of a Record that already has this title keep pointing at it.
+    keepMentions(String(values.title))
+    db.value!.run(
+      `insert into ${table(type)} (${columns.join(', ')}) values (${columns.map(() => '?').join(', ')})`,
+      Object.values(values),
+    )
+    const id = db.value!.exec('select last_insert_rowid()')[0].values[0][0] as number
+    changed()
+    return id
+  })
 }
 
 export const getRecord = (type: RecordType, id: number): Rec | null =>
@@ -131,29 +187,23 @@ export const listRecords = (type: RecordType): Rec[] =>
 export function updateRecord(type: RecordType, id: number, patch: Patch) {
   const values = normalize(type, patch)
   const rule = CLOSED[type]
-  if (rule && rule[0] in values) {
-    const closes = values[rule[0]] === rule[1]
+  if (rule && rule.field in values) {
+    const closes = values[rule.field] === rule.value
     // The timestamp only changes when the Record actually closes or reopens.
-    if (closes !== isClosed(type, getRecord(type, id) ?? {})) values[rule[2]] = closes ? now() : null
+    if (closes !== isClosed(type, getRecord(type, id) ?? {})) values[rule.stamp] = closes ? now() : null
   }
   values.updated_at = now()
-  const d = db.value!
-  // A rename also rewrites every Mention of the Record, in the same transaction.
-  const renamed = 'title' in values && values.title !== getRecord(type, id)?.title
-  if (renamed) d.run('begin')
-  try {
-    if (renamed) renameMentions({ type, id }, String(values.title))
-    d.run(
+  transaction(() => {
+    // A rename also rewrites every Mention of the Record, in the same transaction.
+    if ('title' in values && values.title !== getRecord(type, id)?.title)
+      renameMentions({ type, id }, String(values.title))
+    db.value!.run(
       `update ${table(type)} set ${Object.keys(values)
         .map((c) => `${c} = ?`)
         .join(', ')} where id = ?`,
       [...Object.values(values), id],
     )
-    if (renamed) d.run('commit')
-  } catch (e) {
-    if (renamed) d.run('rollback')
-    throw e
-  }
+  })
   changed()
 }
 
@@ -162,8 +212,7 @@ const DROP_UNUSED_TAGS = 'delete from tag where id not in (select tag_id from re
 /** Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001), and unlinks its Nodes. */
 export function deleteRecord(type: RecordType, id: number) {
   const d = db.value!
-  d.run('begin')
-  try {
+  transaction(() => {
     unlinkNodes({ type, id })
     d.run(
       'delete from relation where (from_type = ? and from_id = ?) or (to_type = ? and to_id = ?)',
@@ -172,11 +221,7 @@ export function deleteRecord(type: RecordType, id: number) {
     d.run('delete from record_tag where type = ? and id = ?', [type, id])
     d.run(DROP_UNUSED_TAGS)
     d.run(`delete from ${table(type)} where id = ?`, [id])
-    d.run('commit')
-  } catch (e) {
-    d.run('rollback')
-    throw e
-  }
+  })
   changed()
 }
 
@@ -210,12 +255,11 @@ export function removeTag(type: RecordType, id: number, tagId: number) {
 }
 
 /** Every Record with the Tag, across all types, by title. */
-export const recordsWithTag = (tagId: number): (RecordRef & { title: string })[] =>
-  rows(
-    `select * from (${RECORD_TYPES.map(
-      ({ type }) =>
-        `select '${type}' as type, r.id, r.title from ${type} r
-         join record_tag rt on rt.type = '${type}' and rt.id = r.id and rt.tag_id = ?1`,
-    ).join(' union all ')}) order by title collate nocase`,
-    [tagId],
+export function recordsWithTag(tagId: number): Titled[] {
+  const tagged = new Set(
+    rows<RecordRef>('select type, id from record_tag where tag_id = ?', [tagId]).map((r) => `${r.type}:${r.id}`),
   )
+  return recordTitles()
+    .filter((r) => tagged.has(`${r.type}:${r.id}`))
+    .sort(byTitle)
+}

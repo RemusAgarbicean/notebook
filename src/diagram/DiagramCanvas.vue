@@ -14,7 +14,7 @@ import { markRaw, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
 import { RECORD_FIELDS } from '../record-fields'
 import RecordPicker from '../RecordPicker.vue'
 import { RECORD_TYPES, type RecordType } from '../record-types'
-import { createRecord, updateRecord, type Rec, type RecordRef } from '../records'
+import { createRecord, updateRecord, type Rec, type Titled } from '../records'
 import { greyEdge, NODE_TYPE, nextId, parseCanvas, serialiseCanvas } from './canvas'
 import DiagramNode from './DiagramNode.vue'
 import FillPicker from './FillPicker.vue'
@@ -137,7 +137,7 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 const menuNode = () => (menu.value?.ids.length === 1 ? findNode(menu.value.ids[0]) : undefined)
 const makeType = ref<RecordType>('system')
 
-function link(id: string, { type, id: recordId, title }: RecordRef & { title: string }) {
+function link(id: string, { type, id: recordId, title }: Titled) {
   updateNodeData(id, { recordType: type, recordId, label: title })
   menu.value = null
 }

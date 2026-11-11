@@ -2,7 +2,8 @@
 import { Plus } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { RECORD_FIELDS } from './record-fields'
-import { sameTitle, searchRecords, type Found } from './record-search'
+import { searchRecords } from './record-search'
+import { sameTitle, type Titled } from './records'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
 import { createRecord, type RecordRef } from './records'
 
@@ -17,7 +18,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   /** The chosen Record; one made with "Create" already exists when this fires. */
-  pick: [record: Found]
+  pick: [record: Titled]
 }>()
 
 const MAX = 20
@@ -25,7 +26,7 @@ const text = ref('')
 const open = ref(false)
 const active = ref(0)
 
-type Option = { key: string; type: RecordType; text: string; record?: Found }
+type Option = { key: string; type: RecordType; text: string; record?: Titled }
 
 const options = computed<Option[]>(() => {
   if (!open.value) return []

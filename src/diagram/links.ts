@@ -1,6 +1,6 @@
 import { db } from '../notebook'
 import { RECORD_TYPES } from '../record-types'
-import { getRecord, rows, type RecordRef } from '../records'
+import { getRecord, rows, sameRecord, type RecordRef, type Titled } from '../records'
 import { parseCanvas, type NodeData } from './canvas'
 
 /** The Record a Node is linked to; null for a free-text Node. */
@@ -12,7 +12,7 @@ export function linkOf(data: NodeData | undefined): RecordRef | null {
 
 const linksTo = (data: NodeData | undefined, target: RecordRef) => {
   const link = linkOf(data)
-  return link?.type === target.type && link.id === target.id
+  return !!link && sameRecord(link, target)
 }
 
 // Every Diagram with at least one Node linked to the Record.
@@ -22,7 +22,7 @@ const diagramsLinking = (target: RecordRef) =>
   ).filter((d) => parseCanvas(d.canvas).nodes.some((n) => linksTo(n.data, target)))
 
 /** The Diagrams with a Node linked to the Record, by title. */
-export const inDiagrams = (target: RecordRef): (RecordRef & { title: string })[] =>
+export const inDiagrams = (target: RecordRef): Titled[] =>
   diagramsLinking(target).map(({ id, title }) => ({ type: 'diagram', id, title }))
 
 /**

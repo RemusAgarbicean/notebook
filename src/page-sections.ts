@@ -1,8 +1,9 @@
 import type { Component } from 'vue'
 import AnswerFlow from './AnswerFlow.vue'
-import InDiagrams from './InDiagrams.vue'
-import MentionedIn from './MentionedIn.vue'
+import { inDiagrams } from './diagram/links'
+import { mentionedIn } from './mentions'
 import ProjectTasks from './ProjectTasks.vue'
+import RecordLinks from './RecordLinks.vue'
 import type { RecordType } from './record-types'
 import { RELATION_SLOTS } from './relation-slots'
 import RelationSlots from './RelationSlots.vue'
@@ -18,6 +19,8 @@ export type PageSection = {
   component: Component
   /** Only on these types' pages; on every page when left out. */
   types?: readonly RecordType[]
+  /** Extra props for the component. */
+  props?: Record<string, unknown>
 }
 
 // Shown in array order within each slot.
@@ -26,6 +29,14 @@ export const PAGE_SECTIONS: PageSection[] = [
   { slot: 'fields', component: AnswerFlow, types: ['open_question'] },
   { slot: 'below', component: ProjectTasks, types: ['project'] },
   { slot: 'below', component: RelationsSection },
-  { slot: 'below', component: MentionedIn },
-  { slot: 'below', component: InDiagrams },
+  {
+    slot: 'below',
+    component: RecordLinks,
+    props: { heading: 'Mentioned in', source: mentionedIn, testId: 'mentioned-in' },
+  },
+  {
+    slot: 'below',
+    component: RecordLinks,
+    props: { heading: 'In Diagrams', source: inDiagrams, testId: 'in-diagrams' },
+  },
 ]
