@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, ref, useTemplateRef } from 'vue'
+import { formatSize } from './backups'
 import { caretSpot, placePopup } from './caret'
 import { copyText } from './clipboard'
 import {
@@ -7,6 +8,7 @@ import {
   continueList,
   indentLines,
   insertLink,
+  insertText,
   pasteLink,
   pasteTable,
   startMention,
@@ -15,15 +17,20 @@ import {
   type Edit,
 } from './editing'
 import FormatBar, { type FormatAction } from './FormatBar.vue'
+import { prepareImage } from './image-file'
+import { vImages } from './image-view'
+import ImageViewer from './ImageViewer.vue'
+import { addImage, altFor, imageMarkdown, pastedImages } from './images'
 import { renderMarkdown, toggleTask } from './markdown'
 import { mentionFor, openMention, suggestMentions } from './mentions'
 import { isMac, shortcut } from './platform'
 import { untouched } from './templates'
-import type { Titled } from './records'
+import type { RecordRef, Titled } from './records'
 import { RECORD_FIELDS } from './record-fields'
 
 // A markdown textarea with a rendered view, used for notes and an Open question's answer.
-const props = defineProps<{ modelValue: string; label: string }>()
+// `owner` is the Record the text belongs to: the Images added here are its Images.
+const props = defineProps<{ modelValue: string; label: string; owner: RecordRef }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 // Empty text, or a template nobody filled in yet, opens ready to type; existing text opens rendered.
@@ -51,6 +58,7 @@ function place(el: HTMLTextAreaElement) {
 const toggler = useTemplateRef('toggler')
 function toggle() {
   editing.value = !editing.value
+  notice.value = null
   nextTick(() => (editing.value ? area.value : toggler.value)?.focus())
 }
 
@@ -63,7 +71,7 @@ function edit(change: (e: Edit) => Edit | null) {
 }
 
 // What each button of the formatting bar does; three of them have a key too.
-const FORMAT: Record<FormatAction, (e: Edit) => Edit> = {
+const FORMAT: Record<Exclude<FormatAction, 'image'>, (e: Edit) => Edit> = {
   bold: (s) => toggleWrap(s, '**'),
   italic: (s) => toggleWrap(s, '*'),
   code: (s) => toggleWrap(s, '`'),
@@ -75,7 +83,7 @@ const FORMAT: Record<FormatAction, (e: Edit) => Edit> = {
   // The `[[` arrives as typing does, which opens the Mention list.
   mention: startMention,
 }
-const KEYS: Record<string, FormatAction> = { b: 'bold', i: 'italic', e: 'code' }
+const KEYS: Record<string, Exclude<FormatAction, 'image'>> = { b: 'bold', i: 'italic', e: 'code' }
 // ⌘ on a Mac, where Ctrl+B and Ctrl+E already move the caret; Ctrl everywhere else.
 const withMod = (e: KeyboardEvent) => (isMac() ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && !e.altKey
 
@@ -101,8 +109,12 @@ function onTick(e: Event) {
   nextTick(() => view.value?.querySelector<HTMLElement>(`[data-task="${n}"]`)?.focus())
 }
 
-// A click in the rendered view: a code block's Copy button, else maybe a Mention.
-async function onViewClick(e: MouseEvent) {
+// A click in the rendered view: an Image opens in the viewer; a code block's Copy button; else maybe a Mention.
+const viewing = ref<{ id: number; alt: string } | null>(null)
+async function onViewClick(e: Event) {
+  const img = (e.target as Element).closest?.<HTMLImageElement>('img[data-image]')
+  if (img?.src) return void (viewing.value = { id: Number(img.dataset.image), alt: img.alt })
+  if (!(e instanceof MouseEvent)) return
   const button = (e.target as Element).closest?.('[data-copy]')
   if (!button) return openMention(e)
   const code = button.parentElement!.querySelector('pre')!
@@ -115,8 +127,58 @@ async function onViewClick(e: MouseEvent) {
   setTimeout(() => (button.textContent = 'Copy'), 2000)
 }
 
+// What the last added image came to, or why it was refused.
+const notice = ref<{ text: string; error?: boolean } | null>(null)
+const picker = useTemplateRef('picker')
+
+/** Stores each file as an Image of the Record and puts its reference at the caret. */
+async function addImages(files: File[]) {
+  for (const file of files) {
+    try {
+      const image = await prepareImage(file)
+      const reference = imageMarkdown(addImage(props.owner, image), altFor(file.name))
+      // Preparing takes a moment: the user may have pressed Done meanwhile.
+      if (area.value) edit((s) => insertText(s, reference))
+      else emit('update:modelValue', `${props.modelValue}${/(^|\n)$/.test(props.modelValue) ? '' : '\n'}${reference}`)
+      notice.value = { text: `Image added: ${image.width} × ${image.height}, ${formatSize(image.data.length)} in the Notebook.` }
+    } catch (e) {
+      notice.value = { text: e instanceof Error ? e.message : String(e), error: true }
+    }
+  }
+}
+
+function run(action: FormatAction) {
+  if (action === 'image') picker.value!.click()
+  else edit(FORMAT[action])
+}
+
+function onPick() {
+  const files = [...(picker.value!.files ?? [])]
+  picker.value!.value = ''
+  area.value?.focus()
+  void addImages(files)
+}
+
+// Dropped files become Images; dragged text is left to the browser.
+const dragsFiles = (e: DragEvent) => !!e.dataTransfer?.types.includes('Files')
+function onDragOver(e: DragEvent) {
+  if (dragsFiles(e)) e.preventDefault()
+}
+function onDrop(e: DragEvent) {
+  if (!dragsFiles(e)) return
+  // Without this the browser opens the file in place of the app.
+  e.preventDefault()
+  area.value!.focus()
+  void addImages([...e.dataTransfer!.files])
+}
+
 function onPaste(e: ClipboardEvent) {
   const pasted = e.clipboardData?.getData('text/plain') ?? ''
+  const images = pastedImages(pasted, [...(e.clipboardData?.files ?? [])])
+  if (images.length) {
+    e.preventDefault()
+    return void addImages(images)
+  }
   if (pasted && edit((s) => pasteLink(s, pasted) ?? pasteTable(s, pasted))) e.preventDefault()
 }
 
@@ -168,18 +230,30 @@ function onKeydown(e: KeyboardEvent) {
         {{ editing ? 'Done' : 'Edit' }}
       </button>
     </div>
-    <FormatBar v-if="editing" @run="edit(FORMAT[$event])" />
+    <FormatBar v-if="editing" @run="run" />
+    <input
+      v-if="editing"
+      ref="picker"
+      type="file"
+      accept="image/png,image/jpeg,image/webp"
+      multiple
+      hidden
+      data-testid="image-picker"
+      @change="onPick"
+    />
     <div v-if="editing" class="relative">
       <textarea
         ref="area"
         :value="modelValue"
         :aria-label="label"
         rows="8"
-        placeholder="Markdown. Type [[ to mention a Record."
+        placeholder="Markdown. Type [[ to mention a Record. Paste or drop an image to add it."
         class="block max-h-[70vh] min-h-40 w-full rounded-md border bg-background p-2 font-mono [field-sizing:content]"
         @input="onInput"
         @keydown="onKeydown"
         @paste="onPaste"
+        @dragover="onDragOver"
+        @drop="onDrop"
         @blur="options = []"
       />
       <ul
@@ -205,17 +279,29 @@ function onKeydown(e: KeyboardEvent) {
           <span class="ml-auto shrink-0 text-xs text-muted-foreground">{{ RECORD_FIELDS[o.type].singular }}</span>
         </li>
       </ul>
+      <p
+        v-if="notice"
+        data-testid="image-notice"
+        :role="notice.error ? 'alert' : 'status'"
+        class="mt-1 text-xs"
+        :class="notice.error ? 'text-destructive' : 'text-muted-foreground'"
+      >
+        {{ notice.text }}
+      </p>
     </div>
     <!-- renderMarkdown sanitizes its output. -->
     <div
       v-else
       ref="view"
+      v-images
       data-testid="markdown-view"
       class="markdown min-w-0"
       @click="onViewClick"
+      @keydown.enter="onViewClick"
       @change="onTick"
       v-html="renderMarkdown(modelValue)"
     />
+    <ImageViewer v-if="viewing" v-bind="viewing" @close="viewing = null" />
   </section>
 </template>
 
@@ -288,6 +374,21 @@ function onKeydown(e: KeyboardEvent) {
 .markdown img {
   max-width: 100%;
   height: auto;
+}
+/* An Image of the Notebook: a thin frame tells a screenshot from the page around it. */
+.markdown img[data-image] {
+  display: inline-block;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  cursor: zoom-in;
+}
+.markdown .image-missing {
+  display: inline-block;
+  padding: 0.125rem 0.5rem;
+  border: 1px dashed var(--border);
+  border-radius: 0.375rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
 }
 .markdown h1 {
   font-size: 1.25rem;

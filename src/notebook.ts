@@ -1,5 +1,6 @@
 import type { Database } from 'sql.js'
 import { ref, shallowRef } from 'vue'
+import { collectImages } from './images'
 import { dailyBackup, describeBackup, writeBackup, type BackupInfo } from './backups'
 import { MIGRATIONS, migrate, schemaVersion } from './migrations'
 import { downloadedAt, manualSave, saveStatus } from './save-status'
@@ -60,6 +61,8 @@ export async function openNotebook(target: NotebookFolder, create = false): Prom
     await target.write(opened.export())
     modified = await target.lastModified()
   }
+  // Only in memory: the next save writes it, and until then the file still holds what was collected.
+  collectImages(opened)
   clearTimeout(timer)
   folder = target
   knownModified = modified

@@ -39,6 +39,8 @@ export function toggleTask(source: string, n: number): string {
  * Markdown to sanitized HTML, safe for `v-html`. The only way notes reach the page.
  * Nothing in the result makes a network request: no styles, media or SVG, and
  * an image that is not a `data:` image becomes a link showing its alt text.
+ * An Image of the Notebook comes out as `<img data-image="<id>">` without a `src`:
+ * `vImages` gives it one where the HTML is shown.
  */
 export function renderMarkdown(source: string): string {
   const body = DOMPurify.sanitize(markdown.parse(source, { async: false }), {
@@ -50,6 +52,10 @@ export function renderMarkdown(source: string): string {
   // e.g. <input type="image" src>
   for (const el of body.querySelectorAll('[src]:not(img)')) el.removeAttribute('src')
   for (const img of body.querySelectorAll('img')) {
+    if (img.hasAttribute('data-image')) {
+      img.removeAttribute('src')
+      continue
+    }
     const src = img.getAttribute('src') ?? ''
     if (/^data:image\//i.test(src)) continue
     const text = img.getAttribute('alt') || src

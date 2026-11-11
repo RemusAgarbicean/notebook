@@ -1,3 +1,4 @@
+import { portableImages } from './images'
 import { RECORD_FIELDS } from './record-fields'
 import type { RecordType } from './record-types'
 import { getRecord, recordTags } from './records'
@@ -9,7 +10,8 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 /**
  * A Record as portable markdown, for pasting into a mail or a chat: the title
  * as a heading, then its fields, Tags and Relations (by title) as a short list,
- * then its notes. Mentions stay as written.
+ * then its notes. Mentions stay as written; an Image, which only the Notebook
+ * can show, becomes `[image: alt]`.
  */
 export function recordMarkdown(type: RecordType, id: number): string {
   const record = getRecord(type, id)
@@ -42,5 +44,5 @@ export function recordMarkdown(type: RecordType, id: number): string {
   const texts = fields.filter((f) => f.kind === 'markdown' && String(record[f.name] ?? '').trim())
   for (const f of texts) parts.push(`## ${f.label}`, String(record[f.name]).trim())
   if (record.notes.trim()) parts.push(...(texts.length || tasks.length ? ['## Notes'] : []), record.notes.trim())
-  return parts.join('\n\n') + '\n'
+  return portableImages(parts.join('\n\n')) + '\n'
 }

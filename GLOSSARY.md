@@ -66,6 +66,10 @@ _Avoid_: Label on its own in UI text, Tag
 A `[[Record]]` reference inside a Record's notes; it is part of the text, not a Relation.
 _Avoid_: Wiki link, backlink
 
+**Image**:
+A picture (PNG, JPEG or WebP) pasted, dropped or picked into a Record's notes, stored inside the Notebook's file and shown where the text refers to it as `![alt](image:<id>)`; it belongs to the Record whose text holds the reference.
+_Avoid_: Attachment, screenshot (as the stored thing), file, picture
+
 **Relation slot**:
 A named picker on a Record type (e.g. a System's Owner) that adds and removes Relations with a fixed label.
 _Avoid_: Reference field, foreign key

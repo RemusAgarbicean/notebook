@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { Bold, Brackets, Code, Heading, Italic, Link, List, ListChecks, ListOrdered } from 'lucide-vue-next'
+import { Bold, Brackets, Code, Heading, Image, Italic, Link, List, ListChecks, ListOrdered } from 'lucide-vue-next'
 import { shortcut } from './platform'
 
 // The row of formatting buttons above a markdown textarea. It only says which button was pressed.
-export type FormatAction = 'bold' | 'italic' | 'code' | 'link' | 'bullet' | 'number' | 'task' | 'heading' | 'mention'
+export type FormatAction = 'bold' | 'italic' | 'code' | 'link' | 'bullet' | 'number' | 'task' | 'heading' | 'mention' | 'image'
 defineEmits<{ run: [action: FormatAction] }>()
 
 const BUTTONS: { action: FormatAction; name: string; icon: typeof Bold; key?: string }[] = [
@@ -16,6 +16,7 @@ const BUTTONS: { action: FormatAction; name: string; icon: typeof Bold; key?: st
   { action: 'number', name: 'Numbered list', icon: ListOrdered },
   { action: 'task', name: 'Task list', icon: ListChecks },
   { action: 'mention', name: 'Mention a Record', icon: Brackets },
+  { action: 'image', name: 'Add an image (or paste or drop one)', icon: Image },
 ]
 
 // The bar is one Tab stop; the arrow keys move between its buttons.

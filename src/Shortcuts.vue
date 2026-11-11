@@ -19,6 +19,7 @@ const ROWS: { keys: string[]; does: string }[] = [
   { keys: ['E'], does: 'Edit the notes of the open Record' },
   { keys: [shortcut('B'), shortcut('I'), shortcut('E')], does: 'Bold, italic and code while editing notes' },
   { keys: ['Tab', 'Shift Tab'], does: 'Indent and outdent a list item while editing notes; Esc ends editing' },
+  { keys: [shortcut('V')], does: 'Paste a screenshot into notes while editing; dropping an image file works too' },
   { keys: ['?'], does: 'Show these shortcuts' },
 ]
 

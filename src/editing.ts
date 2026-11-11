@@ -211,6 +211,12 @@ export function toggleLines(edit: Edit, kind: LineKind): Edit {
   })
 }
 
+/** Puts `inserted` in place of the selection, the caret behind it. */
+export function insertText({ text, start, end }: Edit, inserted: string): Edit {
+  const at = start + inserted.length
+  return { text: text.slice(0, start) + inserted + text.slice(end), start: at, end: at }
+}
+
 /** Starts a Mention at the caret: `[[`, with the selection as the text to search for. */
 export function startMention({ text, start, end }: Edit): Edit {
   const at = end + 2

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { History, X } from 'lucide-vue-next'
 import { useEventListener } from '@vueuse/core'
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { vDialog, vFocus } from './dialog'
 import { formatSize } from './backups'
+import { imageTotals } from './images'
 import { listBackups, restoreBackup, takeBackup, type BackupFile } from './notebook'
 import { manualSave } from './save-status'
 
@@ -62,6 +63,8 @@ async function restore() {
   // A failed attempt may still have added the Backup of the current state, or found a file gone.
   else backups.value = await listBackups().catch(() => backups.value)
 }
+
+const images = computed(imageTotals)
 
 const when = (b: BackupFile) => (b.time ? `${b.date} ${b.time}` : b.date)
 const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent disabled:pointer-events-none disabled:opacity-50'
@@ -178,6 +181,15 @@ const button = 'h-7 shrink-0 rounded-md border px-3 font-medium hover:bg-accent 
       </template>
 
       <p v-if="error" role="alert" class="text-destructive">{{ error }}</p>
+
+      <!-- Every save writes the whole file, Images included: here the user sees them grow. -->
+      <p data-testid="image-totals" class="text-xs text-muted-foreground">
+        <template v-if="images.count">
+          The Notebook holds {{ images.count }} {{ images.count > 1 ? 'Images' : 'Image' }}, {{ formatSize(images.bytes) }}
+          of its file.
+        </template>
+        <template v-else>The Notebook holds no Images.</template>
+      </p>
 
       <footer v-if="!manualSave" class="flex justify-end border-t pt-3">
         <button type="button" data-testid="backup-now" :disabled="busy" :class="button" @click="backUpNow">
