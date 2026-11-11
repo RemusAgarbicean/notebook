@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from '../App.vue'
 import { current, openRecord } from '../navigation'
 import { closeNotebook } from '../notebook'
-import { createRecord, getRecord, updateRecord } from '../records'
+import { createRecord, getRecord, listRecords, updateRecord } from '../records'
 import { memoryFolder } from '../storage-memory'
 import { parseCanvas } from './canvas'
 
@@ -103,6 +103,17 @@ test('the arrow keys walk the menu, wrapping round, and leave a text box alone',
   // In the picker the arrows choose a Record.
   await press('ArrowDown', {}, menu().get('[data-testid="record-picker"]'))
   expect(at()).toBe('Link to a Record')
+})
+
+test('a letter typed in the Node menu is not a shortcut of the page behind', async () => {
+  await open()
+  await select('1')
+  await press('ContextMenu')
+
+  await press('n', {}, menu().get('[aria-label="No fill"]'))
+
+  expect(listRecords('diagram')).toHaveLength(1)
+  expect(menu().exists()).toBe(true)
 })
 
 test('Enter or F2 edits the text of the selected Node, and Enter in the text gives the focus back to the Node', async () => {

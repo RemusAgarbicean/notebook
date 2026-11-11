@@ -176,6 +176,8 @@ const typing = (target: EventTarget | null) =>
 
 // The arrow keys walk the menu's controls; a text box or a select keeps them for itself, and Tab moves on.
 function onMenuKey(e: KeyboardEvent) {
+  // A plain key in the menu is not one of the page's single-key shortcuts; Esc and Ctrl+K or S still pass.
+  if (e.key !== 'Escape' && !e.ctrlKey && !e.metaKey) e.stopPropagation()
   const step = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1 }[e.key]
   if (!step || typing(e.target)) return
   e.preventDefault()
