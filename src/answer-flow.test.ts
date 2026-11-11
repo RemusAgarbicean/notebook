@@ -2,7 +2,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from './App.vue'
 import { current, openRecord } from './navigation'
-import { closeNotebook } from './notebook'
+import { closeNotebook, db } from './notebook'
+import { RECORD_TYPES } from './record-types'
 import { createRecord, getRecord, listRecords, updateRecord, type RecordRef } from './records'
 import { LABEL } from './relation-slots'
 import { hasRelation } from './relations'
@@ -113,4 +114,16 @@ test('a Mention in an answer lists the question under Mentioned in on that Recor
 
   await open(coupa)
   expect(get('mentioned-in').text()).toContain('Who approves POs?')
+})
+
+test('Make Record that cannot be related to the question creates no Record', async () => {
+  const q = question({ status: 'answered' })
+  await open(q)
+  db.value!.run('delete from label where id = ?', [LABEL.answeredBy])
+
+  await get('make-record-title').setValue('Budget owner approves')
+  await get('make-record').trigger('submit')
+
+  expect(app.get('[role="alert"]').text()).toContain('That label no longer exists')
+  expect(listRecords(RECORD_TYPES[0].type)).toEqual([])
 })

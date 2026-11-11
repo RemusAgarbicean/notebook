@@ -39,14 +39,18 @@ export function suggestMentions(query: string): Titled[] {
     .slice(0, 8)
 }
 
-// A text with its Mentions of `target` pointed at its new title.
-function rewrite(text: string, target: RecordRef, newTitle: string, titles: Titled[]): string {
-  const ambiguous = titles.some((t) => !sameRecord(t, target) && sameTitle(t.title, newTitle))
+// A text as it must read once `target` (null: a Record about to be created) takes `newTitle`.
+function rewrite(text: string, target: RecordRef | null, newTitle: string, titles: Titled[]): string {
+  const ambiguous = titles.some((t) => !(target && sameRecord(t, target)) && sameTitle(t.title, newTitle))
   return text.replace(MENTION, (whole, inner: string) => {
     const hit = resolveMention(inner, titles)[0]
-    if (!hit || !sameRecord(hit, target)) return whole
-    // A Mention written with its type keeps it.
-    return write(ambiguous || !sameTitle(inner, hit.title) ? target.type : null, newTitle)
+    if (!hit) return whole
+    // A Mention of the Record follows it to the new title; one written with its type keeps it.
+    if (target && sameRecord(hit, target))
+      return write(ambiguous || !sameTitle(inner, hit.title) ? target.type : null, newTitle)
+    // A bare Mention of another Record that has the title gets its type, so it keeps pointing there.
+    // shortcut: two Records of one type sharing a title can't be told apart by a Mention; needs ids in Mentions.
+    return sameTitle(inner, newTitle) ? write(hit.type, hit.title) : whole
   })
 }
 
@@ -61,11 +65,7 @@ const mentionTexts = () =>
     ),
   )
 
-/**
- * Rewrites every Mention of a Record that is about to be renamed. Call it before
- * the title changes, inside the caller's transaction (`updateRecord` does).
- */
-export function renameMentions(target: RecordRef, newTitle: string) {
+function retitle(target: RecordRef | null, newTitle: string) {
   const titles = recordTitles()
   for (const { type, id, column, text } of mentionTexts()) {
     const next = rewrite(text, target, newTitle, titles)
@@ -73,8 +73,22 @@ export function renameMentions(target: RecordRef, newTitle: string) {
   }
 }
 
-/** Call before a Record is created with this title, inside the caller's transaction. */
-export function keepMentions(_title: string) {}
+/**
+ * Rewrites every Mention of a Record that is about to be renamed, and gives
+ * bare Mentions of other Records that already have the new title their type.
+ * Call it before the title changes, inside the caller's transaction (`updateRecord` does).
+ */
+export const renameMentions = (target: RecordRef, newTitle: string) => retitle(target, newTitle)
+
+/**
+ * Gives bare Mentions of Records that have this title their type, so a Record
+ * about to be created with it can't take them over. Call it before the insert,
+ * inside the caller's transaction (`createRecord` does).
+ */
+export function keepMentions(title: string) {
+  // Most new titles are unique: skip reading every note then.
+  if (recordTitles().some((t) => sameTitle(t.title, title))) retitle(null, title)
+}
 
 /** The other Records whose notes or answer Mention this one. */
 export function mentionedIn(target: RecordRef): Titled[] {

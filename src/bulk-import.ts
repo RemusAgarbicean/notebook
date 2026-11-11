@@ -260,8 +260,8 @@ export async function runImport(
         for (const title of row.slots[slot.name] ?? []) {
           const found = searchRecords(title, slot.offers).filter((r) => sameTitle(r.title, title))
           const other = slot.offers.flatMap((t) => found.filter((r) => r.type === t))[0] ?? {
-            type: slot.offers[0],
-            id: createRecord(slot.offers[0], title),
+            type: slot.creates ?? slot.offers[0],
+            id: createRecord(slot.creates ?? slot.offers[0], title),
           }
           if (!slotRecords(slot, id).some((r) => sameRecord(r, other)))
             addToSlot(slot, id, other)

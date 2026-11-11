@@ -4,13 +4,23 @@ const pad = (n: number) => String(n).padStart(2, '0')
 // Local time: "the first save of each day" means the user's day.
 const day = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 
-/** The Backup file names to remove so that only the newest `keep` remain. */
-export const backupsToDelete = (names: string[], keep = 14) =>
-  names
-    .filter((n) => /^notebook-.*\.sqlite$/.test(n))
-    .sort() // names start with the date, so name order is age order
-    .reverse()
-    .slice(keep)
+const DAILY = /^notebook-\d{4}-\d{2}-\d{2}\.sqlite$/
+
+/**
+ * The Backup file names to remove so that the newest `keep` daily Backups and
+ * the newest `keep` reason Backups (import, pre-upgrade) remain. The two are
+ * counted apart, so a day of imports can't push out the dailies.
+ */
+export function backupsToDelete(names: string[], keep = 14) {
+  const backups = names.filter((n) => /^notebook-.*\.sqlite$/.test(n))
+  return [true, false].flatMap((daily) =>
+    backups
+      .filter((n) => DAILY.test(n) === daily)
+      .sort() // names start with the date, so name order is age order
+      .reverse()
+      .slice(keep),
+  )
+}
 
 /**
  * Copies notebook.sqlite as it is on disk into backups/, then rotates.

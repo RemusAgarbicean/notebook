@@ -102,6 +102,27 @@ for (const mode of [{ locks: true }, { locks: false }]) {
     expect(first.blocked.value).toBe(false)
     expect(second.blocked.value).toBe(true)
   })
+
+  test(`${name}: the waiting tab learns that the editing tab could not save, until it tries again`, async () => {
+    const { tab } = browser(mode)
+    let saves = false
+    const first = tab(async () => saves)
+    await settle()
+    const second = tab()
+    await settle()
+    expect(second.refused.value).toBe(false)
+
+    second.useHere()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(second.refused.value).toBe(true)
+    expect(first.refused.value).toBe(false)
+
+    saves = true
+    second.useHere()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(second.refused.value).toBe(false)
+    expect(second.blocked.value).toBe(false)
+  })
 }
 
 test('BroadcastChannel only: Use it here works after the editing tab was closed', async () => {

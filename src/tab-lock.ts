@@ -23,6 +23,8 @@ export function createTabLock(
 ) {
   /** True while another tab edits: this tab must show nothing but "Use it here". */
   const blocked = ref(false)
+  /** True in a blocked tab after the editing tab refused to step down because it could not save. */
+  const refused = ref(false)
   let useLocks = !!locks
   let release = () => {}
   let wanting = false // Use it here was clicked and has not been granted yet
@@ -32,6 +34,7 @@ export function createTabLock(
   if (channel)
     channel.onmessage = async ({ data }) => {
       if (blocked.value) {
+        if (data === 'cannot-save' && wanting) refused.value = true
         if (useLocks) return
         if (data === 'i-edit') answered = true
         if (data === 'released' && wanting) wanting = blocked.value = false
@@ -39,7 +42,7 @@ export function createTabLock(
       else if (data === 'i-edit' && !useLocks) blocked.value = true
       else if (data === 'take-over') {
         channel.postMessage('i-edit')
-        if (!(await stepDown())) return
+        if (!(await stepDown())) return channel.postMessage('cannot-save')
         blocked.value = true
         release()
         channel.postMessage('released')
@@ -63,6 +66,7 @@ export function createTabLock(
 
   /** Asks the editing tab to save and step down, then edits here. */
   function useHere() {
+    refused.value = false
     channel?.postMessage('take-over')
     if (useLocks) {
       if (wanting) return
@@ -82,7 +86,7 @@ export function createTabLock(
     }
   }
 
-  return { blocked, useHere }
+  return { blocked, refused, useHere }
 }
 
 export const tabLock = createTabLock(
