@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
 import { computed, watch } from 'vue'
+import BackupsDialog from './BackupsDialog.vue'
 import CommandPalette from './CommandPalette.vue'
 import { fullScreen } from './diagram/full-screen'
 import Home from './Home.vue'
@@ -115,6 +116,7 @@ const item =
 
       <footer class="border-t border-sidebar-border px-2 py-2 text-xs text-muted-foreground">
         <LabelsSettings />
+        <BackupsDialog />
         <ThemeSwitch />
         <div data-testid="save-status" role="status" class="px-2 pt-2">
           {{ saveStatusLabel }}

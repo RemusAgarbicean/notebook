@@ -17,6 +17,8 @@ export interface NotebookFolder {
   writeBackup(fileName: string, bytes: Uint8Array): Promise<void>
   /** File names in `backups/`. */
   listBackups(): Promise<string[]>
+  /** The bytes of one file in `backups/`, or null when it is gone. */
+  readBackup(fileName: string): Promise<Uint8Array | null>
   deleteBackup(fileName: string): Promise<void>
   /** When `notebook.sqlite` was last changed on disk, by anyone. Null when it is gone. */
   lastModified(): Promise<number | null>

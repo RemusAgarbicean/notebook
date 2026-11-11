@@ -20,6 +20,7 @@ export const downloadFolder = (file: File | null, save = download): NotebookFold
   write: async (bytes) => save(bytes, FILE),
   writeBackup: async (fileName, bytes) => save(bytes, fileName),
   listBackups: async () => [],
+  readBackup: async () => null,
   deleteBackup: async () => {},
   // The browser cannot look at the file again, so it never counts as changed outside the app.
   lastModified: async () => null,

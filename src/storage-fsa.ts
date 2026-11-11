@@ -15,15 +15,16 @@ async function writeFile(dir: FileSystemDirectoryHandle, name: string, bytes: Ui
   await writable.close()
 }
 
-// Null when notebook.sqlite is gone.
-async function currentFile(dir: FileSystemDirectoryHandle) {
+// Null when the file (or the folder it is in) is gone.
+async function fileIn(dir: () => FileSystemDirectoryHandle | Promise<FileSystemDirectoryHandle>, name: string) {
   try {
-    return await (await dir.getFileHandle(FILE)).getFile()
+    return await (await (await dir()).getFileHandle(name)).getFile()
   } catch (e) {
     if (isMissing(e)) return null
     throw e
   }
 }
+const currentFile = (dir: FileSystemDirectoryHandle) => fileIn(() => dir, FILE)
 
 const openFolder = (dir: FileSystemDirectoryHandle): NotebookFolder => ({
   name: dir.name,
@@ -36,6 +37,10 @@ const openFolder = (dir: FileSystemDirectoryHandle): NotebookFolder => ({
   write: (bytes) => writeFile(dir, FILE, bytes),
   async writeBackup(fileName, bytes) {
     await writeFile(await dir.getDirectoryHandle(BACKUPS, { create: true }), fileName, bytes)
+  },
+  async readBackup(fileName) {
+    const file = await fileIn(() => dir.getDirectoryHandle(BACKUPS), fileName)
+    return file && new Uint8Array(await file.arrayBuffer())
   },
   async listBackups() {
     try {

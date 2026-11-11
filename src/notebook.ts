@@ -1,6 +1,6 @@
 import type { Database } from 'sql.js'
 import { ref, shallowRef } from 'vue'
-import { backupName, dailyBackup, writeBackup } from './backups'
+import { backupName, dailyBackup, describeBackup, writeBackup, type BackupInfo } from './backups'
 import { MIGRATIONS, migrate, schemaVersion } from './migrations'
 import { manualSave, saveStatus } from './save-status'
 import { loadSqlite } from './sqlite'
@@ -22,6 +22,17 @@ let queue = Promise.resolve()
 // The file's lastModified as of our last load or save.
 let knownModified: number | null = null
 
+// The database in `bytes` (a new one for null). `name` is the file or folder the user knows it by.
+async function parse(bytes: Uint8Array | null, name: string) {
+  const opened = new (await loadSqlite()).Database(bytes)
+  try {
+    schemaVersion(opened) // SQLite only looks at the bytes on the first read
+  } catch {
+    throw new Error(`"${name}" is not a Notebook: the file is not a SQLite database.`)
+  }
+  return opened
+}
+
 /**
  * Opens the Notebook in `target`, upgrading its schema if needed. Returns
  * false when there is no notebook.sqlite, unless `create` asks for a new one.
@@ -32,13 +43,7 @@ export async function openNotebook(target: NotebookFolder, create = false): Prom
   let modified = await target.lastModified()
   const bytes = await target.read()
   if (!bytes && !create) return false
-  const SQL = await loadSqlite()
-  const opened = new SQL.Database(bytes)
-  try {
-    schemaVersion(opened) // SQLite only looks at the bytes on the first read
-  } catch {
-    throw new Error(`"${target.name}" is not a Notebook: the file is not a SQLite database.`)
-  }
+  const opened = await parse(bytes, target.name)
   // A manual folder is never written unasked: the opened file stays as it was, which is its own Backup.
   if (!target.manual && bytes && schemaVersion(opened) < MIGRATIONS.length)
     await writeBackup(target, 'pre-upgrade')
@@ -121,6 +126,42 @@ export async function takeBackup(reason: string): Promise<void> {
   if (saveProblem.value)
     throw new Error('The Notebook could not be saved, so no Backup was taken. Fix the save problem first.')
   if (folder) await writeBackup(folder, reason)
+}
+
+/** A file in backups/, with what its name says about it. */
+export type BackupFile = BackupInfo & { name: string; size: number }
+
+/** The open Notebook's Backups, newest first. Empty for a Notebook saved by download. */
+export async function listBackups(): Promise<BackupFile[]> {
+  if (!folder) return []
+  const list: BackupFile[] = []
+  for (const name of await folder.listBackups()) {
+    const info = describeBackup(name)
+    // shortcut: reads each Backup just for its size (at most 28 small files); add a size call to NotebookFolder if Notebooks grow large.
+    if (info) list.push({ name, ...info, size: (await folder.readBackup(name))?.length ?? 0 })
+  }
+  // A daily Backup has no time: it holds the day's starting state, so it sorts as the day's oldest.
+  const age = (b: BackupFile) => `${b.date} ${b.time ?? ''}`
+  return list.sort((a, b) => age(b).localeCompare(age(a)))
+}
+
+/**
+ * Replaces the open Notebook with a Backup, after backing up the current state
+ * (reason 'restore'). Rejects, with nothing changed, when the Backup is gone,
+ * is not a Notebook, was saved by a newer app or the current state cannot be
+ * backed up. An older Backup is upgraded on the way in.
+ */
+export async function restoreBackup(fileName: string): Promise<void> {
+  const target = folder
+  if (!target) return
+  const bytes = await target.readBackup(fileName)
+  if (!bytes) throw new Error(`"${fileName}" is no longer in the folder's backups.`)
+  const restored = await parse(bytes, fileName)
+  migrate(restored) // throws for a Backup newer than the app, before anything is touched
+  await takeBackup('restore')
+  clearTimeout(timer)
+  await target.write(restored.export())
+  await openNotebook(target)
 }
 
 /** Answers saveProblem 'changed': drops unsaved edits and loads the file as it is on disk. */

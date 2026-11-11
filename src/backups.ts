@@ -22,6 +22,27 @@ export function backupsToDelete(names: string[], keep = 14) {
   )
 }
 
+const KINDS: Record<string, string> = {
+  import: 'Before import',
+  'pre-upgrade': 'Before upgrade',
+  restore: 'Before restore',
+  manual: 'Manual',
+}
+
+export type BackupInfo = { date: string; time: string | null; kind: string }
+
+/** What a Backup's file name says: its day, its time (a daily Backup has none) and why it was taken. Null for other files. */
+export function describeBackup(fileName: string): BackupInfo | null {
+  const m = /^notebook-(\d{4}-\d{2}-\d{2})(?:-(\d{2})(\d{2})(\d{2})-(.+))?\.sqlite$/.exec(fileName)
+  if (!m) return null
+  const [, date, h, min, s, reason] = m
+  return reason ? { date, time: `${h}:${min}:${s}`, kind: KINDS[reason] ?? reason } : { date, time: null, kind: 'Daily' }
+}
+
+/** A file size for people: whole KB below 1 MB, then MB with one decimal. */
+export const formatSize = (bytes: number) =>
+  bytes < 1024 * 1024 ? `${Math.ceil(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
+
 export function backupName(reason?: string) {
   const now = new Date()
   const extra = reason
