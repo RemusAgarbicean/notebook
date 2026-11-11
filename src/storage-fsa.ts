@@ -15,17 +15,24 @@ async function writeFile(dir: FileSystemDirectoryHandle, name: string, bytes: Ui
   await writable.close()
 }
 
+// Null when notebook.sqlite is gone.
+async function currentFile(dir: FileSystemDirectoryHandle) {
+  try {
+    return await (await dir.getFileHandle(FILE)).getFile()
+  } catch (e) {
+    if (isMissing(e)) return null
+    throw e
+  }
+}
+
 const openFolder = (dir: FileSystemDirectoryHandle): NotebookFolder => ({
   name: dir.name,
   async read() {
-    try {
-      const file = await (await dir.getFileHandle(FILE)).getFile()
-      return new Uint8Array(await file.arrayBuffer())
-    } catch (e) {
-      if (isMissing(e)) return null
-      throw e
-    }
+    const file = await currentFile(dir)
+    return file && new Uint8Array(await file.arrayBuffer())
   },
+  lastModified: async () => (await currentFile(dir))?.lastModified ?? null,
+  deleteBackup: async (fileName) => (await dir.getDirectoryHandle(BACKUPS)).removeEntry(fileName),
   write: (bytes) => writeFile(dir, FILE, bytes),
   async writeBackup(fileName, bytes) {
     await writeFile(await dir.getDirectoryHandle(BACKUPS, { create: true }), fileName, bytes)

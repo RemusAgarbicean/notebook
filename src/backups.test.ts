@@ -1,0 +1,108 @@
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { backupsToDelete } from './backups'
+import { db, markDirty, openNotebook, saveNow, takeBackup } from './notebook'
+import { loadSqlite } from './sqlite'
+import { memoryFolder } from './storage-memory'
+
+beforeEach(() => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date(2026, 10, 11, 9, 30, 5))
+})
+afterEach(() => vi.useRealTimers())
+
+const onDisk = async (bytes: Uint8Array | null | undefined, sql: string) =>
+  new (await loadSqlite()).Database(bytes!).exec(sql)[0].values
+
+const addTeam = (title: string) => {
+  db.value!.run('insert into team (title) values (?)', [title])
+  markDirty()
+}
+
+test('rotation keeps the newest 14 Backups and ignores other files', () => {
+  const names = Array.from(
+    { length: 16 },
+    (_, i) => `notebook-2026-11-${String(i + 1).padStart(2, '0')}.sqlite`,
+  )
+
+  expect(backupsToDelete([...names].reverse().concat('readme.txt'))).toEqual([
+    'notebook-2026-11-02.sqlite',
+    'notebook-2026-11-01.sqlite',
+  ])
+  expect(backupsToDelete(names.slice(0, 14))).toEqual([])
+})
+
+test('the first save of a day copies the file as it was to a dated Backup, later saves do not', async () => {
+  const folder = memoryFolder()
+  await openNotebook(folder, true)
+
+  addTeam('Procurement')
+  await saveNow()
+  addTeam('Analytics')
+  await saveNow()
+
+  expect([...folder.backups.keys()]).toEqual(['notebook-2026-11-11.sqlite'])
+  expect(
+    await onDisk(folder.backups.get('notebook-2026-11-11.sqlite'), 'select count(*) from team'),
+  ).toEqual([[0]])
+
+  vi.setSystemTime(new Date(2026, 10, 12, 8, 0, 0))
+  addTeam('Finance')
+  await saveNow()
+
+  expect([...folder.backups.keys()]).toEqual([
+    'notebook-2026-11-11.sqlite',
+    'notebook-2026-11-12.sqlite',
+  ])
+  expect(
+    await onDisk(folder.backups.get('notebook-2026-11-12.sqlite'), 'select count(*) from team'),
+  ).toEqual([[2]])
+})
+
+test('a 15th Backup deletes the oldest', async () => {
+  const folder = memoryFolder()
+  await openNotebook(folder, true)
+  for (let day = 1; day <= 14; day++)
+    folder.backups.set(`notebook-2026-10-${String(day).padStart(2, '0')}.sqlite`, new Uint8Array())
+
+  addTeam('Procurement')
+  await saveNow()
+
+  expect(folder.backups.size).toBe(14)
+  expect(folder.backups.has('notebook-2026-10-01.sqlite')).toBe(false)
+  expect(folder.backups.has('notebook-2026-10-02.sqlite')).toBe(true)
+  expect(folder.backups.has('notebook-2026-11-11.sqlite')).toBe(true)
+})
+
+test('opening a file that needs a migration writes a pre-upgrade Backup of the old file first', async () => {
+  const old = new (await loadSqlite()).Database()
+  old.run('create table keepsake (x)')
+  const folder = memoryFolder(old.export())
+
+  await openNotebook(folder)
+
+  const name = 'notebook-2026-11-11-093005-pre-upgrade.sqlite'
+  expect([...folder.backups.keys()]).toEqual([name])
+  expect(await onDisk(folder.backups.get(name), 'pragma user_version')).toEqual([[0]])
+  expect(await onDisk(folder.file, 'pragma user_version')).toEqual([[1]])
+})
+
+test('opening an up-to-date file takes no Backup', async () => {
+  const first = memoryFolder()
+  await openNotebook(first, true)
+  const folder = memoryFolder(first.file)
+
+  await openNotebook(folder)
+
+  expect(folder.backups.size).toBe(0)
+})
+
+test('takeBackup saves pending edits and copies the file under the given reason', async () => {
+  const folder = memoryFolder()
+  await openNotebook(folder, true)
+  addTeam('Procurement')
+
+  await takeBackup('import')
+
+  const backup = folder.backups.get('notebook-2026-11-11-093005-import.sqlite')
+  expect(await onDisk(backup, 'select title from team')).toEqual([['Procurement']])
+})
