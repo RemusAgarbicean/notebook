@@ -52,7 +52,7 @@ function onKey(e: KeyboardEvent) {
   if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z' || !lastDeleted()) return
   // Typing and a Diagram have an Undo of their own.
   const target = e.target instanceof Element ? e.target : null
-  if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .vue-flow')) return
+  if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .diagram-canvas')) return
   if (document.querySelector('[role="dialog"], [role="alertdialog"]')) return
   e.preventDefault()
   void undo()
