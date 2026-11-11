@@ -2,7 +2,7 @@ import { db } from './notebook'
 import type { Found } from './record-search'
 import type { RecordType } from './record-types'
 import { changed, getRecord, rows, type RecordRef } from './records'
-import { slotsOf, type RelationSlot } from './relation-slots'
+import { LABEL, slotsOf, type RelationSlot } from './relation-slots'
 
 export type Label = {
   id: number
@@ -145,13 +145,18 @@ const byTitle = (a: RelationEntry, b: RelationEntry) =>
 const inSlot = (slot: RelationSlot, e: RelationEntry) =>
   e.labelId === slot.labelId && e.forward === (slot.end === 'from') && slot.offers.includes(e.other.type)
 
-/** The Relations section: every Relation not shown in one of the Record's slots, grouped by reading. */
+/** Seen from a Project: a Task that is part of it. These show in the Project's Tasks checklist. */
+export const isProjectTask = (e: RelationEntry) =>
+  e.labelId === LABEL.partOf && !e.forward && e.other.type === 'task'
+
+/** The Relations section: every Relation not shown in one of the Record's slots or the Tasks checklist, grouped by reading. */
 export function groupRelations(record: RecordRef): { reading: string; entries: RelationEntry[] }[] {
   const slots = slotsOf(record.type)
   // Keyed by label and reading, so a label that reads the same both ways makes one group.
   const groups = new Map<string, { reading: string; entries: RelationEntry[] }>()
   for (const e of recordRelations(record)) {
     if (slots.some((s) => inSlot(s, e))) continue
+    if (record.type === 'project' && isProjectTask(e)) continue
     const key = `${e.labelId}:${e.reading}`
     if (!groups.has(key)) groups.set(key, { reading: e.reading, entries: [] })
     groups.get(key)!.entries.push(e)
