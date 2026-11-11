@@ -25,5 +25,5 @@ export default defineConfig({
     // The polyfill fetches; the page must make zero network requests.
     modulePreload: { polyfill: false },
   },
-  test: { environment: 'happy-dom', include: ['src/**/*.test.ts'] },
+  test: { environment: 'happy-dom', include: ['src/**/*.test.ts'], setupFiles: ['src/test-setup.ts'] },
 })
