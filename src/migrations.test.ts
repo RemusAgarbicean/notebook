@@ -1,21 +1,24 @@
 import { expect, test } from 'vitest'
-import { migrate, schemaVersion } from './migrations'
+import { MIGRATIONS, migrate, schemaVersion } from './migrations'
+import { openNotebook } from './notebook'
+import { memoryFolder } from './storage-memory'
 import { loadSqlite } from './sqlite'
 
 const emptyDb = async () => new (await loadSqlite()).Database()
 
-test('migrating an empty database creates every table, seeds the 8 labels and sets user_version to 1', async () => {
+test('migrating an empty database creates every table, seeds the 8 labels and sets user_version to the latest', async () => {
   const db = await emptyDb()
 
   expect(migrate(db)).toBe(true)
 
-  expect(db.exec('pragma user_version')[0].values).toEqual([[1]])
-  expect(schemaVersion(db)).toBe(1)
+  expect(db.exec('pragma user_version')[0].values).toEqual([[2]])
+  expect(schemaVersion(db)).toBe(2)
   const tables = db.exec("select name from sqlite_master where type = 'table' order by name")
   expect(tables[0].values.flat()).toEqual([
     'acronym',
     'bookmark',
     'diagram',
+    'image',
     'journal_entry',
     'label',
     'open_question',
@@ -25,6 +28,7 @@ test('migrating an empty database creates every table, seeds the 8 labels and se
     'record_tag',
     'relation',
     'setting',
+    'sqlite_sequence',
     'system',
     'tag',
     'task',
@@ -84,4 +88,58 @@ test('a Notebook written by a newer app is refused', async () => {
   db.run('pragma user_version = 999')
 
   expect(() => migrate(db)).toThrow(/newer/)
+})
+
+// A Notebook as the first version of the app left it.
+async function version1() {
+  const db = await emptyDb()
+  db.exec(MIGRATIONS[0])
+  db.run('pragma user_version = 1')
+  db.run("insert into system (title, notes) values ('Coupa', 'Where POs live')")
+  db.run("insert into tag (name) values ('finance')")
+  db.run("insert into record_tag (tag_id, type, id) values (1, 'system', 1)")
+  return db
+}
+
+test('a version-1 Notebook upgrades to hold Images, with its data intact', async () => {
+  const db = await version1()
+
+  expect(migrate(db)).toBe(true)
+
+  expect(schemaVersion(db)).toBe(2)
+  expect(db.exec('select title, notes from system')[0].values).toEqual([['Coupa', 'Where POs live']])
+  expect(db.exec('select count(*) from record_tag')[0].values).toEqual([[1]])
+  expect(db.exec('select count(*) from label')[0].values).toEqual([[8]])
+  expect(db.exec('select count(*) from image')[0].values).toEqual([[0]])
+})
+
+test('opening a version-1 file keeps it as a pre-upgrade Backup before upgrading it', async () => {
+  const old = (await version1()).export()
+  const folder = memoryFolder(old)
+
+  await openNotebook(folder)
+
+  const [[name, bytes]] = [...folder.backups]
+  expect(name).toMatch(/pre-upgrade\.sqlite$/)
+  expect(bytes).toEqual(old)
+  const onDisk = new (await loadSqlite()).Database(folder.file)
+  expect(schemaVersion(onDisk)).toBe(2)
+  expect(onDisk.exec('select title from system')[0].values).toEqual([['Coupa']])
+})
+
+test('an Image keeps its bytes through an export and a reopen', async () => {
+  const db = await emptyDb()
+  migrate(db)
+  const data = Uint8Array.from({ length: 70_000 }, (_, i) => (i * 31) % 256)
+
+  db.run("insert into image (owner_type, owner_id, mime, width, height, bytes, data) values ('system', 1, 'image/png', 4, 3, ?, ?)", [
+    data.length,
+    data,
+  ])
+  const reopened = new (await loadSqlite()).Database(db.export())
+
+  const [[id, stored]] = reopened.exec('select id, data from image')[0].values
+  expect(id).toBe(1)
+  expect(stored).toBeInstanceOf(Uint8Array)
+  expect(stored).toEqual(data)
 })

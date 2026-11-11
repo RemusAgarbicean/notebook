@@ -3,6 +3,7 @@ import {
   continueList,
   indentLines,
   insertLink,
+  insertText,
   pasteLink,
   pasteTable,
   startMention,
@@ -232,4 +233,9 @@ test('the heading button steps through a heading, a smaller heading and plain te
 test('the Mention button starts a Mention, searching for the selection', () => {
   expect(show(startMention(at('ask |')))).toBe('ask [[|')
   expect(show(startMention(at('ask |Ana| now')))).toBe('ask [[Ana| now')
+})
+
+test('inserted text takes the place of the selection and leaves the caret behind it', () => {
+  expect(show(insertText(at('see | here'), '![a](image:1)'))).toBe('see ![a](image:1)| here')
+  expect(show(insertText(at('see |this| here'), 'that'))).toBe('see that| here')
 })

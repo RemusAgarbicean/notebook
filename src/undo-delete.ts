@@ -1,4 +1,5 @@
 import { shallowRef } from 'vue'
+import { doomedImages, restoreImages, type ImageRow } from './images'
 import { linkedNodes, relinkNodes, type NodesInDiagram } from './diagram/links'
 import { keepMentions } from './mentions'
 import { db } from './notebook'
@@ -28,6 +29,7 @@ type Deleted = Titled & {
   tags: string[]
   nodes: NodesInDiagram[]
   pinned: boolean
+  images: ImageRow[]
 }
 
 /** How many deletes can be undone. */
@@ -59,6 +61,7 @@ export function captureDeleted(target: RecordRef): Deleted | null {
     tags: recordTags(target.type, target.id).map((t) => t.name),
     nodes: linkedNodes(target),
     pinned: isPinned(target),
+    images: doomedImages(target),
   }
 }
 
@@ -76,7 +79,7 @@ function labelFor(r: RelationRow): number {
 }
 
 /**
- * Puts the last deleted Record back under its id, with its Relations, its Tags,
+ * Puts the last deleted Record back under its id, with its Relations, its Tags, its Images,
  * its pin and the Nodes that were linked to it, all or nothing. Returns the Record, or
  * null when there is nothing to undo. Throws, with the delete still undoable, if it can't.
  */
@@ -105,6 +108,7 @@ export function undoDelete(): RecordRef | null {
     for (const tag of last.tags) addTag(type, id, tag)
     relinkNodes(last, last.title, last.nodes)
     if (last.pinned) setPinned(last, true)
+    restoreImages(last.images)
   })
   kept.value = { db: d, stack: stack().slice(0, -1) }
   changed()

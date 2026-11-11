@@ -203,5 +203,6 @@ test('the formatting bar is one Tab stop and the arrow keys move along it', asyn
   expect(document.activeElement).toBe(bar('italic').element)
   await bar('italic').trigger('keydown', { key: 'ArrowLeft' })
   await bar('bold').trigger('keydown', { key: 'ArrowLeft' })
-  expect(document.activeElement).toBe(bar('mention').element)
+  // The last button wraps around.
+  expect(document.activeElement).toBe(bar('image').element)
 })

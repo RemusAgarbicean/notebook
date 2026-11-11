@@ -83,7 +83,7 @@ test('opening a file that needs a migration writes a pre-upgrade Backup of the o
   const name = 'notebook-2026-11-11-093005-pre-upgrade.sqlite'
   expect([...folder.backups.keys()]).toEqual([name])
   expect(await onDisk(folder.backups.get(name), 'pragma user_version')).toEqual([[0]])
-  expect(await onDisk(folder.file, 'pragma user_version')).toEqual([[1]])
+  expect(await onDisk(folder.file, 'pragma user_version')).toEqual([[2]])
 })
 
 test('opening an up-to-date file takes no Backup', async () => {

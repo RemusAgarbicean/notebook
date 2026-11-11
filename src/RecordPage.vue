@@ -152,6 +152,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
           v-if="f.kind === 'markdown'"
           :data-testid="`field-${f.name}`"
           :label="f.label"
+          :owner="{ type, id }"
           :model-value="String(record[f.name] ?? '')"
           @update:model-value="save(f.name, $event)"
         />
@@ -253,6 +254,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
     <MarkdownField
       data-testid="notes"
       label="Notes"
+      :owner="{ type, id }"
       :model-value="record.notes"
       @update:model-value="save('notes', $event)"
     />

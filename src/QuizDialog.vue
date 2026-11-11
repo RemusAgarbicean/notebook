@@ -2,6 +2,7 @@
 import { GraduationCap, X } from 'lucide-vue-next'
 import { computed, nextTick, ref, useTemplateRef } from 'vue'
 import { vDialog } from './dialog'
+import { vImages } from './image-view'
 import { renderMarkdown } from './markdown'
 import { answerCard, quizCards, quizProgress, startQuiz, type Quiz } from './quiz'
 
@@ -103,6 +104,7 @@ const button = 'flex h-8 items-center gap-2 rounded-md border px-3 font-medium h
               v-if="card.notes.trim()"
               data-testid="quiz-notes"
               class="markdown w-full min-w-0 border-t pt-3 text-left text-muted-foreground"
+              v-images
               v-html="renderMarkdown(card.notes)"
             />
           </template>

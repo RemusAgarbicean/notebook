@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { unlinkNodes } from './diagram/links'
+import { copyImages, releaseImages } from './images'
 import { keepMentions, renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
@@ -175,7 +176,7 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
 }
 
 /**
- * Creates "<title> copy" with the Record's fields, notes and Tags, and returns its id.
+ * Creates "<title> copy" with the Record's fields, notes, Tags and its own copies of the Images in its notes, and returns its id.
  * The copy starts open (not done, not answered, no answer) and has no Relations and no pin.
  * A Diagram's canvas is copied as it is: its linked Nodes point at the same Records, which is what a link is.
  */
@@ -190,6 +191,11 @@ export function duplicateRecord(type: RecordType, id: number): number {
     if (!skip.includes(f.name) && source[f.name] !== null && source[f.name] !== '') fields[f.name] = source[f.name]
   return transaction(() => {
     const copy = createRecord(type, `${source.title} copy`, fields)
+    // The copy's texts get Images of their own. Written straight to the row: the copy stays as fresh as a new Record.
+    for (const [column, text] of Object.entries(fields)) {
+      const own = typeof text === 'string' ? copyImages(text, { type, id: copy }) : text
+      if (own !== text) db.value!.run(`update ${table(type)} set ${column} = ? where id = ?`, [own as string, copy])
+    }
     for (const tag of recordTags(type, id)) addTag(type, copy, tag.name)
     return copy
   })
@@ -256,7 +262,7 @@ const DROP_UNUSED_TAGS = 'delete from tag where id not in (select tag_id from re
 let retired: { db: unknown; top: Partial<Record<RecordType, number>> } | undefined
 
 /**
- * Deletes a Record with its Relations and Tag links, which SQLite can't cascade (ADR 0001), and unlinks its Nodes.
+ * Deletes a Record with its Relations, Tag links and Images, which SQLite can't cascade (ADR 0001), and unlinks its Nodes.
  * `undoDelete` can take the last few deletes back.
  */
 export function deleteRecord(type: RecordType, id: number) {
@@ -266,6 +272,7 @@ export function deleteRecord(type: RecordType, id: number) {
   const deleted = transaction(() => {
     const deleted = captureDeleted({ type, id })
     unlinkNodes({ type, id })
+    releaseImages({ type, id })
     d.run(
       'delete from relation where (from_type = ? and from_id = ?) or (to_type = ? and to_id = ?)',
       [type, id, type, id],

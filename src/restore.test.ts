@@ -108,7 +108,7 @@ test('an older Backup is upgraded when it is restored', async () => {
 
   expect(teams()).toEqual([])
   expect(db.value!.exec('select count(*) from keepsake')[0].values).toEqual([[0]])
-  expect(await onDisk(folder.file, 'pragma user_version')).toEqual([[1]])
+  expect(await onDisk(folder.file, 'pragma user_version')).toEqual([[2]])
 })
 
 test('a Backup from a newer app version, a broken one or a missing one is refused and nothing changes', async () => {
