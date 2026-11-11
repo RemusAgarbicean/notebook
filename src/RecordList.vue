@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Plus, Search } from 'lucide-vue-next'
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
@@ -41,6 +41,7 @@ const items = computed(() => {
 
 // The filter box narrows the rows; Tasks and Open questions can also leave out the closed ones.
 const text = ref('')
+const rows = useTemplateRef('rows')
 watch(list, () => (text.value = ''))
 const closedWord = computed(() => ({ task: 'done', open_question: 'answered' })[type.value as string])
 const shown = computed(() => filterList(items.value, text.value, !!closedWord.value && hideClosed.value))
@@ -86,6 +87,7 @@ function add() {
           class="h-7 w-full rounded-md border bg-background pr-2 pl-8 placeholder:text-muted-foreground"
           @keydown.esc="text = ''"
           @keydown.enter="shown[0] && open(shown[0])"
+          @keydown.down.prevent="rows?.querySelector('button')?.focus()"
         />
       </label>
       <button
@@ -100,7 +102,7 @@ function add() {
       </button>
     </div>
 
-    <ul v-if="shown.length" class="flex-1 overflow-y-auto p-2">
+    <ul v-if="shown.length" ref="rows" class="flex-1 overflow-y-auto p-2">
       <li v-for="r in shown" :key="`${r.type}:${r.id}`">
         <!-- A Tag list stays put when a row is opened, so it sets `current` itself. -->
         <button
