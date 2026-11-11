@@ -1,0 +1,345 @@
+<!doctype html>
+<!-- PROTOTYPE, throwaway. Question: "What does the app layout look like?" (issue #9).
+     Three structurally different layouts, switch with ?variant=A|B|C, the bottom bar, or ←/→.
+     Sample data only, nothing is saved. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notebook layout prototype</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1d1d1f; background: #fff; height: 100vh; overflow: hidden; }
+  a { color: #2457c5; cursor: pointer; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .broken { color: #b3261e; border-bottom: 1px dashed; }
+  .muted { color: #6e6e73; }
+  .small { font-size: 12px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #6e6e73; margin: 18px 0 6px; }
+  button { font: inherit; border: 1px solid #d2d2d7; background: #fff; border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+  button:hover { background: #f5f5f7; }
+  input { font: inherit; }
+  .tag { display: inline-block; background: #eef1f6; border-radius: 10px; padding: 0 8px; font-size: 12px; margin-right: 4px; }
+  .badge { display: inline-block; width: 20px; text-align: center; }
+  .field { display: grid; grid-template-columns: 120px 1fr; gap: 8px; padding: 3px 0; }
+  .field label { color: #6e6e73; }
+  .notes { background: #fafafa; border: 1px solid #eee; border-radius: 6px; padding: 10px 12px; white-space: pre-wrap; }
+  .row { padding: 7px 12px; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+  .row:hover { background: #f5f7fb; }
+  .row.sel { background: #e6eefc; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid #eee; }
+  th { font-size: 12px; color: #6e6e73; font-weight: 600; }
+  tbody tr { cursor: pointer; } tbody tr:hover { background: #f5f7fb; }
+  /* diagram */
+  .canvas { position: relative; background: #fbfbfd radial-gradient(#d9d9de 1px, transparent 1px) 0 0/18px 18px; overflow: hidden; }
+  .canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .node { position: absolute; transform: translate(-50%, -50%); background: #fff; border: 1px solid #c7c7cc; border-radius: 8px; padding: 6px 12px; white-space: nowrap; user-select: none; }
+  .node.linked { border-color: #2457c5; cursor: pointer; }
+  .node.linked:hover { box-shadow: 0 0 0 3px #2457c533; }
+  .dtool { position: absolute; top: 10px; left: 10px; display: flex; gap: 6px; }
+  /* palette */
+  .scrim { position: fixed; inset: 0; background: #0005; display: flex; justify-content: center; align-items: flex-start; padding-top: 12vh; z-index: 50; }
+  .palette { width: 560px; background: #fff; border-radius: 12px; box-shadow: 0 20px 60px #0004; overflow: hidden; }
+  .palette input { width: 100%; border: 0; border-bottom: 1px solid #eee; padding: 14px 16px; font-size: 16px; outline: none; }
+  .palette .res { max-height: 50vh; overflow: auto; }
+  .palette .row.hi { background: #e6eefc; }
+  kbd { font: 11px ui-monospace, monospace; border: 1px solid #d2d2d7; border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; color: #6e6e73; }
+  /* switcher: deliberately not part of the design */
+  #switcher { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; border-radius: 999px; padding: 6px 8px; display: flex; gap: 10px; align-items: center; box-shadow: 0 6px 20px #0006; z-index: 100; font-size: 13px; }
+  #switcher button { background: #333; color: #fff; border: 0; border-radius: 999px; width: 28px; height: 28px; padding: 0; }
+  #proto-state { position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); font: 11px ui-monospace, monospace; color: #888; z-index: 100; pointer-events: none; }
+
+  /* ---------- A: three panes ---------- */
+  .A { display: grid; grid-template-columns: 210px 300px 1fr; height: 100vh; }
+  .A.wide { grid-template-columns: 210px 1fr; }
+  .A nav { background: #f5f5f7; border-right: 1px solid #e5e5ea; padding: 12px 8px; overflow: auto; }
+  .A nav .item { padding: 5px 8px; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; }
+  .A nav .item:hover { background: #e8e8ed; } .A nav .item.on { background: #dfe6f5; font-weight: 600; }
+  .A nav .search { width: 100%; text-align: left; color: #6e6e73; margin-bottom: 12px; }
+  .A .list { border-right: 1px solid #e5e5ea; overflow: auto; }
+  .A .list .head { padding: 12px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; position: sticky; top: 0; background: #fff; }
+  .A .main { overflow: auto; padding: 24px 32px 90px; }
+  .A .main.canvas { padding: 0; }
+
+  /* ---------- B: search-first, single column ---------- */
+  .B { height: 100vh; display: flex; flex-direction: column; }
+  .B header { display: flex; align-items: center; gap: 16px; padding: 10px 24px; border-bottom: 1px solid #eee; }
+  .B header .logo { font-weight: 700; cursor: pointer; }
+  .B header .sbox { flex: 1; max-width: 520px; text-align: left; color: #6e6e73; padding: 6px 12px; border-radius: 8px; background: #f5f5f7; border: 0; }
+  .B .browse { position: relative; }
+  .B .menu { position: absolute; top: 34px; left: 0; background: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 8px 24px #0002; width: 200px; z-index: 10; padding: 4px; }
+  .B .menu .row { border: 0; border-radius: 6px; }
+  .B .body { flex: 1; overflow: auto; }
+  .B .page { max-width: 1060px; margin: 0 auto; padding: 28px 24px 90px; }
+  .B .rec { display: grid; grid-template-columns: 1fr 300px; gap: 36px; }
+  .B .rail { border-left: 1px solid #eee; padding-left: 20px; }
+  .B .home { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .B .card { border: 1px solid #e5e5ea; border-radius: 10px; padding: 4px 0 8px; }
+  .B .card h3 { padding: 0 12px; }
+  .B .hero { text-align: center; padding: 30px 0 34px; }
+  .B .hero button { width: 520px; text-align: left; padding: 12px 16px; font-size: 16px; color: #6e6e73; border-radius: 10px; }
+  .B .canvas { height: calc(100vh - 53px); }
+
+  /* ---------- C: grouped tabs, tables, slide-over ---------- */
+  .C { height: 100vh; display: flex; flex-direction: column; }
+  .C header { display: flex; align-items: flex-end; gap: 4px; padding: 10px 20px 0; border-bottom: 1px solid #ddd; background: #fafafa; }
+  .C header .logo { font-weight: 700; margin-right: 18px; padding-bottom: 10px; }
+  .C .grp { padding: 0 6px; }
+  .C .grp .gl { font-size: 10px; text-transform: uppercase; color: #999; letter-spacing: .08em; padding-left: 8px; }
+  .C .tab { display: inline-block; padding: 6px 10px 9px; cursor: pointer; border-bottom: 2px solid transparent; }
+  .C .tab.on { border-color: #2457c5; color: #2457c5; font-weight: 600; }
+  .C .filter { margin-left: auto; margin-bottom: 8px; padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; width: 260px; }
+  .C .body { flex: 1; overflow: auto; position: relative; }
+  .C .bar { display: flex; gap: 8px; align-items: center; padding: 12px 20px; }
+  .C .panel { position: fixed; top: 0; right: 0; bottom: 0; width: 520px; background: #fff; box-shadow: -10px 0 40px #0002; padding: 20px 26px 90px; overflow: auto; z-index: 20; }
+  .C .panel .ptop { display: flex; justify-content: space-between; margin-bottom: 10px; }
+  .C .canvas { position: absolute; inset: 0; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="proto-state"></div>
+<div id="switcher">
+  <button onclick="cycle(-1)" title="Previous (←)">‹</button>
+  <span id="vlabel"></span>
+  <button onclick="cycle(1)" title="Next (→)">›</button>
+</div>
+<script>
+// ---------- sample data ----------
+const TYPES = {
+  system:   { many: 'Systems',        one: 'System',        icon: '🖥' },
+  process:  { many: 'Processes',      one: 'Process',       icon: '🔁' },
+  person:   { many: 'People',         one: 'Person',        icon: '👤' },
+  team:     { many: 'Teams',          one: 'Team',          icon: '👥' },
+  acronym:  { many: 'Acronyms',       one: 'Acronym',       icon: '🔤' },
+  question: { many: 'Open questions', one: 'Open question', icon: '❓' },
+  bookmark: { many: 'Bookmarks',      one: 'Bookmark',      icon: '🔖' },
+  task:     { many: 'Tasks',          one: 'Task',          icon: '☑️' },
+  journal:  { many: 'Journal',        one: 'Journal entry', icon: '📓' },
+  diagram:  { many: 'Diagrams',       one: 'Diagram',       icon: '🗺' },
+};
+const R = [
+  { id: 's1', type: 'system', title: 'Coupa', f: { summary: 'Procure-to-pay suite: requisitions, POs, invoices', url: 'https://company.coupahost.com' }, tags: ['S2P'], notes: 'Where [[PO]]s are raised. Feeds spend data to [[SAP]] nightly.\nAsk [[Maria Lopez]] about approval chains.' },
+  { id: 's2', type: 'system', title: 'SAP', f: { summary: 'ERP, finance and master data', url: '' }, tags: ['ERP'], notes: 'Source of truth for vendor master. Extracts land in [[Snowflake]].' },
+  { id: 's3', type: 'system', title: 'Tableau', f: { summary: 'Dashboards for spend analytics', url: 'https://tableau.company.com' }, tags: ['BI'], notes: 'The [[Spend Cube]] dashboard lives here.' },
+  { id: 's4', type: 'system', title: 'Snowflake', f: { summary: 'Data warehouse', url: '' }, tags: ['data'], notes: 'Procurement schema: PROC_ANALYTICS.' },
+  { id: 'pr1', type: 'process', title: 'Source-to-Pay', f: {}, tags: ['S2P'], notes: '1. Sourcing event\n2. Contract\n3. Requisition in [[Coupa]]\n4. [[PO]]\n5. Goods receipt\n6. Invoice and payment' },
+  { id: 'p1', type: 'person', title: 'Maria Lopez', f: { role: 'Coupa platform lead', email: 'maria.lopez@company.com', go_to_for: 'Coupa config, approval chains' }, tags: [], notes: 'Very responsive on Teams. Prefers short questions.' },
+  { id: 'p2', type: 'person', title: 'Jonas Berg', f: { role: 'Manager, Procurement Data & AI', email: 'jonas.berg@company.com', go_to_for: 'Priorities, stakeholders' }, tags: ['1:1'], notes: 'Weekly 1:1 on Mondays.' },
+  { id: 't1', type: 'team', title: 'Procurement Data & AI', f: {}, tags: [], notes: 'My team. Owns the [[Spend Cube]].' },
+  { id: 't2', type: 'team', title: 'P2P Operations', f: {}, tags: [], notes: '' },
+  { id: 'a1', type: 'acronym', title: 'PO', f: { expansion: 'Purchase Order' }, tags: ['S2P'], notes: 'Created in [[Coupa]] after a requisition is approved.' },
+  { id: 'a2', type: 'acronym', title: 'S2P', f: { expansion: 'Source-to-Pay' }, tags: [], notes: 'See [[Source-to-Pay]].' },
+  { id: 'a3', type: 'acronym', title: 'GR/IR', f: { expansion: 'Goods Receipt / Invoice Receipt' }, tags: ['finance'], notes: 'Clearing account in [[SAP]].' },
+  { id: 'q1', type: 'question', title: 'Why do some POs skip approval?', f: { status: 'open', answer: '' }, tags: [], notes: 'Seen in the [[Spend Cube]]: ~4% of POs under 500 EUR.' },
+  { id: 'q2', type: 'question', title: 'What is the refresh cadence of the spend data?', f: { status: 'answered', answer: 'Nightly at 02:00 CET from [[SAP]].' }, tags: [], notes: '' },
+  { id: 'b1', type: 'bookmark', title: 'Spend Cube', f: { url: 'https://tableau.company.com/views/SpendCube' }, tags: ['BI'], notes: 'Main spend dashboard.' },
+  { id: 'b2', type: 'bookmark', title: 'Coupa admin guide', f: { url: 'https://docs.company.com/coupa' }, tags: [], notes: '' },
+  { id: 'k1', type: 'task', title: 'Request Snowflake access', f: { done: false, due: '2026-11-13' }, tags: [], notes: 'Ticket via IT portal.' },
+  { id: 'k2', type: 'task', title: 'Read the S2P policy', f: { done: true, due: '' }, tags: [], notes: '' },
+  { id: 'k3', type: 'task', title: 'Map vendor master fields', f: { done: false, due: '2026-11-20' }, tags: ['data'], notes: '' },
+  { id: 'j1', type: 'journal', title: '2026-11-11 log', f: { date: '2026-11-11', kind: 'log' }, tags: [], notes: 'Learned [[GR/IR]]. Got [[Tableau]] access.' },
+  { id: 'j2', type: 'journal', title: '1:1 with Jonas', f: { date: '2026-11-10', kind: 'meeting' }, tags: ['1:1'], notes: '- First project: spend classification\n- Meet [[Maria Lopez]] this week' },
+  { id: 'd1', type: 'diagram', title: 'Procurement data flow', f: {}, tags: [], notes: 'How spend data gets from Coupa to dashboards.',
+    nodes: [ { id: 'n1', x: 18, y: 30, rec: 's1' }, { id: 'n2', x: 42, y: 30, rec: 's2' }, { id: 'n3', x: 66, y: 30, rec: 's4' }, { id: 'n4', x: 88, y: 30, rec: 's3' },
+             { id: 'n5', x: 42, y: 68, text: 'Vendor master' }, { id: 'n6', x: 88, y: 68, rec: 'b1' } ],
+    edges: [ ['n1', 'n2', 'nightly'], ['n2', 'n3', 'extract'], ['n3', 'n4', ''], ['n2', 'n5', ''], ['n4', 'n6', ''] ] },
+];
+const LABELS = { owns: 'owned by', 'member of': 'has member', 'ask about': 'go-to for', attended: 'attended by', uses: 'used by', 'part of': 'contains', 'related to': 'related to' };
+const REL = [
+  ['p1', 'owns', 's1'], ['t1', 'owns', 's3'], ['t2', 'owns', 's1'], ['p1', 'member of', 't2'], ['p2', 'member of', 't1'],
+  ['p1', 'ask about', 'q1'], ['p2', 'attended', 'j2'], ['s1', 'part of', 'pr1'], ['s2', 'part of', 'pr1'], ['t1', 'uses', 's4'], ['b1', 'related to', 's3'],
+];
+const SLOTS = { system: ['owns', 'Owner', 'from'], person: ['member of', 'Team', 'to'], question: ['ask about', 'Ask', 'from'], journal: ['attended', 'Attendees', 'from'] };
+
+// ---------- helpers ----------
+const get = id => R.find(r => r.id === id);
+const byType = t => R.filter(r => r.type === t);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const link = (r, how = 'go') => `<a onclick="${how}('${r.id}')"><span class="badge">${TYPES[r.type].icon}</span>${esc(r.title)}</a>`;
+const md = s => esc(s).replace(/\[\[(.+?)\]\]/g, (m, t) => { const r = R.find(x => x.title.toLowerCase() === t.toLowerCase()); return r ? `<a onclick="go('${r.id}')">${esc(t)}</a>` : `<span class="broken">${esc(t)}</span>`; });
+const mentionedIn = r => R.filter(x => x !== r && (x.notes + (x.f.answer || '')).toLowerCase().includes(`[[${r.title.toLowerCase()}]]`));
+const inDiagrams = r => R.filter(d => d.nodes?.some(n => n.rec === r.id));
+function relsOf(r) { // grouped by the reading that fits r, excluding slot relations
+  const slot = SLOTS[r.type], out = {};
+  for (const [a, l, b] of REL) {
+    if (slot && l === slot[0] && (slot[2] === 'from' ? b : a) === r.id) continue;
+    if (a === r.id) (out[l] ??= []).push(get(b));
+    if (b === r.id) (out[LABELS[l]] ??= []).push(get(a));
+  }
+  return out;
+}
+function slotValues(r) {
+  const s = SLOTS[r.type]; if (!s) return null;
+  return [s[1], REL.filter(([a, l, b]) => l === s[0] && (s[2] === 'from' ? b : a) === r.id).map(([a, , b]) => get(s[2] === 'from' ? a : b))];
+}
+function fieldRows(r) {
+  const f = r.f, rows = [];
+  const add = (k, v) => rows.push(`<div class="field"><label>${k}</label><div>${v || '<span class="muted">empty</span>'}</div></div>`);
+  if (r.type === 'acronym') add('Expansion', esc(f.expansion));
+  if (r.type === 'system') { add('Summary', esc(f.summary)); add('URL', f.url && `<a>${esc(f.url)}</a>`); }
+  if (r.type === 'person') { add('Role', esc(f.role)); add('Email', esc(f.email)); add('Go to for', esc(f.go_to_for)); }
+  if (r.type === 'bookmark') add('URL', `<a>${esc(f.url)} ↗</a>`);
+  if (r.type === 'question') { add('Status', f.status === 'answered' ? '✅ answered' : '🟡 open'); add('Answer', f.answer && md(f.answer)); }
+  if (r.type === 'task') { add('Done', `<input type="checkbox" ${f.done ? 'checked' : ''}>`); add('Due', esc(f.due)); }
+  if (r.type === 'journal') { add('Date', esc(f.date)); add('Kind', esc(f.kind)); }
+  const sv = slotValues(r);
+  if (sv) add(sv[0], sv[1].map(x => link(x)).join(', ') + ' <button class="small">+</button>');
+  add('Tags', r.tags.map(t => `<span class="tag">#${esc(t)}</span>`).join('') + '<button class="small">+</button>');
+  return rows.join('');
+}
+// The record body: shared content, each variant arranges it differently.
+const recHead = r => `<div class="muted small">${TYPES[r.type].icon} ${TYPES[r.type].one}</div><h1>${esc(r.title)}</h1>`;
+const recFields = r => fieldRows(r);
+const recNotes = r => `<h3>Notes</h3><div class="notes">${md(r.notes) || '<span class="muted">Write markdown here, [[ to mention a Record</span>'}</div>`;
+function recLinks(r) {
+  const rels = relsOf(r);
+  let h = `<h3>Relations <button class="small">+ Relation</button></h3>`;
+  h += Object.keys(rels).length ? Object.entries(rels).map(([k, xs]) => `<div class="small muted">${k}</div>${xs.map(x => `<div>${link(x)}</div>`).join('')}`).join('') : '<div class="muted small">None</div>';
+  const m = mentionedIn(r), d = inDiagrams(r);
+  h += `<h3>Mentioned in</h3>` + (m.length ? m.map(x => `<div>${link(x)}</div>`).join('') : '<div class="muted small">None</div>');
+  h += `<h3>In Diagrams</h3>` + (d.length ? d.map(x => `<div>${link(x)}</div>`).join('') : '<div class="muted small">None</div>');
+  return h;
+}
+function canvas(d, cls = '') {
+  const pos = Object.fromEntries(d.nodes.map(n => [n.id, n]));
+  const lines = d.edges.map(([a, b, l]) => { const A = pos[a], B = pos[b];
+    return `<line x1="${A.x}%" y1="${A.y}%" x2="${B.x}%" y2="${B.y}%" stroke="#8e8e93" stroke-width="1.5"/>` + (l ? `<text x="${(A.x + B.x) / 2}%" y="${(A.y + B.y) / 2 - 1.5}%" font-size="11" fill="#6e6e73" text-anchor="middle">${esc(l)}</text>` : ''); }).join('');
+  const nodes = d.nodes.map(n => { const r = n.rec && get(n.rec);
+    return `<div class="node ${r ? 'linked' : ''}" style="left:${n.x}%;top:${n.y}%" ${r ? `ondblclick="openFromNode('${r.id}')" title="Double-click to open"` : 'title="Free text: Make Record…"'}>${r ? TYPES[r.type].icon + ' ' + esc(r.title) : esc(n.text)}</div>`; }).join('');
+  return `<div class="canvas ${cls}"><svg>${lines}</svg>${nodes}<div class="dtool"><button>+ Node</button><button>Tidy ↔</button><button>Tidy ↕</button><button>Export PNG</button><span class="muted small" style="align-self:center">double-click a blue Node to open its Record</span></div></div>`;
+}
+function listCols(t) {
+  return { system: [['Summary', r => r.f.summary]], person: [['Role', r => r.f.role], ['Go to for', r => r.f.go_to_for]],
+    acronym: [['Expansion', r => r.f.expansion]], question: [['Status', r => r.f.status]], bookmark: [['URL', r => r.f.url]],
+    task: [['Done', r => r.f.done ? '✓' : ''], ['Due', r => r.f.due]], journal: [['Date', r => r.f.date], ['Kind', r => r.f.kind]],
+    diagram: [['Nodes', r => r.nodes.length]] }[t] || [];
+}
+
+// ---------- state ----------
+const S = { variant: new URLSearchParams(location.search).get('variant') || 'A', type: 'system', id: 's1', home: true, panel: null, menu: false, palette: false, q: '', hi: 0, filter: '' };
+function go(id) { const r = get(id); S.listOnly = false; S.id = id; S.type = r.type; S.home = false; S.panel = S.variant === 'C' && r.type !== 'diagram' ? id : null; S.palette = false; S.menu = false; render(); }
+function openFromNode(id) { go(id); }
+function showType(t) { S.type = t; S.home = false; S.id = byType(t)[0]?.id; S.panel = null; S.menu = false; S.filter = ''; S.listOnly = true; S.wide = false; render(); }
+function goHome() { S.home = true; S.panel = null; render(); }
+
+// ---------- palette (shared: global search) ----------
+function results() {
+  const q = S.q.toLowerCase().trim();
+  if (!q) return R.slice(0, 8);
+  return R.filter(r => (r.title + ' ' + Object.values(r.f).join(' ') + ' ' + r.notes + ' ' + r.tags.join(' ')).toLowerCase().includes(q));
+}
+function paletteHtml() {
+  const res = results(); S.hi = Math.min(S.hi, Math.max(res.length - 1, 0));
+  const q = S.q.trim();
+  const creates = q ? Object.keys(TYPES).filter(t => t !== 'diagram').slice(0, 3).map(t => `<div class="row muted">＋ Create ${TYPES[t].one} “${esc(q)}”</div>`).join('') : '';
+  return `<div class="scrim" onclick="if(event.target===this){S.palette=false;render()}"><div class="palette">
+    <input id="pq" placeholder="Search everything… (titles, fields, notes, tags)" value="${esc(S.q)}" oninput="S.q=this.value;S.hi=0;render()">
+    <div class="res">${res.map((r, i) => `<div class="row ${i === S.hi ? 'hi' : ''}" onclick="go('${r.id}')"><span class="badge">${TYPES[r.type].icon}</span>${esc(r.title)} <span class="muted small">· ${TYPES[r.type].one}</span></div>`).join('') || '<div class="row muted">No matches</div>'}${creates}</div>
+    <div class="row muted small"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↵</kbd> open · <kbd>esc</kbd> close</div></div></div>`;
+}
+
+// ---------- Variant A: Mail-style three panes ----------
+function VariantA() {
+  const r = get(S.id), isDiagram = S.type === 'diagram' && r;
+  const nav = `<nav><button class="search" onclick="S.palette=true;render()">🔍 Search <kbd>⌘K</kbd></button>
+    ${Object.entries(TYPES).map(([t, x]) => `<div class="item ${S.type === t ? 'on' : ''}" onclick="showType('${t}')"><span><span class="badge">${x.icon}</span>${x.many}</span><span class="muted small">${byType(t).length}</span></div>`).join('')}
+    <h3>Tags</h3>${[...new Set(R.flatMap(x => x.tags))].map(t => `<span class="tag">#${t}</span>`).join(' ')}</nav>`;
+  const list = `<div class="list"><div class="head"><b>${TYPES[S.type].many}</b><button>+ New</button></div>
+    ${byType(S.type).map(x => `<div class="row ${x.id === S.id ? 'sel' : ''}" onclick="go('${x.id}')">${esc(x.title)}<div class="muted small">${esc(listCols(S.type)[0]?.[1](x) ?? '')}</div></div>`).join('')}</div>`;
+  if (isDiagram && S.wide) return `<div class="A wide">${nav}<div class="main canvas" style="height:100vh">${canvas(r)}</div></div>`;
+  const main = !r ? '<div class="main muted">Nothing here yet</div>' : isDiagram
+    ? `<div class="main" style="display:flex;flex-direction:column;padding-bottom:24px">${recHead(r)}<div style="margin:8px 0"><button onclick="S.wide=true;render()">⤢ Full screen</button></div><div style="flex:1;min-height:360px;border:1px solid #eee;border-radius:8px;position:relative">${canvas(r).replace('class="canvas ', 'style="position:absolute;inset:0" class="canvas ')}</div></div>`
+    : `<div class="main">${recHead(r)}${recFields(r)}${recNotes(r)}${recLinks(r)}</div>`;
+  return `<div class="A">${nav}${list}${main}</div>`;
+}
+
+// ---------- Variant B: Search-first home + full-width pages with a right rail ----------
+function VariantB() {
+  const header = `<header><span class="logo" onclick="goHome()">📒 Notebook</span>
+    <span class="browse"><button onclick="S.menu=!S.menu;render()">Browse ▾</button>${S.menu ? `<div class="menu">${Object.entries(TYPES).map(([t, x]) => `<div class="row" onclick="showType('${t}')"><span class="badge">${x.icon}</span>${x.many}</div>`).join('')}</div>` : ''}</span>
+    <button class="sbox" onclick="S.palette=true;render()">🔍 Search or jump to… <kbd>⌘K</kbd></button>
+    <button style="margin-left:auto" onclick="S.palette=true;S.q='';render()">＋ New</button></header>`;
+  let body;
+  if (S.home) {
+    const card = (title, xs, extra = () => '') => `<div class="card"><h3>${title}</h3>${xs.map(x => `<div class="row" onclick="go('${x.id}')">${link(x)} <span class="muted small">${extra(x)}</span></div>`).join('') || '<div class="row muted">Nothing</div>'}</div>`;
+    body = `<div class="page"><div class="hero"><button onclick="S.palette=true;render()">🔍 What do you want to find?</button></div><div class="home">
+      ${card('Open tasks', byType('task').filter(x => !x.f.done), x => x.f.due && 'due ' + x.f.due)}
+      ${card('Open questions', byType('question').filter(x => x.f.status === 'open'))}
+      ${card('Journal', byType('journal'), x => x.f.date)}
+      ${card('Recently edited', R.slice(0, 6), x => TYPES[x.type].one)}</div></div>`;
+  } else if (!S.id || S.listOnly) {
+    body = listPage();
+  } else {
+    const r = get(S.id);
+    if (r.type === 'diagram') body = `<div style="padding:8px 24px" class="small"><a onclick="showListB('diagram')">Diagrams</a> / <b>${esc(r.title)}</b></div>${canvas(r)}`;
+    else body = `<div class="page"><div class="small"><a onclick="showListB('${r.type}')">${TYPES[r.type].many}</a> / ${esc(r.title)}</div>
+      <div class="rec"><div>${recHead(r)}${recFields(r)}${recNotes(r)}</div><div class="rail">${recLinks(r)}</div></div></div>`;
+  }
+  return `<div class="B">${header}<div class="body">${body}</div></div>`;
+}
+function showListB(t) { S.type = t; S.home = false; S.listOnly = true; render(); }
+function listPage() {
+  const cols = listCols(S.type);
+  return `<div class="page"><h1>${TYPES[S.type].icon} ${TYPES[S.type].many}</h1><table><thead><tr><th>Title</th>${cols.map(c => `<th>${c[0]}</th>`).join('')}<th>Tags</th></tr></thead><tbody>
+    ${byType(S.type).map(x => `<tr onclick="S.listOnly=false;go('${x.id}')"><td>${esc(x.title)}</td>${cols.map(c => `<td>${esc(c[1](x))}</td>`).join('')}<td>${x.tags.map(t => `<span class="tag">#${t}</span>`).join('')}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+// ---------- Variant C: Grouped tabs, table lists, slide-over Record panel ----------
+function VariantC() {
+  const groups = { Work: ['system', 'process', 'team', 'person'], Learn: ['acronym', 'question', 'bookmark'], Do: ['task', 'journal'], Draw: ['diagram'] };
+  const header = `<header><span class="logo">📒 Notebook</span>${Object.entries(groups).map(([g, ts]) => `<div class="grp"><div class="gl">${g}</div>${ts.map(t => `<span class="tab ${S.type === t ? 'on' : ''}" onclick="showType('${t}')">${TYPES[t].many}</span>`).join('')}</div>`).join('')}
+    <button class="filter" style="text-align:left;color:#6e6e73" onclick="S.palette=true;render()">🔍 Search all <kbd>⌘K</kbd></button></header>`;
+  let body;
+  const d = S.type === 'diagram' && S.id && get(S.id);
+  if (d && !S.diagramList) {
+    body = `<div class="bar"><a onclick="S.diagramList=true;render()">← All Diagrams</a><b>${esc(d.title)}</b></div><div style="position:absolute;inset:48px 0 0 0">${canvas(d)}</div>`;
+  } else {
+    const cols = listCols(S.type), f = S.filter.toLowerCase();
+    const rows = byType(S.type).filter(x => !f || (x.title + x.tags.join(' ')).toLowerCase().includes(f));
+    body = `<div class="bar"><b>${TYPES[S.type].many}</b><input placeholder="Filter ${TYPES[S.type].many.toLowerCase()}…" value="${esc(S.filter)}" oninput="S.filter=this.value;render();this.focus();this.setSelectionRange(99,99)" style="padding:4px 8px;border:1px solid #ddd;border-radius:6px"><button style="margin-left:auto">＋ New ${TYPES[S.type].one}</button></div>
+      <table><thead><tr><th style="padding-left:20px">Title</th>${cols.map(c => `<th>${c[0]}</th>`).join('')}<th>Tags</th><th>Relations</th></tr></thead><tbody>
+      ${rows.map(x => `<tr onclick="S.diagramList=false;go('${x.id}')" style="${S.panel === x.id ? 'background:#e6eefc' : ''}"><td style="padding-left:20px">${esc(x.title)}</td>${cols.map(c => `<td>${esc(c[1](x))}</td>`).join('')}<td>${x.tags.map(t => `<span class="tag">#${t}</span>`).join('')}</td><td class="muted">${REL.filter(([a, , b]) => a === x.id || b === x.id).length}</td></tr>`).join('')}</tbody></table>`;
+  }
+  const p = S.panel && get(S.panel);
+  const panel = p ? `<div class="panel"><div class="ptop"><span class="muted small">Opens over whatever you're on (list or Diagram)</span><span><button title="Open as full page">⤢</button> <button onclick="S.panel=null;render()">✕</button></span></div>${recHead(p)}${recFields(p)}${recNotes(p)}${recLinks(p)}</div>` : '';
+  return `<div class="C">${header}<div class="body">${body}</div>${panel}</div>`;
+}
+// In C, Records open in the panel without leaving the current tab (Diagram stays visible behind it).
+const goBase = go;
+go = function (id) {
+  if (S.variant !== 'C') return goBase(id);
+  const r = get(id);
+  if (r.type === 'diagram') { S.type = 'diagram'; S.id = id; S.diagramList = false; S.panel = null; }
+  else { S.panel = id; if (S.type !== 'diagram') S.type = S.type; }
+  S.palette = false; render();
+};
+
+// ---------- switcher + render ----------
+const VARIANTS = { A: 'Three panes (sidebar · list · page)', B: 'Search-first home, full pages', C: 'Grouped tabs, tables, slide-over' };
+function cycle(d) { const ks = Object.keys(VARIANTS); S.variant = ks[(ks.indexOf(S.variant) + d + ks.length) % ks.length];
+  history.replaceState(null, '', '?variant=' + S.variant); S.panel = null; S.wide = false; S.home = S.variant === 'B'; render(); }
+function render() {
+  if (!VARIANTS[S.variant]) S.variant = 'A';
+  document.getElementById('app').innerHTML = { A: VariantA, B: VariantB, C: VariantC }[S.variant]() + (S.palette ? paletteHtml() : '');
+  document.getElementById('vlabel').textContent = `${S.variant} (${VARIANTS[S.variant]})`;
+  document.getElementById('proto-state').textContent = `variant=${S.variant} type=${S.type} record=${S.panel || S.id || '-'}${S.home && S.variant === 'B' ? ' home' : ''}`;
+  if (S.palette) { const i = document.getElementById('pq'); i.focus(); i.setSelectionRange(99, 99); }
+}
+addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); S.palette = !S.palette; S.q = ''; render(); return; }
+  if (e.key === 'Escape') { if (S.palette) S.palette = false; else if (S.panel) S.panel = null; else if (S.wide) S.wide = false; S.menu = false; render(); return; }
+  if (S.palette && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); S.hi = Math.max(0, S.hi + (e.key === 'ArrowDown' ? 1 : -1)); render(); return; }
+  if (S.palette && e.key === 'Enter') { const r = results()[S.hi]; if (r) go(r.id); return; }
+  const el = document.activeElement;
+  if (el && (el.matches('input, textarea, [contenteditable]'))) return;
+  if (e.key === 'ArrowLeft') cycle(-1);
+  if (e.key === 'ArrowRight') cycle(1);
+});
+S.home = S.variant === 'B';
+render();
+</script>
+</body>
+</html>
