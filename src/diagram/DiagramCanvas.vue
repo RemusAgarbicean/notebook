@@ -187,12 +187,14 @@ function spot(at?: { clientX: number; clientY: number }) {
   )
   return { x: x - 40, y: y - 17 }
 }
-function addNode() {
+// In the middle of the view, stepped so Nodes added in a row don't hide each other.
+function addNode(data?: NodeData) {
   const { x, y } = spot()
-  // Stepped so Nodes added in a row don't hide each other.
   const step = (nodes.value.length % 10) * 16
-  newNode({ x: x + step, y: y + step })
+  newNode({ x: x + step, y: y + step }, data)
 }
+// A Node linked to the Record; one that is on the Diagram already is simply there twice.
+const addRecord = ({ type, id, title }: Titled) => addNode({ label: title, recordType: type, recordId: id })
 function onDoubleClick(e: MouseEvent) {
   if ((e.target as Element).classList.contains('vue-flow__pane')) newNode(spot(e))
 }
@@ -516,7 +518,8 @@ const tool =
       <button type="button" :class="tool" aria-label="Redo" :title="`Redo (${shortcut('Shift Z')})`" :disabled="!history.future.length" @click="travel(redo)">
         <Redo2 />
       </button>
-      <button type="button" :class="tool" aria-label="Add Node" @click="addNode"><Plus />Add Node</button>
+      <button type="button" :class="tool" aria-label="Add Node" @click="addNode()"><Plus />Add Node</button>
+      <RecordPicker data-testid="add-record" class="w-32" label="Add Record" @pick="addRecord" />
       <FillPicker class="px-2" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
       <!-- click.stop: the click that opens the menu must not close it the way one elsewhere does. -->
       <button

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from '../App.vue'
 import { openRecord } from '../navigation'
 import { closeNotebook } from '../notebook'
-import { createRecord, getRecord, updateRecord } from '../records'
+import { createRecord, getRecord, listRecords, updateRecord } from '../records'
 import { memoryFolder } from '../storage-memory'
 import { parseCanvas } from './canvas'
 
@@ -195,4 +195,34 @@ test('the arrow keys nudge the selection, further with Shift', async () => {
 
   expect(flow().findNode('1')!.position).toEqual({ x: 4, y: 16 })
   expect(flow().findNode('2')!.position).toEqual({ x: 204, y: 16 })
+})
+
+// --- Add Record
+
+test('Add Record puts a Node linked to the picked Record on the canvas, also when it is there already', async () => {
+  const coupa = createRecord('system', 'Coupa')
+  await open()
+  const picker = app.get('[data-testid="add-record"] [data-testid="record-picker"]')
+  for (const _ of [1, 2]) {
+    await picker.setValue('coup')
+    await app.findAll('[data-testid="add-record"] [data-testid="picker-option"]').find((o) => o.text() === 'Coupa')!.trigger('click')
+    await flushPromises()
+  }
+
+  expect(flow().nodes.value.slice(2).map((n) => n.data)).toEqual([
+    { label: 'Coupa', recordType: 'system', recordId: coupa },
+    { label: 'Coupa', recordType: 'system', recordId: coupa },
+  ])
+  expect(flow().findNode('3')!.position).not.toEqual(flow().findNode('4')!.position)
+  expect(app.find('[aria-label="Node text"]').exists()).toBe(false)
+})
+
+test('Add Record can make the Record from the typed title', async () => {
+  await open()
+  await app.get('[data-testid="add-record"] [data-testid="record-picker"]').setValue('Ariba')
+  await app.findAll('[data-testid="picker-option"]').find((o) => o.text() === "Create System 'Ariba'")!.trigger('click')
+  await flushPromises()
+
+  const [ariba] = listRecords('system')
+  expect(flow().nodes.value.at(-1)!.data).toEqual({ label: 'Ariba', recordType: 'system', recordId: ariba.id })
 })
