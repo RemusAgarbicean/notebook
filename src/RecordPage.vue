@@ -2,6 +2,7 @@
 import { CircleAlert, ExternalLink, Trash2, X } from 'lucide-vue-next'
 import { computed, onMounted, ref, useTemplateRef } from 'vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import CopyMarkdown from './CopyMarkdown.vue'
 import DiagramCanvas from './diagram/DiagramCanvas.vue'
 import { inDiagrams } from './diagram/links'
 import MarkdownField from './MarkdownField.vue'
@@ -100,6 +101,7 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
     <header class="flex items-center gap-2 text-muted-foreground">
       <component :is="info.icon" class="size-4" />
       <span class="flex-1">{{ info.singular }}</span>
+      <CopyMarkdown :type="type" :id="id" />
       <button
         type="button"
         data-testid="delete-record"
