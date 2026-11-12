@@ -2,6 +2,7 @@
 import { CircleAlert, NotebookPen, Pin, Search } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
 import DueDate from './DueDate.vue'
+import HomeRows from './HomeRows.vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
 import { pinnedRecords } from './pins'
@@ -87,10 +88,13 @@ const cards = computed<Card[]>(() => [
     title: 'Active Projects',
     empty: 'No active Projects.',
     rows: rows<Row & { open: number }>(
-      `select 'project' as type, p.id, p.title,
-         (select count(*) from relation r join task t on t.id = r.from_id
-          where ${IN_PROJECT} and r.to_id = p.id and t.done = 0) as open
-       from project p where p.status = 'active' order by p.title collate nocase, p.id`,
+      // Counted in one pass: relation has no index on its `to` end, so a count per Project would read it once per Project.
+      `select 'project' as type, p.id, p.title, coalesce(o.n, 0) as open
+       from project p left join (
+         select r.to_id as id, count(*) as n from relation r join task t on t.id = r.from_id
+         where ${IN_PROJECT} and t.done = 0 group by r.to_id
+       ) o on o.id = p.id
+       where p.status = 'active' order by p.title collate nocase, p.id`,
     ).map((r) => ({ ...r, right: `${r.open} open ${r.open === 1 ? 'Task' : 'Tasks'}` })),
   },
 ])
@@ -136,22 +140,20 @@ const cards = computed<Card[]>(() => [
               Today's log
             </button>
           </h2>
-          <ul v-if="c.rows.length" class="max-h-72 overflow-y-auto">
-            <li v-for="r in c.rows" :key="`${r.type}:${r.id}`">
-              <button
-                type="button"
-                :data-testid="`home-${c.key}`"
-                class="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left hover:bg-accent"
-                @click="openRecord(r.type, r.id)"
-              >
-                <span class="truncate">{{ r.title }}</span>
-                <!-- No base width: the title keeps its room and the grey text gets what is left. -->
-                <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
-                <DueDate v-if="c.key === 'task'" :due="r.right" class="ml-auto shrink-0" />
-                <span v-else-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
-              </button>
-            </li>
-          </ul>
+          <HomeRows v-if="c.rows.length" v-slot="{ row: r }" :rows="c.rows">
+            <button
+              type="button"
+              :data-testid="`home-${c.key}`"
+              class="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left hover:bg-accent"
+              @click="openRecord(r.type, r.id)"
+            >
+              <span class="truncate">{{ r.title }}</span>
+              <!-- No base width: the title keeps its room and the grey text gets what is left. -->
+              <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
+              <DueDate v-if="c.key === 'task'" :due="r.right" class="ml-auto shrink-0" />
+              <span v-else-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
+            </button>
+          </HomeRows>
           <p v-else class="px-2 py-1 text-muted-foreground">{{ c.empty }}</p>
           <QuickTask v-if="c.key === 'task'" />
         </section>

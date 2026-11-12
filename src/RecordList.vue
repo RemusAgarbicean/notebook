@@ -7,6 +7,7 @@ import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
 import { pinnedRecords } from './pins'
+import { useWindowed } from './windowed'
 import QuizDialog from './QuizDialog.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { recordsName, recordType, type RecordType } from './record-types'
@@ -79,6 +80,11 @@ const empty = computed(() => {
 })
 const open = (r: { type: RecordType; id: number }) => (current.value = { type: r.type, id: r.id })
 
+// Only the rows in view (and a screenful around them) are in the page, so a list of thousands opens and filters
+// without lag. Every row has one height: two lines where the list shows a field under the title, else one.
+const rowHeight = computed(() => (type.value && !RECORD_FIELDS[type.value].key ? 32 : 48))
+const visible = useWindowed(rows, shown, rowHeight)
+
 function add() {
   const t = type.value!
   // Only here does a new Record start with its type's note template.
@@ -135,12 +141,14 @@ function add() {
     </div>
 
     <ul v-if="shown.length" ref="rows" class="flex-1 overflow-y-auto p-2">
-      <li v-for="r in shown" :key="`${r.type}:${r.id}`">
+      <li v-if="visible.before" aria-hidden="true" :style="{ height: `${visible.before}px` }" />
+      <li v-for="r in visible.rows" :key="`${r.type}:${r.id}`">
         <!-- A Tag list stays put when a row is opened, so it sets `current` itself. -->
         <button
           type="button"
           data-testid="list-row"
-          class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent aria-[current=true]:bg-accent"
+          class="flex w-full items-start gap-2 overflow-hidden rounded-md px-2 py-1.5 text-left hover:bg-accent aria-[current=true]:bg-accent"
+          :style="{ height: `${rowHeight}px` }"
           :class="{ 'text-muted-foreground': r.closed }"
           :aria-current="current?.type === r.type && current.id === r.id ? 'true' : undefined"
           @click="open(r)"
@@ -166,6 +174,7 @@ function add() {
           </span>
         </button>
       </li>
+      <li v-if="visible.after" aria-hidden="true" :style="{ height: `${visible.after}px` }" />
     </ul>
     <p v-else data-testid="list-empty" class="p-4 text-muted-foreground">
       {{ empty }}

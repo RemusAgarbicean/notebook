@@ -1,6 +1,6 @@
 import { db } from './notebook'
 import type { RecordType } from './record-types'
-import { changed, rows, sameRecord, titleOf, type RecordRef, type Titled } from './records'
+import { changed, compareTitles, rows, sameRecord, titleOf, type RecordRef, type Titled } from './records'
 import { LABEL, slotsOf, type RelationSlot } from './relation-slots'
 
 export type Label = {
@@ -158,7 +158,7 @@ export function recordRelations(record: RecordRef): RelationEntry[] {
 }
 
 const byTitle = (a: RelationEntry, b: RelationEntry) =>
-  a.other.title.localeCompare(b.other.title, undefined, { sensitivity: 'base' })
+  compareTitles(a.other.title, b.other.title)
 
 const inSlot = (slot: RelationSlot, e: RelationEntry) =>
   e.labelId === slot.labelId && e.forward === (slot.end === 'from') && slot.offers.includes(e.other.type)

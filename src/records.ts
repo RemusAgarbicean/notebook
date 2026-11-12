@@ -78,9 +78,12 @@ export const foldTitle = (s: string) => s.trim().toLocaleLowerCase()
 export const sameTitle = (a: string, b: string) => foldTitle(a) === foldTitle(b)
 /** Whether two refs point at the same Record. */
 export const sameRecord = (a: RecordRef, b: RecordRef) => a.type === b.type && a.id === b.id
+// One collator for every comparison: localeCompare with options builds a new one per call, which dominated sorting thousands of titles.
+const collator = new Intl.Collator(undefined, { sensitivity: 'base' })
+/** Compares two titles ignoring case, as the lists order them. */
+export const compareTitles = collator.compare
 /** Orders Records by title ignoring case, then id. */
-export const byTitle = (a: Titled, b: Titled) =>
-  a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) || a.id - b.id
+export const byTitle = (a: Titled, b: Titled) => compareTitles(a.title, b.title) || a.id - b.id
 
 let depth = 0
 /**
