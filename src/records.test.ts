@@ -14,6 +14,8 @@ import {
   recordCounts,
   recordTags,
   recordsWithTag,
+  recordTitles,
+  titled,
   transaction,
   removeTag,
   revision,
@@ -345,4 +347,25 @@ test('a copy has none of the Relations, and a Diagram copy keeps its canvas', ()
   const canvas = JSON.stringify({ nodes: [{ id: '1', data: { label: 'Coupa', recordType: 'system', recordId: coupa } }], edges: [] })
   const map = createRecord('diagram', 'Map', { canvas })
   expect(getRecord('diagram', duplicateRecord('diagram', map))).toMatchObject({ title: 'Map copy', canvas })
+})
+
+test('titles stay in sidebar order then by id while Records are created, renamed and deleted', () => {
+  const fresh = () =>
+    RECORD_TYPES.flatMap(({ type }) =>
+      (db.value!.exec(`select id, title from ${type} order by id`)[0]?.values ?? []).map(([id, title]) => ({ type, id, title })),
+    )
+  recordTitles()
+  transaction(() => {
+    for (const type of ['task', 'system', 'person', 'system', 'journal_entry', 'acronym'] as const)
+      createRecord(type, `${type} ${recordTitles().length}`, type === 'acronym' ? { expansion: 'x' } : {})
+  })
+  expect(recordTitles()).toEqual(fresh())
+  const team = createRecord('team', 'Finance')
+  updateRecord('team', team, { title: 'Buying' })
+  createRecord('team', 'finance')
+  expect(recordTitles()).toEqual(fresh())
+  expect(titled('FINANCE').map((r) => r.type)).toEqual(['team'])
+  deleteRecord('team', team)
+  expect(recordTitles()).toEqual(fresh())
+  expect(titled('buying')).toEqual([])
 })
