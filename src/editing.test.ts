@@ -103,7 +103,7 @@ test('a copied spreadsheet range becomes a markdown table with the first row as 
 })
 
 test('a pipe in a cell is escaped and an empty cell stays a cell', () => {
-  expect(tableFromTsv('a|b\tc\n\td')).toBe('| a\\|b | c |\n| --- | --- |\n|  | d |')
+  expect(tableFromTsv('a|b\tc\nd\t')).toBe('| a\\|b | c |\n| --- | --- |\n| d |  |')
 })
 
 test('text that is not a rectangle of at least two rows and columns is not a table', () => {
@@ -113,6 +113,13 @@ test('text that is not a rectangle of at least two rows and columns is not a tab
   // A cell with a line break arrives quoted and breaks the rectangle.
   expect(tableFromTsv('a\t"b\nc"\nd\te')).toBeNull()
   expect(tableFromTsv('just words')).toBeNull()
+})
+
+test('tab-indented code is not a table: every row needs a first cell and the header two filled cells', () => {
+  expect(tableFromTsv('\tif (x) {\n\treturn 1\n\t}')).toBeNull()
+  expect(tableFromTsv('a\tb\n\tc')).toBeNull()
+  expect(tableFromTsv('a\t\nb\tc')).toBeNull()
+  expect(pasteTable(at('|'), '\tif (x) {\n\treturn 1\n\t}')).toBeNull()
 })
 
 test('a pasted table goes on lines of its own, with an empty line above', () => {

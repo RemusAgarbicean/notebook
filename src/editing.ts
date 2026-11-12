@@ -82,8 +82,10 @@ export function pasteLink({ text, start, end }: Edit, pasted: string): Edit | nu
 
 /**
  * Tab-separated text of at least two rows and two columns, every row the same
- * width (what a copied spreadsheet range is), as a markdown table whose first
- * row is the header. Null for anything else, e.g. a cell holding a line break.
+ * width, every row's first cell filled and at least two header cells filled
+ * (what a copied spreadsheet range is), as a markdown table whose first row is
+ * the header. Null for anything else, e.g. a cell holding a line break or
+ * tab-indented code.
  */
 export function tableFromTsv(pasted: string): string | null {
   const rows = pasted
@@ -92,6 +94,7 @@ export function tableFromTsv(pasted: string): string | null {
     .split('\n')
     .map((r) => r.split('\t'))
   if (rows.length < 2 || rows[0].length < 2 || rows.some((r) => r.length !== rows[0].length)) return null
+  if (rows.some((r) => !r[0].trim()) || rows[0].filter((c) => c.trim()).length < 2) return null
   const line = (cells: string[]) => `| ${cells.map((c) => c.trim().replace(/\|/g, '\\|')).join(' | ')} |`
   return [line(rows[0]), line(rows[0].map(() => '---')), ...rows.slice(1).map(line)].join('\n')
 }
