@@ -260,8 +260,8 @@ const allInView = computed(() => {
     return b.x * zoom + x >= 0 && b.y * zoom + y >= 0 && (b.x + b.width) * zoom + x <= width && (b.y + b.height) * zoom + y <= height
   })
 })
-// Fitting the drawing in view leaves the bottom free for the controls and the minimap.
-const FIT = { padding: { top: '32px', right: '32px', bottom: '112px', left: '32px' } as const }
+// Fitting the drawing in view leaves the bottom free for the controls (about 125px tall) and the minimap.
+const FIT = { padding: { top: '32px', right: '32px', bottom: '136px', left: '32px' } as const }
 
 // Brings a spot of the canvas into view when it is outside it.
 function reveal({ x, y }: { x: number; y: number }) {
