@@ -446,12 +446,12 @@ test('snap to grid is remembered in the Diagram, and the arrow keys then step by
   expect(button('Snap to grid').attributes('aria-pressed')).toBe('true')
 })
 
-test('the minimap shows only while part of the drawing is out of view, so it never covers a drawing that fits', async () => {
+test('the minimap is always shown, whether or not the drawing fits', async () => {
   await open()
   flow().dimensions.value = { width: 1000, height: 600 }
   await flow().setViewport({ x: 0, y: 0, zoom: 1 })
   await flushPromises()
-  expect(app.find('.vue-flow__minimap').exists()).toBe(false)
+  expect(app.find('.vue-flow__minimap').exists()).toBe(true)
 
   await flow().setViewport({ x: -150, y: 0, zoom: 1 })
   await flushPromises()
