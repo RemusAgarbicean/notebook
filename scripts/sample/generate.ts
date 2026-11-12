@@ -84,6 +84,11 @@ function landscape() {
     node('16', 1130, 584, link('powerbi'), LEFT),
     node('17', 1130, 660, link('analytics', { shape: 'pill' })),
     node('18', 880, 664, link('arjun')),
+    // A few shapes from the shape library.
+    node('19', 900, 40, text('Supplier portal', { shape: 'cloud', height: 80 }), LEFT),
+    node('20', 1130, 210, text('Purchase order', { shape: 'document', height: 60 }), LEFT),
+    node('21', 1000, 440, text('Payment run', { shape: 'chevron' }), LEFT),
+    node('22', 560, 420, text('AP clerk', { shape: 'actor', width: 80, height: 76 }), RIGHT),
   ]
   const edges = [
     edge('1', '5', '6'),
@@ -98,6 +103,8 @@ function landscape() {
     edge('10', '13', '15', 'nightly extract'),
     edge('11', '15', '16', 'spend cube'),
     edge('12', '16', '17', '', { arrow: 'none' }),
+    edge('13', '13', '21', 'pays'),
+    edge('14', '22', '12', '', { arrow: 'none', line: 'dashed' }),
   ]
   // Snap to grid is on here, and a Diagram with it on moves its Nodes onto the grid when opened: they start there.
   const onGrid = (v: number) => Math.round(v / GRID) * GRID

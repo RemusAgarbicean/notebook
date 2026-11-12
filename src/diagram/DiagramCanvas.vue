@@ -58,7 +58,7 @@ import { fullScreen } from './full-screen'
 import { editRequest, gestures } from './interaction'
 import { linkOf, unlinked, withLiveTitles, withoutDeadLinks } from './links'
 import ShapePicker from './ShapePicker.vue'
-import type { ShapeName } from './shapes'
+import { shapeOf, type ShapeName } from './shapes'
 import { tidy, type Direction } from './layout'
 import { record, redo, startHistory, undo } from './undo'
 
@@ -585,6 +585,8 @@ useEventListener(window, 'keydown', (e: KeyboardEvent) => {
 // --- Links to Records: offered for one Node at a time.
 
 const menuNode = () => (menu.value?.ids.length === 1 ? [findNode(menu.value.ids[0])].find((n) => n && !isFrame(n)) : undefined)
+// The shape the menu's picker shows: the first Node's.
+const menuShape = () => shapeOf(menu.value!.ids.map((id) => findNode(id)).find((n) => n && !isFrame(n))?.data.shape)
 const menuHasNodes = () => menu.value!.ids.some((id) => !isFrame(findNode(id) ?? {}))
 const makeType = ref<RecordType>('system')
 
@@ -627,6 +629,8 @@ const exporting = ref(false)
 const EXPORT_MARGIN = 32
 
 const labelParts = () => root.value!.querySelectorAll<SVGElement>('.vue-flow__edge-textbg, .vue-flow__edge-text')
+// The outlines of the Nodes' shapes take their colors from CSS variables, which html-to-image loses as well.
+const shapeParts = () => root.value!.querySelectorAll<SVGElement>('.shape-outline path')
 
 /** The whole Diagram as a PNG, in the light shades. */
 async function renderPng(): Promise<Blob> {
@@ -657,6 +661,10 @@ async function renderPng(): Promise<Blob> {
     await new Promise(requestAnimationFrame)
     // html-to-image loses what CSS gives SVG, so the label parts get it inline for the capture.
     for (const el of labelParts()) Object.assign(el.style, { fill: getComputedStyle(el).fill, fontSize: getComputedStyle(el).fontSize })
+    for (const el of shapeParts()) {
+      const { fill, stroke, strokeWidth } = getComputedStyle(el)
+      Object.assign(el.style, { fill, stroke, strokeWidth })
+    }
     const png = await toBlob(flow, {
       backgroundColor: '#ffffff',
       pixelRatio: 2,
@@ -669,6 +677,7 @@ async function renderPng(): Promise<Blob> {
   } finally {
     window.fetch = realFetch
     for (const el of labelParts()) Object.assign(el.style, { fill: '', fontSize: '' })
+    for (const el of shapeParts()) Object.assign(el.style, { fill: '', stroke: '', strokeWidth: '' })
     exporting.value = false
     setViewport(before)
   }
@@ -848,7 +857,7 @@ const tool =
       <FillPicker @pick="setFill(menu.ids, $event)" />
       <template v-if="menuHasNodes()">
         <span class="text-xs text-muted-foreground">Shape</span>
-        <ShapePicker @pick="setShape(menu.ids, $event)" />
+        <ShapePicker :current="menuShape()" @pick="setShape(menu.ids, $event), (menu = null)" />
       </template>
       <!-- click.stop: a click in here must not close the menu the way one elsewhere does. -->
       <div v-if="menuNode()" class="flex w-56 flex-col gap-1" @click.stop>
@@ -972,10 +981,13 @@ const tool =
   text-align: inherit;
   field-sizing: content;
 }
-/* The shapes. The rectangle is the Node as it is above. */
+/* The box shapes. The rectangle is the Node as it is above. */
 .diagram-node.pill {
   padding-inline: 1rem;
   border-radius: 9999px;
+}
+.diagram-node.rounded {
+  border-radius: 0.75rem;
 }
 .diagram-node.note {
   --node-bg: var(--fill-light, transparent);
@@ -985,61 +997,10 @@ const tool =
 .dark .diagram-canvas:not(.exporting) .diagram-node.note {
   --node-bg: var(--fill-dark, transparent);
 }
-.diagram-node.note:not(.linked),
-.diagram-node.diamond,
-.diagram-node.cylinder {
+.diagram-node.note:not(.linked) {
   border-color: transparent;
 }
-/* Drawn behind the text by two layers: the line, and the fill inside it. */
-.diagram-node.diamond,
-.diagram-node.cylinder {
-  background: none;
-}
-.diagram-node.diamond::before,
-.diagram-node.diamond::after,
-.diagram-node.cylinder::before,
-.diagram-node.cylinder::after {
-  position: absolute;
-  z-index: -1;
-  content: '';
-}
-/* The padding comes from the text's size (DiagramNode), which a diamond's own width no longer limits. */
-.diagram-node.diamond {
-  max-width: none;
-}
-.diagram-node.diamond .node-text {
-  max-width: 8rem;
-}
-.diagram-node.diamond::before,
-.diagram-node.diamond::after {
-  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
-}
-.diagram-node.diamond::before {
-  inset: calc(-1 * var(--node-line-width));
-  background: var(--node-line);
-}
-.diagram-node.diamond::after {
-  inset: calc(0.5 * var(--node-line-width));
-  background: var(--node-bg);
-}
-.diagram-node.cylinder {
-  --cap: 0.45rem;
-  padding-top: 1.15rem;
-  padding-bottom: 0.6rem;
-}
-.diagram-node.cylinder::before {
-  inset: calc(-1 * var(--node-line-width));
-  border: var(--node-line-width) solid var(--node-line);
-  border-radius: 50% / var(--cap);
-  background: var(--node-bg);
-}
-/* The lid: a whole ellipse over the top edge. */
-.diagram-node.cylinder::after {
-  inset: calc(-1 * var(--node-line-width)) calc(-1 * var(--node-line-width)) auto;
-  height: calc(2 * var(--cap));
-  border: var(--node-line-width) solid var(--node-line);
-  border-radius: 50%;
-}
+/* The other shapes are drawn in SVG: see DiagramNode. */
 .diagram-canvas:not(.exporting) .vue-flow__node.selected .diagram-node {
   box-shadow: 0 0 0 2px var(--ring);
 }

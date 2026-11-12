@@ -5,7 +5,8 @@ import { GRID } from './canvas'
 import { gestures } from './interaction'
 
 // The four corner handles of a selected Node or Frame. The size goes into its data, as numbers.
-const props = defineProps<{ id: string; min: { width: number; height: number } }>()
+// With `aspect`, the box keeps its proportions (a circle stays a circle).
+const props = defineProps<{ id: string; min: { width: number; height: number }; aspect?: boolean }>()
 const { findNode, viewport, snapToGrid } = useVueFlow()
 
 const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se']
@@ -21,7 +22,7 @@ function move(e: PointerEvent) {
   const node = findNode(props.id)
   if (!from || !node) return
   const { zoom } = viewport.value
-  const { x, y, width, height } = resize(from.box, from.corner, (e.clientX - from.x) / zoom, (e.clientY - from.y) / zoom, props.min, snapToGrid.value ? GRID : 0)
+  const { x, y, width, height } = resize(from.box, from.corner, (e.clientX - from.x) / zoom, (e.clientY - from.y) / zoom, props.min, snapToGrid.value ? GRID : 0, props.aspect)
   node.position = { x, y }
   node.data = { ...node.data, width, height }
 }

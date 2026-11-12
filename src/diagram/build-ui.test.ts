@@ -232,8 +232,7 @@ test('Add Record can make the Record from the typed title', async () => {
 test('a shape chosen for the selection is saved by name, and the rectangle by no name', async () => {
   await open()
   await select('1', '2')
-  await button('Shape: Diamond').trigger('click')
-  await flushPromises()
+  await pickShape('diam')
 
   expect(app.findAll('[data-testid="diagram-node"]').map((n) => n.classes('diamond'))).toEqual([true, true])
   await expect.poll(() => saved().nodes.map((n) => n.data)).toEqual([
@@ -242,13 +241,61 @@ test('a shape chosen for the selection is saved by name, and the rectangle by no
   ])
 
   await app.get('[data-testid="diagram-node"]').trigger('contextmenu')
-  await app.get('[role="menu"] [aria-label="Shape: Rectangle"]').trigger('click')
+  await app.get('[role="menu"] [aria-label="Shape: Decision"]').trigger('click')
+  await type('rect')
+  await press('Enter', {}, app.get('[aria-label="Find a shape"]'))
   await expect.poll(() => saved().nodes.map((n) => n.data)).toEqual([{ label: '1' }, { label: '2' }])
+})
+
+async function type(text: string) {
+  const input = app.get<HTMLInputElement>('[aria-label="Find a shape"]')
+  input.element.value = text
+  await input.trigger('input')
+}
+/** Opens the toolbar's shape picker, types `query` and takes the first shape it finds. */
+async function pickShape(query: string) {
+  await button('Shape').trigger('click')
+  await type(query)
+  await press('Enter', {}, app.get('[aria-label="Find a shape"]'))
+}
+const shownShapes = () => app.findAll('[role="option"]').map((o) => o.attributes('data-shape'))
+
+test('the shape picker finds shapes as you type, walks them with the arrows, and Esc closes it', async () => {
+  await open()
+  await select('1')
+  await button('Shape').trigger('click')
+  expect(shownShapes().length).toBeGreaterThanOrEqual(50)
+  await type('arrow')
+  expect(shownShapes()).toEqual(['arrow-right', 'arrow-left', 'arrow-up', 'arrow-down', 'arrow-left-right', 'chevron', 'block-arrow'])
+  const input = app.get('[aria-label="Find a shape"]')
+  await press('ArrowDown', {}, input)
+  await press('ArrowDown', {}, input)
+  await press('ArrowUp', {}, input)
+  expect(app.get('[role="option"][aria-selected="true"]').attributes('data-shape')).toBe('arrow-left')
+  await press('Escape', {}, input)
+  expect(app.find('[data-testid="shape-picker"]').exists()).toBe(false)
+  // Esc closed only the list: the Node is still selected.
+  expect(flow().getSelectedNodes.value).toHaveLength(1)
+
+  await button('Shape').trigger('click')
+  await type('ARROW LEFT')
+  await app.get('[data-shape="arrow-left"]').trigger('click')
+  expect(flow().findNode('1')!.data.shape).toBe('arrow-left')
+})
+
+test('the shapes used last come first in the picker', async () => {
+  await open()
+  await select('1')
+  await pickShape('cloud')
+  await pickShape('star')
+  await button('Shape').trigger('click')
+  expect(shownShapes().slice(0, 2)).toEqual(['star', 'cloud'])
+  expect(app.get('[data-testid="shape-picker"] [role="group"]').attributes('aria-label')).toBe('Recent')
 })
 
 test('a linked Node keeps its border and icon in every shape', async () => {
   const coupa = createRecord('system', 'Coupa')
-  await open([node('1', 0, { label: 'Coupa', recordType: 'system', recordId: coupa, shape: 'cylinder' }), node('2', 200, { label: 'x', shape: 'hexagon' })])
+  await open([node('1', 0, { label: 'Coupa', recordType: 'system', recordId: coupa, shape: 'cylinder' }), node('2', 200, { label: 'x', shape: 'hexagonal-prism' })])
   const [linked, unknown] = app.findAll('[data-testid="diagram-node"]')
   expect(linked.classes()).toEqual(expect.arrayContaining(['cylinder', 'linked']))
   expect(linked.find('svg').exists()).toBe(true)

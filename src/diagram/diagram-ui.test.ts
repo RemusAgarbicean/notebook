@@ -8,6 +8,7 @@ import { saveStatus } from '../save-status'
 import { memoryFolder } from '../storage-memory'
 import { useVueFlow } from '@vue-flow/core'
 import { parseCanvas } from './canvas'
+import { SAVED_WITH_SHAPES } from './saved-canvas.fixture'
 
 let app: VueWrapper
 let id: number
@@ -70,6 +71,20 @@ test('a saved Diagram comes back as it was, and looking at it does not rewrite i
   await expect.poll(nodeTexts).toEqual(['Coupa', 'SAP'])
   await close()
   expect(getRecord('diagram', id)!.canvas).toBe(before)
+})
+
+test('a Diagram saved with the shapes of the version before the shape library opens with them and is not rewritten', async () => {
+  updateRecord('diagram', id, { canvas: SAVED_WITH_SHAPES })
+  await saveNow()
+  await open()
+  await expect.poll(() => app.findAll('[data-testid="diagram-node"]')).toHaveLength(6)
+  expect(app.findAll('[data-testid="diagram-node"]').map((n) => n.classes().find((c) => ['rectangle', 'pill', 'diamond', 'cylinder', 'note'].includes(c)))).toEqual([
+    'rectangle', 'pill', 'diamond', 'cylinder', 'note', 'diamond',
+  ])
+  await flushPromises()
+  expect(saveStatus.value).toBe('saved')
+  await close()
+  expect(getRecord('diagram', id)!.canvas).toBe(SAVED_WITH_SHAPES)
 })
 
 test('a fill chosen from a Node\'s right-click menu is saved by name', async () => {
