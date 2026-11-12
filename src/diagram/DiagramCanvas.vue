@@ -550,9 +550,16 @@ function onAreaKey(e: KeyboardEvent) {
   action()
 }
 
+// One Esc does one thing: closes the menu, else clears the selection, else leaves full screen.
+// The selection is read before a focused Node's own Esc handler clears it.
+let hadSelection = false
+useEventListener(window, 'keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Escape') hadSelection = !!(getSelectedNodes.value.length || getSelectedEdges.value.length)
+}, { capture: true })
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (e.key !== 'Escape') return
   if (menu.value) menu.value = null
+  else if (hadSelection) removeSelectedElements()
   else fullScreen.value = false
 })
 
