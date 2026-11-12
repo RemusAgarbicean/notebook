@@ -261,7 +261,7 @@ const allInView = computed(() => {
   })
 })
 // Fitting the drawing in view leaves the bottom free for the controls and the minimap.
-const FIT = { padding: { top: '32px', right: '32px', bottom: '112px', left: '32px' } }
+const FIT = { padding: { top: '32px', right: '32px', bottom: '112px', left: '32px' } as const }
 
 // Brings a spot of the canvas into view when it is outside it.
 function reveal({ x, y }: { x: number; y: number }) {
