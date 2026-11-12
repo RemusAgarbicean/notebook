@@ -24,8 +24,15 @@ export type Corner = 'nw' | 'ne' | 'sw' | 'se'
 /**
  * The box after its `corner` was dragged by (dx, dy): the opposite corner stays put,
  * the box keeps at least the `min` size, and with a `grid` the dragged corner lands on it.
+ * With `aspect`, it keeps its proportions instead, scaled by the larger of the two pulls, and ignores the grid.
  */
-export function resize(box: Box, corner: Corner, dx: number, dy: number, min: { width: number; height: number }, grid = 0): Box {
+export function resize(box: Box, corner: Corner, dx: number, dy: number, min: { width: number; height: number }, grid = 0, aspect = false): Box {
+  if (aspect) {
+    const [sx, sy] = [(box.width + (corner[1] === 'w' ? -dx : dx)) / box.width, (box.height + (corner[0] === 'n' ? -dy : dy)) / box.height]
+    const k = Math.max(sx, sy, min.width / box.width, min.height / box.height)
+    const [width, height] = [Math.round(box.width * k), Math.round(box.height * k)]
+    return { x: corner[1] === 'w' ? box.x + box.width - width : box.x, y: corner[0] === 'n' ? box.y + box.height - height : box.y, width, height }
+  }
   const snap = (v: number) => (grid ? Math.round(v / grid) * grid : Math.round(v))
   const [right, bottom] = [box.x + box.width, box.y + box.height]
   const west = corner[1] === 'w'

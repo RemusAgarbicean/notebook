@@ -32,6 +32,16 @@ test('with a grid, the dragged corner lands on it', () => {
   expect(resize(box(10, 10), 'nw', -7, -7, { width: 40, height: 20 }, 16)).toEqual(box(0, 0, 110, 50))
 })
 
+test('a box that keeps its aspect grows by the larger pull and keeps the opposite corner', () => {
+  const min = { width: 40, height: 20 }
+  // 80 by 80: the drag right by 40 wins over the drag down by 10.
+  expect(resize(box(0, 0, 80, 80), 'se', 40, 10, min, 0, true)).toEqual(box(0, 0, 120, 120))
+  expect(resize(box(0, 0, 80, 80), 'nw', -10, -40, min, 0, true)).toEqual(box(-40, -40, 120, 120))
+  expect(resize(box(0, 0, 100, 50), 'sw', 0, 25, min, 0, true)).toEqual(box(-50, 0, 150, 75))
+  // Not below the minimum, in the box's own proportions; a grid does not apply.
+  expect(resize(box(0, 0, 80, 80), 'se', -500, -500, min, 16, true)).toEqual(box(0, 0, 40, 40))
+})
+
 const placed = (id: string, x: number, y: number, width = 100, height = 40, frame = false) => ({ id, x, y, width, height, frame })
 
 test('a Node is in the smallest Frame that holds its middle, and a Frame can be in a larger one', () => {

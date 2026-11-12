@@ -1,3 +1,4 @@
+import { SAVED_WITH_SHAPES } from './saved-canvas.fixture'
 import { expect, test } from 'vitest'
 import { Position } from '@vue-flow/core'
 import { arrowHead, edgeData, edgeEnd, edgeOptions, greyEdge, INTO_SIDE, NEW_EDGE_DATA, nextId, parseCanvas, serialiseCanvas, viewportFor } from './canvas'
@@ -87,6 +88,11 @@ const SAVED_BEFORE =
 
 test('a canvas saved before shapes, sizes, Edge options and Frames existed is read and written back unchanged', () => {
   expect(serialiseCanvas(parseCanvas(SAVED_BEFORE))).toBe(SAVED_BEFORE)
+})
+
+test('a canvas saved with the shapes of the version before the shape library is read and written back unchanged', () => {
+  expect(serialiseCanvas(parseCanvas(SAVED_WITH_SHAPES))).toBe(SAVED_WITH_SHAPES)
+  expect(parseCanvas(SAVED_WITH_SHAPES).nodes.map((n) => n.data?.shape)).toEqual([undefined, 'pill', 'diamond', 'cylinder', 'note', 'diamond', undefined])
 })
 
 test('an Edge without stored options has no arrowhead, a solid line and a curved path, as before they existed', () => {
