@@ -6,8 +6,14 @@ import { slotRecords } from './relations'
 
 // Export a type's Records as CSV: the inverse of the bulk import, with the column names it matches.
 
+// A cell Excel would run as a formula gets an apostrophe in front, which the import drops again; so does one
+// that already starts with apostrophes before such a character, to come back exact. Plain numbers stay.
+const guard = (value: string) =>
+  /^'*[=+\-@]/.test(value) && !/^[+-]?\d+(\.\d+)?$/.test(value) ? `'${value}` : value
+
 // A cell is quoted when it holds the separator, a quote, a line break, or outer spaces the import would trim.
-const cell = (value: string) => (/[",\r\n]|^\s|\s$/.test(value) ? `"${value.replaceAll('"', '""')}"` : value)
+const quote = (value: string) => (/[",\r\n]|^\s|\s$/.test(value) ? `"${value.replaceAll('"', '""')}"` : value)
+const cell = (value: string) => quote(guard(value))
 
 /**
  * Every Record of a type as CSV text: title, the type's fields, its Relation
