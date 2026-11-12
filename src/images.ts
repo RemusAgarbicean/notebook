@@ -101,7 +101,7 @@ function insert(d: Database, image: Omit<ImageRow, 'id' | 'created_at'> & { id?:
 /** Stores an Image for the Record it was added to and returns its id. */
 export function addImage(owner: RecordRef, image: NewImage): number {
   const id = insert(db.value!, { owner_type: owner.type, owner_id: owner.id, ...image, bytes: image.data.length })
-  changed()
+  changed('keep-titles')
   return id
 }
 

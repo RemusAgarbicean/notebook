@@ -1,6 +1,6 @@
 import { db } from './notebook'
 import type { RecordType } from './record-types'
-import { changed, getRecord, rows, sameRecord, type RecordRef, type Titled } from './records'
+import { changed, compareTitles, rows, sameRecord, titleOf, type RecordRef, type Titled } from './records'
 import { LABEL, slotsOf, type RelationSlot } from './relation-slots'
 
 export type Label = {
@@ -67,14 +67,14 @@ function clean(forward: string, reverse: string, id?: number) {
 export function addLabel(forward: string, reverse: string): number {
   db.value!.run('insert into label (forward, reverse) values (?, ?)', clean(forward, reverse))
   const id = db.value!.exec('select last_insert_rowid()')[0].values[0][0] as number
-  changed()
+  changed('keep-titles')
   return id
 }
 
 /** Renames a label; every Relation using it reads the new way at once. */
 export function renameLabel(id: number, forward: string, reverse: string) {
   db.value!.run('update label set forward = ?, reverse = ? where id = ?', [...clean(forward, reverse, id), id])
-  changed()
+  changed('keep-titles')
 }
 
 /** The id of every label deleted this session, in order: SQLite may hand such an id to a new label. */
@@ -90,7 +90,7 @@ export function deleteLabel(id: number) {
     throw new Error(`${label.uses} ${label.uses === 1 ? 'Relation uses' : 'Relations use'} this label`)
   db.value!.run('delete from label where id = ?', [id])
   deletedLabels.push(id)
-  changed()
+  changed('keep-titles')
 }
 
 /** Both readings of every label, for the "+ Relation" list. A label that reads the same both ways is listed once. */
@@ -111,7 +111,7 @@ export function addRelation(from: RecordRef, labelId: number, to: RecordRef) {
     'insert into relation (from_type, from_id, label_id, to_type, to_id) values (?, ?, ?, ?, ?)',
     ends(from, labelId, to),
   )
-  changed()
+  changed('keep-titles')
 }
 
 export const hasRelation = (from: RecordRef, labelId: number, to: RecordRef): boolean =>
@@ -119,7 +119,7 @@ export const hasRelation = (from: RecordRef, labelId: number, to: RecordRef): bo
 
 export function removeRelation(from: RecordRef, labelId: number, to: RecordRef) {
   db.value!.run(`delete from relation where ${WHERE}`, ends(from, labelId, to))
-  changed()
+  changed('keep-titles')
 }
 
 /** Adds the Relation "record <reading> other": a reverse reading saves it the other way round. */
@@ -149,7 +149,7 @@ export function recordRelations(record: RecordRef): RelationEntry[] {
       const to = { type: r.to_type, id: r.to_id }
       const forward = sameRecord(from, record)
       const other = forward ? to : from
-      const title = getRecord(other.type, other.id)?.title
+      const title = titleOf(other)
       // A Relation whose other Record is gone (edited outside the app) is not shown.
       if (title === undefined) return []
       return [{ from, labelId: r.label_id, to, forward, reading: forward ? r.forward : r.reverse, other: { ...other, title } }]
@@ -158,7 +158,7 @@ export function recordRelations(record: RecordRef): RelationEntry[] {
 }
 
 const byTitle = (a: RelationEntry, b: RelationEntry) =>
-  a.other.title.localeCompare(b.other.title, undefined, { sensitivity: 'base' })
+  compareTitles(a.other.title, b.other.title)
 
 const inSlot = (slot: RelationSlot, e: RelationEntry) =>
   e.labelId === slot.labelId && e.forward === (slot.end === 'from') && slot.offers.includes(e.other.type)

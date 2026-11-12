@@ -13,7 +13,7 @@ const props = defineProps<{ type: RecordType; id: number; record?: unknown }>()
 // listRecords gives the order: open first, then by due date.
 const tasks = computed(() => {
   const ids = new Set(recordRelations(props).filter(isProjectTask).map((e) => e.other.id))
-  return listRecords('task').filter((t) => ids.has(t.id as number))
+  return listRecords('task', { texts: false }).filter((t) => ids.has(t.id as number))
 })
 
 const title = ref('')
