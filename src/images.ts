@@ -145,13 +145,21 @@ const isOwner = (r: RecordRef, owner: RecordRef) => r.type === owner.type && r.i
 const giveTo = (d: Database, image: number, to: RecordRef) =>
   d.run('update image set owner_type = ?, owner_id = ? where id = ?', [to.type, to.id, image])
 
+// The Images a template refers to: a template is text too, and what it holds lands in notes.
+const inTemplates = (d: Database) =>
+  new Set(read<{ value: string | null }>(d, "select value from setting where value like '%image:%'").flatMap((s) => imageRefs(s.value ?? '')))
+
 // A Record's Images, split by what its delete does to them: `moved` are referenced by another
-// Record's text and go to that Record; the rest are `doomed`.
+// Record's text and go to that Record; one a template refers to stays as it is; the rest are `doomed`.
 function ownedBy(d: Database, owner: RecordRef) {
   const owned = read<ImageRow>(d, `select ${FACTS}, data from image where owner_type = ? and owner_id = ?`, [owner.type, owner.id])
   const refs = owned.length ? referrers(d) : new Map<number, RecordRef[]>()
+  const kept = owned.length ? inTemplates(d) : new Set<number>()
   const heir = (image: ImageRow) => refs.get(image.id)?.find((r) => !isOwner(r, owner))
-  return { doomed: owned.filter((i) => !heir(i)), moved: owned.flatMap((i) => (heir(i) ? [{ id: i.id, to: heir(i)! }] : [])) }
+  return {
+    doomed: owned.filter((i) => !heir(i) && !kept.has(i.id)),
+    moved: owned.flatMap((i) => (heir(i) ? [{ id: i.id, to: heir(i)! }] : [])),
+  }
 }
 
 /** The Images that deleting the Record will delete, bytes included, for Undo delete to keep. */
@@ -194,8 +202,7 @@ export function collectImages(d: Database): number {
   const images = read<{ id: number; owner_type: RecordType; owner_id: number }>(d, 'select id, owner_type, owner_id from image')
   if (!images.length) return 0
   const refs = referrers(d)
-  // A template is text too, and what it holds lands in notes.
-  const elsewhere = new Set(read<{ value: string | null }>(d, "select value from setting where value like '%image:%'").flatMap((s) => imageRefs(s.value ?? '')))
+  const elsewhere = inTemplates(d)
   let removed = 0
   for (const image of images) {
     const by = refs.get(image.id)

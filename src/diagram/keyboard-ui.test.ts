@@ -71,6 +71,20 @@ test('the Node menu button opens the menu for the selected Node, and Esc gives t
   expect(document.activeElement).toBe(nodeEl('1').element)
 })
 
+test('in full screen, one Esc on a selected Node deselects it and the next leaves full screen', async () => {
+  await open()
+  await app.get('[aria-label="Full screen"]').trigger('click')
+  await select('1')
+  nodeEl('1').element.focus()
+
+  await press('Escape', {}, nodeEl('1'))
+  expect(flow().getSelectedNodes.value).toHaveLength(0)
+  expect(app.get('[aria-label="Full screen"]').attributes('aria-pressed')).toBe('true')
+
+  await press('Escape', {}, nodeEl('1'))
+  expect(app.get('[aria-label="Full screen"]').attributes('aria-pressed')).toBe('false')
+})
+
 test('the context-menu key and Shift+F10 open the menu for the selection, and do nothing without one', async () => {
   await open()
   await press('ContextMenu')

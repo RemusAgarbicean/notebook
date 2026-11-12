@@ -123,6 +123,30 @@ test('after a reload, Reopen returns to the place in the hash', async () => {
   expect(location.hash).toBe(hash)
 })
 
+test('after a reload, a different Notebook ignores the hash left by the last one and starts at Home', async () => {
+  const coupa = createRecord('system', 'Coupa')
+  openRecord('system', coupa)
+  await flushPromises()
+  const hash = location.hash
+  app.unmount()
+  closeNotebook()
+
+  // Another folder whose Record behind the same id is something else.
+  const other = memoryFolder(null, 'Other Notebook')
+  await openNotebook(other, true)
+  createRecord('system', 'Not Coupa')
+  markDirty()
+  await saveNow()
+  closeNotebook()
+  location.hash = hash
+
+  await start(memoryFolder(other.file, 'Other Notebook'))
+  await press('Reopen')
+
+  expect(app.find('[data-testid="home"]').exists()).toBe(true)
+  expect(location.hash).toBe('#/')
+})
+
 test('the hash change of the app\'s own navigation leaves the focus where it is', async () => {
   openRecord('system', createRecord('system', 'Coupa'))
   await flushPromises()

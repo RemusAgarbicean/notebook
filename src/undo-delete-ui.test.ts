@@ -57,7 +57,15 @@ test('deleting a Record shows a notice whose Undo puts the Record back and opens
   expect(has('undo-notice')).toBe(false)
 })
 
-test('the notice goes away by itself, and Ctrl+Z still undoes the delete afterwards', async () => {
+test('Ctrl+Z undoes the delete while the notice shows', async () => {
+  const id = await deleteOpen('Coupa')
+
+  expect(ctrlZ().defaultPrevented).toBe(true)
+  await flushPromises()
+  expect(getRecord('system', id)!.title).toBe('Coupa')
+})
+
+test('the notice goes away by itself, and then Ctrl+Z no longer brings the Record back', async () => {
   vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
   const id = await deleteOpen('Coupa')
 
@@ -65,9 +73,31 @@ test('the notice goes away by itself, and Ctrl+Z still undoes the delete afterwa
   await flushPromises()
   expect(has('undo-notice')).toBe(false)
 
-  expect(ctrlZ().defaultPrevented).toBe(true)
+  expect(ctrlZ().defaultPrevented).toBe(false)
   await flushPromises()
-  expect(getRecord('system', id)!.title).toBe('Coupa')
+  expect(getRecord('system', id)).toBeNull()
+})
+
+test('the notice stays while the pointer or the focus is on it', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+  await deleteOpen('Coupa')
+
+  await get('undo-notice').trigger('pointerenter')
+  vi.advanceTimersByTime(60_000)
+  await flushPromises()
+  expect(has('undo-notice')).toBe(true)
+
+  await get('undo-notice').trigger('pointerleave')
+  ;(get('undo-delete').element as HTMLButtonElement).focus()
+  vi.advanceTimersByTime(60_000)
+  await flushPromises()
+  expect(has('undo-notice')).toBe(true)
+
+  ;(get('undo-delete').element as HTMLButtonElement).blur()
+  await flushPromises()
+  vi.advanceTimersByTime(20_000)
+  await flushPromises()
+  expect(has('undo-notice')).toBe(false)
 })
 
 test('Ctrl+Z while typing is left to the field', async () => {

@@ -35,6 +35,7 @@ export function detectSeparator(text: string): (typeof SEPARATORS)[number] {
  * Parses a pasted table or CSV into rows of trimmed cells, the first being the
  * column names. A cell in double quotes may hold separators, newlines and
  * doubled quotes, and keeps its outer spaces (notes with an indented first line). Blank rows are dropped.
+ * One apostrophe before `=`, `+`, `-` or `@` (after any more apostrophes) is dropped (the export's formula guard).
  */
 export function parseTable(text: string): string[][] {
   text = text.replace(/^﻿/, '').replace(/\r\n?/g, '\n')
@@ -46,7 +47,9 @@ export function parseTable(text: string): string[][] {
   // What the quotes held, when the cell was quoted.
   let exact: string | null = null
   const endCell = () => {
-    row.push(exact?.trim() && exact.trim() === cell.trim() ? exact : cell.trim())
+    const value = exact?.trim() && exact.trim() === cell.trim() ? exact : cell.trim()
+    // The export puts an apostrophe before a formula character so Excel doesn't run it; drop it.
+    row.push(/^'+[=+\-@]/.test(value) ? value.slice(1) : value)
     cell = ''
     exact = null
   }

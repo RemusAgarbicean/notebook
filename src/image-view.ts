@@ -38,9 +38,10 @@ export const vImages: Directive<HTMLElement> = {
 }
 
 // A file dropped beside the textarea must not make the browser open it in place of the app.
+// A file input (the import dialog's) takes a dropped file itself.
 for (const type of ['dragover', 'drop'] as const)
   window.addEventListener(type, (e) => {
-    if (!e.dataTransfer?.types.includes('Files')) return
+    if (!e.dataTransfer?.types.includes('Files') || (e.target as Element).closest?.('input[type=file]')) return
     e.preventDefault()
     if (!(e.target as Element).closest?.('textarea')) e.dataTransfer.dropEffect = 'none'
   })
