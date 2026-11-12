@@ -21,7 +21,7 @@ import {
   Grid3x3,
 } from 'lucide-vue-next'
 import { ArrowDown, ArrowRight, ClipboardCopy, Frame, ImageDown, Maximize2, Minimize2, Redo2, SquareMenu, SquarePlus, Undo2, Unlink } from 'lucide-vue-next'
-import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
 import { db, markDirty } from '../notebook'
@@ -190,8 +190,11 @@ watch(
 watch(gestures, commit)
 // A dragged Frame takes along what lies in it: each of those keeps its distance to the Frame.
 let carried: { node: GraphNode; frame: GraphNode; dx: number; dy: number }[] = []
+// Snap to grid applies to drags only: Vue Flow also snaps each Node as it appears, which would move it just by opening.
+const dragging = ref(false)
 for (const on of [onNodeDragStart, onSelectionDragStart])
   on(({ nodes: dragged }) => {
+    dragging.value = true
     gestures.value++
     const parents = parentsOf(placed())
     const moving = new Set(dragged.map((n) => n.id))
@@ -208,6 +211,7 @@ for (const on of [onNodeDrag, onSelectionDrag])
   })
 for (const on of [onNodeDragStop, onSelectionDragStop])
   on(() => {
+    dragging.value = false
     carried = []
     gestures.value--
   })
@@ -247,6 +251,18 @@ const select = (ids: string[]) => {
   removeSelectedElements()
   addSelectedNodes(ids.map((id) => findNode(id)!))
 }
+// The minimap is shown only while part of the drawing is out of view: over a drawing that fits it would only cover Nodes.
+const allInView = computed(() => {
+  const { x, y, zoom } = viewport.value
+  const { width, height } = dimensions.value
+  return nodes.value.every((n) => {
+    const b = box(n)
+    return b.x * zoom + x >= 0 && b.y * zoom + y >= 0 && (b.x + b.width) * zoom + x <= width && (b.y + b.height) * zoom + y <= height
+  })
+})
+// Fitting the drawing in view leaves the bottom free for the controls (about 125px tall) and the minimap.
+const FIT = { padding: { top: '32px', right: '32px', bottom: '136px', left: '32px' } as const }
+
 // Brings a spot of the canvas into view when it is outside it.
 function reveal({ x, y }: { x: number; y: number }) {
   const { x: left, y: top, zoom } = viewport.value
@@ -550,9 +566,16 @@ function onAreaKey(e: KeyboardEvent) {
   action()
 }
 
+// One Esc does one thing: closes the menu, else clears the selection, else leaves full screen.
+// The selection is read before a focused Node's own Esc handler clears it.
+let hadSelection = false
+useEventListener(window, 'keydown', (e: KeyboardEvent) => {
+  if (e.key === 'Escape') hadSelection = !!(getSelectedNodes.value.length || getSelectedEdges.value.length)
+}, { capture: true })
 useEventListener(window, 'keydown', (e: KeyboardEvent) => {
   if (e.key !== 'Escape') return
   if (menu.value) menu.value = null
+  else if (hadSelection) removeSelectedElements()
   else fullScreen.value = false
 })
 
@@ -590,7 +613,7 @@ function runTidy(direction: Direction) {
     else updateNode(n.id, { position: { x, y }, targetPosition, sourcePosition })
   }
   // A frame later, once Vue Flow has taken in the new positions.
-  requestAnimationFrame(() => fitView())
+  requestAnimationFrame(() => fitView(FIT))
 }
 
 // --- Export PNG: the whole Diagram, always in the light shades.
@@ -794,7 +817,7 @@ const tool =
       :max-zoom="MAX_ZOOM"
       :delete-key-code="null"
       :zoom-on-double-click="false"
-      :snap-to-grid="snap"
+      :snap-to-grid="snap && dragging"
       :snap-grid="[GRID, GRID]"
       tabindex="-1"
       class="flex-1 outline-none"
@@ -804,8 +827,8 @@ const tool =
       @pointerdown.capture="onCanvasPointerDown"
     >
       <Background :gap="GRID" />
-      <Controls />
-      <MiniMap pannable zoomable :width="120" :height="80" />
+      <Controls :fit-view-params="FIT" />
+      <MiniMap v-if="!allInView" pannable zoomable :width="120" :height="80" />
     </VueFlow>
 
     <div
@@ -977,8 +1000,12 @@ const tool =
   z-index: -1;
   content: '';
 }
+/* The padding comes from the text's size (DiagramNode), which a diamond's own width no longer limits. */
 .diagram-node.diamond {
-  padding: 1.1rem 2rem;
+  max-width: none;
+}
+.diagram-node.diamond .node-text {
+  max-width: 8rem;
 }
 .diagram-node.diamond::before,
 .diagram-node.diamond::after {

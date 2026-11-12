@@ -1,6 +1,6 @@
 import { onBeforeUnmount, watch, watchEffect } from 'vue'
 import { current, list } from './navigation'
-import { db } from './notebook'
+import { db, notebookName } from './notebook'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType } from './record-types'
 import { getRecord, listTags } from './records'
@@ -14,10 +14,13 @@ function existing({ list, current }: Place): Place {
   return { list, current }
 }
 
+const OWNER = 'notebook-hash-owner'
+
 /**
  * Keeps the place (Home, a list, a Record) in the URL hash, so the browser's
  * Back and Forward work and a reload returns to it once the Notebook is open
- * again. Also names the tab after the place. Call it in the app's setup.
+ * again (the same Notebook: another one starts at Home). Also names the tab
+ * after the place. Call it in the app's setup.
  */
 export function useHistory() {
   const here = () => encodePlace({ list: list.value, current: current.value })
@@ -40,10 +43,21 @@ export function useHistory() {
   onBeforeUnmount(() => window.removeEventListener('hashchange', follow))
 
   watch(db, (now, before) => {
-    // The first open after a page load returns to the place in the hash.
-    if (now && !before) follow()
-    // Another Notebook has other Records behind the same ids.
-    else go({ list: 'home', current: null })
+    // Which Notebook the hash belongs to; sessionStorage outlives a reload of this tab.
+    let owner: string | null = null
+    try {
+      owner = sessionStorage.getItem(OWNER)
+      if (now) sessionStorage.setItem(OWNER, notebookName() ?? '')
+    } catch {
+      // Storage blocked: the hash is never followed after a reload.
+    }
+    // The first open after a page load returns to the place in the hash, if it was this Notebook's.
+    if (now && !before && owner === notebookName()) follow()
+    else {
+      // Another Notebook has other Records behind the same ids.
+      go({ list: 'home', current: null })
+      if (now && location.hash !== here()) location.replace(here())
+    }
   })
 
   // Going somewhere in the app adds a history entry. `location.hash`, not pushState, which file:// pages may refuse.

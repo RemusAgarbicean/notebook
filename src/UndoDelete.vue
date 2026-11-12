@@ -6,18 +6,32 @@ import { shortcut } from './platform'
 import type { Titled } from './records'
 import { lastDeleted, undoDelete } from './undo-delete'
 
-// The "Deleted … Undo" notice after a delete, and Ctrl/Cmd+Z, which keeps working after the notice has gone.
+// The "Deleted … Undo" notice after a delete, and Ctrl/Cmd+Z while it shows. It stays while the pointer or focus is on it.
 const SHOWN_MS = 20_000
 
 const notice = ref<Titled | null>(null)
 const error = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 let undoing = false
+let hovered = false
+const box = ref<HTMLElement | null>(null)
+
+// The countdown runs only while neither the pointer nor the focus is on the notice.
+function countDown() {
+  clearTimeout(timer)
+  if (notice.value && !error.value && !hovered && !box.value?.contains(document.activeElement)) timer = setTimeout(hide, SHOWN_MS)
+}
+function hold(on: boolean) {
+  hovered = on
+  if (on) clearTimeout(timer)
+  else countDown()
+}
 
 function hide() {
   clearTimeout(timer)
   notice.value = null
   error.value = ''
+  hovered = false
 }
 
 // A new delete shows the notice; an Undo uncovering the delete before it does not.
@@ -26,7 +40,7 @@ watch(lastDeleted, (now) => {
   hide()
   if (!now) return
   notice.value = now
-  timer = setTimeout(hide, SHOWN_MS)
+  countDown()
 })
 
 async function undo() {
@@ -54,7 +68,8 @@ async function undo() {
 }
 
 function onKey(e: KeyboardEvent) {
-  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z' || !lastDeleted()) return
+  if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z' || !notice.value || !lastDeleted())
+    return
   // Typing and a Diagram have an Undo of their own.
   const target = e.target instanceof Element ? e.target : null
   if (target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), .diagram-canvas')) return
@@ -72,8 +87,13 @@ onBeforeUnmount(() => {
 <template>
   <div
     v-if="notice"
+    ref="box"
     data-testid="undo-notice"
     role="status"
+    @pointerenter="hold(true)"
+    @pointerleave="hold(false)"
+    @focusin="countDown"
+    @focusout="nextTick(countDown)"
     class="fixed bottom-4 left-1/2 z-20 flex max-w-md -translate-x-1/2 items-center gap-2 rounded-lg border bg-popover py-1.5 pr-1.5 pl-3 text-sm text-popover-foreground shadow-lg"
   >
     <span class="min-w-0 truncate" :title="error || notice.title">{{ error || `Deleted ${notice.title}.` }}</span>

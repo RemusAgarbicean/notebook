@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Handle, Position } from '@vue-flow/core'
+import { useElementSize } from '@vueuse/core'
 import { computed, useTemplateRef } from 'vue'
 import { openRecord } from '../navigation'
 import { recordType } from '../record-types'
@@ -9,7 +10,7 @@ import { fillVars } from './fills'
 import { useLabelEdit } from './label-edit'
 import { linkOf } from './links'
 import ResizeHandles from './ResizeHandles.vue'
-import { shapeOf } from './shapes'
+import { diamondPadding, shapeOf } from './shapes'
 
 // Vue Flow passes many more props than these; they must not land on the element.
 defineOptions({ inheritAttrs: false })
@@ -31,6 +32,15 @@ const size = computed(() =>
 )
 const MIN_SIZE = { width: 48, height: 28 }
 
+// A diamond grows with its text so the text stays inside it; a resized one keeps its width and the text half of it.
+const text = useTemplateRef('text')
+const textSize = useElementSize(() => (editing.value ? input.value : text.value), undefined, { box: 'border-box' })
+const diamond = computed(() => {
+  if (shapeOf(props.data.shape) !== 'diamond') return {}
+  const { block, inline } = diamondPadding(textSize.width.value, textSize.height.value)
+  return { paddingBlock: `${block}px`, paddingInline: props.data.width ? '25%' : `${inline}px` }
+})
+
 const link = computed(() => linkOf(props.data))
 // A linked Node shows its Record's title as it is now; the saved label is only the fallback.
 const label = computed(() => (link.value && getRecord(link.value.type, link.value.id)?.title) || props.data.label)
@@ -46,7 +56,7 @@ const open = () => (link.value ? openRecord(link.value.type, link.value.id) : ed
     data-edit
     class="diagram-node"
     :class="[shapeOf(data.shape), { linked: link }]"
-    :style="[fillVars(data.fill), size]"
+    :style="[fillVars(data.fill), size, diamond]"
     @dblclick="open"
   >
     <Handle type="target" :position="targetPosition ?? Position.Top" />
@@ -62,7 +72,7 @@ const open = () => (link.value ? openRecord(link.value.type, link.value.id) : ed
       @keydown.enter.exact.prevent="end(true)"
       @keydown.esc.stop="end(false)"
     />
-    <span v-else class="node-text">
+    <span v-else ref="text" class="node-text">
       <component :is="recordType(link.type).icon" v-if="link" class="mr-1 inline size-3.5 align-text-bottom" />
       {{ label || ' ' }}
     </span>

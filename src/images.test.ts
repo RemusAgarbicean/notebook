@@ -244,3 +244,33 @@ test('typed HTML can name an Image but can not give it an address', () => {
 
   expect(html.trim()).toBe('<p>a <img data-image="1"> b</p>')
 })
+
+test('an Image a template refers to survives the delete of the Record it was pasted into', () => {
+  const coupa = createRecord('system', 'Coupa')
+  const id = addImage({ type: 'system', id: coupa }, png())
+  updateRecord('system', coupa, { notes: `![screen](image:${id})` })
+  setSetting('template:system', `Start from ![screen](image:${id})`)
+
+  deleteRecord('system', coupa)
+
+  expect(ids()).toEqual([id])
+  expect(collectImages(db.value!)).toBe(0)
+})
+
+test('a file dragged over the page is kept from opening in place of the app, except over a file input', async () => {
+  await import('./image-view')
+  const over = (target: Element) => {
+    const event = Object.assign(new Event('dragover', { bubbles: true, cancelable: true }), {
+      dataTransfer: { types: ['Files'], dropEffect: 'copy' },
+    })
+    target.dispatchEvent(event)
+    return event
+  }
+  const div = document.body.appendChild(document.createElement('div'))
+  const input = document.body.appendChild(Object.assign(document.createElement('input'), { type: 'file' }))
+
+  expect(over(div).defaultPrevented).toBe(true)
+  expect(over(div).dataTransfer.dropEffect).toBe('none')
+  expect(over(input).defaultPrevented).toBe(false)
+  expect(over(input).dataTransfer.dropEffect).toBe('copy')
+})

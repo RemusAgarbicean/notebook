@@ -147,6 +147,11 @@
   [data-testid='record-picker'],
   [role='dialog'],
   [role='toolbar'],
+  /* The undo notice, the Not saved banner, toasts and messages: about the screen now, not the page. */
+  [role='status'],
+  [role='alert'],
+  /* A Diagram's zoom controls and minimap. */
+  .vue-flow__panel,
   /* The controls go; the buttons that are a Record's title (Relations, Mentioned in) stay as text. */
   article header button,
   article form,
@@ -162,6 +167,12 @@
     display: block;
     height: auto;
     overflow: visible;
+  }
+  /* A Diagram in full screen prints in its place on the page, as it shows outside full screen. */
+  [data-testid='diagram-canvas'] {
+    position: relative !important;
+    inset: auto !important;
+    height: 32rem;
   }
   [data-testid='page-column'] > article {
     max-width: none;

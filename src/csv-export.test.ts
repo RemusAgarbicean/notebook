@@ -36,6 +36,8 @@ function seed() {
   addToSlot(slotsOf('person')[0], maria, { type: 'team', id: platform })
   const coupa = createRecord('system', 'Coupa', { summary: 'Procure-to-pay; "P2P"', url: 'https://coupa.example', notes: '  indented\nline two\n' })
   createRecord('system', '=SUM(A1)', { notes: 'tab\there' })
+  createRecord('system', "'@home", { summary: '-5', notes: '- a list\n- of two' })
+  createRecord('system', '+40', { summary: "'-x" })
   addToSlot(slotsOf('system')[0], coupa, { type: 'team', id: platform })
   addTag('system', coupa, 'finance')
   addTag('system', coupa, 'Core systems')
@@ -83,6 +85,25 @@ test('the file is CSV as Excel reads it: a byte order mark, CRLF rows, quotes ar
       'PO,"Purchase order, ""the PO""",,"line one\nline two"\r\n' +
       'RFQ,Request for quotation,,\r\n',
   )
+})
+
+test('a cell Excel would run as a formula gets a leading apostrophe; plain numbers stay as they are', () => {
+  createRecord('acronym', '=SUM(A1)', { expansion: '@cmd', notes: '- item' })
+  createRecord('acronym', '-5', { expansion: '+40' })
+  createRecord('acronym', "'=x", { expansion: '+1-2' })
+  expect(exportCsv('acronym')).toBe(
+    '﻿Title,Expansion,Tags,Notes\r\n' +
+      "''=x,'+1-2,,\r\n" +
+      '-5,+40,,\r\n' +
+      "'=SUM(A1),'@cmd,,'- item\r\n",
+  )
+})
+
+test('the import drops one apostrophe in front of a formula character, and only there', () => {
+  expect(parseTable("a,b,c,d,e\n'=1+1,''@x,'plain,'-5,'''=y")).toEqual([
+    ['a', 'b', 'c', 'd', 'e'],
+    ['=1+1', "'@x", "'plain", '-5', "''=y"],
+  ])
 })
 
 test('an empty type exports just the column names', () => {
