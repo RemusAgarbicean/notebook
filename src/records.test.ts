@@ -14,9 +14,12 @@ import {
   recordCounts,
   recordTags,
   recordsWithTag,
+  recordTitles,
+  titled,
   transaction,
   removeTag,
   revision,
+  textRevision,
   todaysLog,
   updateRecord,
 } from './records'
@@ -231,10 +234,23 @@ test('every write bumps the refresh signal and marks the Notebook unsaved', () =
   expect(saveStatus.value).toBe('unsaved')
 
   const afterCreate = revision.value
-  updateRecord('team', id, { notes: 'x' })
   addTag('team', id, 'core')
   deleteRecord('team', id)
-  expect(revision.value).toBeGreaterThanOrEqual(afterCreate + 3)
+  expect(revision.value).toBeGreaterThanOrEqual(afterCreate + 2)
+})
+
+test('a notes edit bumps only the text signal, so lists and counts are not refreshed by typing', () => {
+  const id = createRecord('team', 'Procurement')
+  saveStatus.value = 'saved'
+  const [before, text] = [revision.value, textRevision.value]
+
+  updateRecord('team', id, { notes: 'x' })
+  expect(revision.value).toBe(before)
+  expect(textRevision.value).toBeGreaterThan(text)
+  expect(saveStatus.value).toBe('unsaved')
+
+  updateRecord('team', id, { notes: 'y', title: 'Buying' })
+  expect(revision.value).toBeGreaterThan(before)
 })
 
 test('a transaction that throws leaves none of its writes, also when transactions nest', () => {
@@ -331,4 +347,25 @@ test('a copy has none of the Relations, and a Diagram copy keeps its canvas', ()
   const canvas = JSON.stringify({ nodes: [{ id: '1', data: { label: 'Coupa', recordType: 'system', recordId: coupa } }], edges: [] })
   const map = createRecord('diagram', 'Map', { canvas })
   expect(getRecord('diagram', duplicateRecord('diagram', map))).toMatchObject({ title: 'Map copy', canvas })
+})
+
+test('titles stay in sidebar order then by id while Records are created, renamed and deleted', () => {
+  const fresh = () =>
+    RECORD_TYPES.flatMap(({ type }) =>
+      (db.value!.exec(`select id, title from ${type} order by id`)[0]?.values ?? []).map(([id, title]) => ({ type, id, title })),
+    )
+  recordTitles()
+  transaction(() => {
+    for (const type of ['task', 'system', 'person', 'system', 'journal_entry', 'acronym'] as const)
+      createRecord(type, `${type} ${recordTitles().length}`, type === 'acronym' ? { expansion: 'x' } : {})
+  })
+  expect(recordTitles()).toEqual(fresh())
+  const team = createRecord('team', 'Finance')
+  updateRecord('team', team, { title: 'Buying' })
+  createRecord('team', 'finance')
+  expect(recordTitles()).toEqual(fresh())
+  expect(titled('FINANCE').map((r) => r.type)).toEqual(['team'])
+  deleteRecord('team', team)
+  expect(recordTitles()).toEqual(fresh())
+  expect(titled('buying')).toEqual([])
 })

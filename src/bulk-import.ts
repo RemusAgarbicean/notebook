@@ -1,6 +1,5 @@
 import { db, takeBackup } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
-import { searchRecords } from './record-search'
 import type { RecordType } from './record-types'
 import {
   addTag,
@@ -8,7 +7,7 @@ import {
   foldTitle as fold,
   listRecords,
   sameRecord,
-  sameTitle,
+  titled,
   today,
   transaction,
   updateRecord,
@@ -243,6 +242,8 @@ export async function runImport(
   // Planned after the Backup, which may have waited on a save.
   const existing = listRecords(type)
   const plan = planImport(type, table, columns, existing.map((r) => r.title))
+  // The first Record with each title, as the plan saw them.
+  const existingByTitle = new Map([...existing].reverse().map((r) => [fold(r.title), r]))
   const result = { created: 0, filled: 0, skipped: 0 }
 
   // Nothing below awaits, so no save can run inside the transaction.
@@ -254,7 +255,7 @@ export async function runImport(
       }
       let id: number
       if (row.duplicate) {
-        const old = existing.find((r) => sameTitle(r.title, row.title))!
+        const old = existingByTitle.get(fold(row.title))!
         id = old.id
         const patch: Patch = {}
         // A false, a 0 and a chosen option are values, so only null and '' count as empty.
@@ -268,12 +269,13 @@ export async function runImport(
       for (const tag of row.tags) addTag(type, id, tag)
       for (const slot of slotsOf(type)) {
         for (const title of row.slots[slot.name] ?? []) {
-          const found = searchRecords(title, slot.offers).filter((r) => sameTitle(r.title, title))
+          const found = titled(title).filter((r) => slot.offers.includes(r.type))
           const other = slot.offers.flatMap((t) => found.filter((r) => r.type === t))[0] ?? {
             type: slot.creates ?? slot.offers[0],
             id: createRecord(slot.creates ?? slot.offers[0], title),
           }
-          if (!slotRecords(slot, id).some((r) => sameRecord(r, other)))
+          // A new Record has no Relations yet, and its row names each title once: only a duplicate is checked.
+          if (!row.duplicate || !slotRecords(slot, id).some((r) => sameRecord(r, other)))
             addToSlot(slot, id, other)
         }
       }

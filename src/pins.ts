@@ -29,5 +29,5 @@ export function setPinned(record: RecordRef, on: boolean) {
   if (on) after.push(key(record))
   if (after.length === before.length && on === before.includes(key(record))) return
   db.value!.run('insert or replace into setting (key, value) values (?, ?)', [KEY, JSON.stringify(after)])
-  changed()
+  changed('keep-titles')
 }

@@ -7,6 +7,7 @@ import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
 import { pinnedRecords } from './pins'
+import { useWindowed } from './windowed'
 import QuizDialog from './QuizDialog.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { recordsName, recordType, type RecordType } from './record-types'
@@ -45,7 +46,7 @@ const unpinned = computed(() => {
   const t = type.value
   if (t) {
     const { key } = RECORD_FIELDS[t]
-    return listRecords(t).map((r) => ({
+    return listRecords(t, { texts: false }).map((r) => ({
       type: t,
       id: r.id,
       title: r.title,
@@ -63,7 +64,7 @@ const unpinned = computed(() => {
 })
 
 // Records with an empty required field get a marker in their row.
-const missing = computed(() => new Map(incompleteRecords().map((r) => [`${r.type}:${r.id}`, r.missing])))
+const missing = computed(() => new Map(incompleteRecords(type.value ?? undefined).map((r) => [`${r.type}:${r.id}`, r.missing])))
 
 // The filter box narrows the rows; Tasks and Open questions can also leave out the closed ones.
 const text = ref('')
@@ -78,6 +79,11 @@ const empty = computed(() => {
   return `No open ${heading.value}. Hide ${closedWord.value} is on.`
 })
 const open = (r: { type: RecordType; id: number }) => (current.value = { type: r.type, id: r.id })
+
+// Only the rows in view (and a screenful around them) are in the page, so a list of thousands opens and filters
+// without lag. Every row has one height: two lines where the list shows a field under the title, else one.
+const rowHeight = computed(() => (type.value && !RECORD_FIELDS[type.value].key ? 32 : 48))
+const visible = useWindowed(rows, shown, rowHeight)
 
 function add() {
   const t = type.value!
@@ -135,12 +141,14 @@ function add() {
     </div>
 
     <ul v-if="shown.length" ref="rows" class="flex-1 overflow-y-auto p-2">
-      <li v-for="r in shown" :key="`${r.type}:${r.id}`">
+      <li v-if="visible.before" aria-hidden="true" :style="{ height: `${visible.before}px` }" />
+      <li v-for="r in visible.rows" :key="`${r.type}:${r.id}`">
         <!-- A Tag list stays put when a row is opened, so it sets `current` itself. -->
         <button
           type="button"
           data-testid="list-row"
-          class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left hover:bg-accent aria-[current=true]:bg-accent"
+          class="flex w-full items-start gap-2 overflow-hidden rounded-md px-2 py-1.5 text-left hover:bg-accent aria-[current=true]:bg-accent"
+          :style="{ height: `${rowHeight}px` }"
           :class="{ 'text-muted-foreground': r.closed }"
           :aria-current="current?.type === r.type && current.id === r.id ? 'true' : undefined"
           @click="open(r)"
@@ -166,6 +174,7 @@ function add() {
           </span>
         </button>
       </li>
+      <li v-if="visible.after" aria-hidden="true" :style="{ height: `${visible.after}px` }" />
     </ul>
     <p v-else data-testid="list-empty" class="p-4 text-muted-foreground">
       {{ empty }}

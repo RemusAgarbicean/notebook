@@ -21,7 +21,7 @@ import {
   Grid3x3,
 } from 'lucide-vue-next'
 import { ArrowDown, ArrowRight, ClipboardCopy, Frame, ImageDown, Maximize2, Minimize2, Redo2, SquareMenu, SquarePlus, Undo2, Unlink } from 'lucide-vue-next'
-import { computed, markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
+import { computed, effect, markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
 import { db, markDirty } from '../notebook'
@@ -142,22 +142,16 @@ onPaneReady(() => {
   setEdges(saved.edges)
   setViewport(saved.viewport)
   snap.value = !!saved.snap
-  last = snapshot()
-  history.value = startHistory(content())
+  last = seen = snapshot()
+  history.value = startHistory((shown = content()))
   gestures.value = 0
   ready.value = true
 })
 
-// Every change to Nodes, Edges or the viewport ends up here; a drag is saved when it pauses.
+// Every change to Nodes, Edges or the viewport ends up in `sync`; a drag is saved when it pauses.
 const saveSoon = useDebounceFn(save, 300)
-watch(
-  () => ready.value && snapshot(),
-  (now) => {
-    // Not saved from this moment, not only once the pause is over: closing the tab then still asks.
-    if (now && now !== last && db.value === loadedFrom) markDirty()
-    saveSoon()
-  },
-)
+let seen = '' // the snapshot as `sync` last saw it
+let shown = '' // the content as `sync` last saw it
 // A tab closed or hidden within the pause: the canvas goes into the database now, in time for the Notebook's own save.
 useEventListener(window, ['pagehide', 'beforeunload'], save)
 useEventListener(document, 'visibilitychange', () => document.visibilityState === 'hidden' && save())
@@ -175,23 +169,41 @@ const history = shallowRef(startHistory(''))
 // The canvas as an undo or redo just set it is not a change of its own.
 let travelling = false
 
-function commit() {
-  if (ready.value && !gestures.value) history.value = record(history.value, content())
+// Saving and undo steps. Serialising copies every Node, so it waits for a drag to end, and runs once per tick at most.
+// An undo step waits for any gesture to end: a drag, a resize or typing a text is one step.
+// Snap to grid also applies to drags only: Vue Flow also snaps each Node as it appears, which would move it just by opening.
+const dragging = ref(false)
+function sync() {
+  if (!ready.value || dragging.value) return
+  const canvas = toObject()
+  const now = serialiseCanvas({ ...canvas, nodes: withLiveTitles(canvas.nodes), snap: snap.value })
+  if (now !== seen) {
+    seen = now
+    // Not saved from this moment, not only once the pause is over: closing the tab then still asks.
+    if (now !== last && db.value === loadedFrom) markDirty()
+    saveSoon()
+  }
+  const state = serialiseCanvas({ ...canvas, viewport: {} })
+  if (gestures.value || state === shown) return
+  shown = state
+  history.value = travelling ? { ...history.value, present: state } : record(history.value, state)
+  travelling = false
 }
-watch(
-  () => ready.value && content(),
-  (now) => {
-    if (travelling && now) history.value = { ...history.value, present: now }
-    else commit()
-    travelling = false
+let queued = false
+let alive = true
+onBeforeUnmount(() => (alive = false))
+const syncNow = effect(sync, {
+  scheduler() {
+    if (queued) return
+    queued = true
+    void Promise.resolve().then(() => {
+      queued = false
+      if (alive) syncNow()
+    })
   },
-)
-// A drag, a resize or typing a text is one step, taken when it ends.
-watch(gestures, commit)
+})
 // A dragged Frame takes along what lies in it: each of those keeps its distance to the Frame.
 let carried: { node: GraphNode; frame: GraphNode; dx: number; dy: number }[] = []
-// Snap to grid applies to drags only: Vue Flow also snaps each Node as it appears, which would move it just by opening.
-const dragging = ref(false)
 for (const on of [onNodeDragStart, onSelectionDragStart])
   on(({ nodes: dragged }) => {
     dragging.value = true
