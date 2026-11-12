@@ -220,8 +220,14 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
     const t = titles?.db === db.value && titles.version === titleVersion ? titles : undefined
     if (t) {
       const added = { type, id, title: String(values.title) }
-      let at = t.all.length
-      while (at && inOrder(t.all[at - 1], added) > 0) at--
+      // Binary search for its place: the list is in sidebar order then by id.
+      let [lo, hi] = [0, t.all.length]
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1
+        if (inOrder(t.all[mid], added) < 0) lo = mid + 1
+        else hi = mid
+      }
+      const at = lo
       t.all = [...t.all.slice(0, at), added, ...t.all.slice(at)]
       index(t, added)
       t.byFold.get(foldTitle(added.title))!.sort(inOrder)
@@ -262,16 +268,16 @@ export const todaysLog = (): number =>
   rows<{ id: number }>("select id from journal_entry where date = ? and kind = 'log' order by id limit 1", [today()])[0]
     ?.id ?? createRecord('journal_entry', '', { kind: 'log' })
 
-/** Every Record with an empty required field, by title, with the label of the first such field. No column says so: it follows from `RECORD_FIELDS`. */
-export function incompleteRecords(): (Titled & { missing: string })[] {
-  const selects = RECORD_TYPES.flatMap(({ type }) => {
+/** Every Record (of the type `only`, if given) with an empty required field, by title, with the label of the first such field. No column says so: it follows from `RECORD_FIELDS`. */
+export function incompleteRecords(only?: RecordType): (Titled & { missing: string })[] {
+  const selects = RECORD_TYPES.filter(({ type }) => !only || type === only).flatMap(({ type }) => {
     const required = RECORD_FIELDS[type].fields.filter((f) => f.required)
     if (!required.length) return []
     const empty = (f: Field) => `coalesce(${f.name}, '') = ''`
     const missing = `case ${required.map((f) => `when ${empty(f)} then '${f.label}'`).join(' ')} end`
     return `select '${type}' as type, id, title, ${missing} as missing from ${type} where ${required.map(empty).join(' or ')}`
   })
-  return rows<Titled & { missing: string }>(selects.join(' union all ')).sort(byTitle)
+  return selects.length ? rows<Titled & { missing: string }>(selects.join(' union all ')).sort(byTitle) : []
 }
 
 export const getRecord = (type: RecordType, id: number): Rec | null =>
@@ -283,9 +289,14 @@ const ORDER: Partial<Record<RecordType, string>> = {
   journal_entry: 'date desc, id desc,',
 }
 
-/** A type's Records in list order: open Tasks and Open questions first, the Journal latest first. */
-export const listRecords = (type: RecordType): Rec[] =>
-  rows<Rec>(`select * from ${table(type)} order by ${ORDER[type] ?? ''} title collate nocase, id`)
+/**
+ * A type's Records in list order: open Tasks and Open questions first, the Journal latest first.
+ * `texts: false` leaves out notes and the other long texts (they read as ''), for lists that only show fields.
+ */
+export function listRecords(type: RecordType, { texts = true } = {}): Rec[] {
+  const short = ['id', 'title', "'' as notes", 'created_at', 'updated_at', CLOSED[type]?.stamp ?? [], RECORD_FIELDS[type].fields.flatMap((f) => (isText(type, f.name) || f.kind === 'hidden' ? [] : [f.name]))]
+  return rows<Rec>(`select ${texts ? '*' : short.flat().join(', ')} from ${table(type)} order by ${ORDER[type] ?? ''} title collate nocase, id`)
+}
 
 /** Saves the given fields, bumps `updated_at` and keeps `done_at`/`answered_at` in step. */
 export function updateRecord(type: RecordType, id: number, patch: Patch) {

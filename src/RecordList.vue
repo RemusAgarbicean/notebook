@@ -46,7 +46,7 @@ const unpinned = computed(() => {
   const t = type.value
   if (t) {
     const { key } = RECORD_FIELDS[t]
-    return listRecords(t).map((r) => ({
+    return listRecords(t, { texts: false }).map((r) => ({
       type: t,
       id: r.id,
       title: r.title,
@@ -64,7 +64,7 @@ const unpinned = computed(() => {
 })
 
 // Records with an empty required field get a marker in their row.
-const missing = computed(() => new Map(incompleteRecords().map((r) => [`${r.type}:${r.id}`, r.missing])))
+const missing = computed(() => new Map(incompleteRecords(type.value ?? undefined).map((r) => [`${r.type}:${r.id}`, r.missing])))
 
 // The filter box narrows the rows; Tasks and Open questions can also leave out the closed ones.
 const text = ref('')

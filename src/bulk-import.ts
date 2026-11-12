@@ -271,7 +271,8 @@ export async function runImport(
             type: slot.creates ?? slot.offers[0],
             id: createRecord(slot.creates ?? slot.offers[0], title),
           }
-          if (!slotRecords(slot, id).some((r) => sameRecord(r, other)))
+          // A new Record has no Relations yet, and its row names each title once: only a duplicate is checked.
+          if (!row.duplicate || !slotRecords(slot, id).some((r) => sameRecord(r, other)))
             addToSlot(slot, id, other)
         }
       }

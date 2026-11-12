@@ -18,7 +18,16 @@ function entry(type: RecordType, r: Rec): Entry {
 
 // The folded Records, brought up to date after a write by re-reading only the rows whose updated_at moved.
 // shortcut: two edits of one Record within the same millisecond, with a search in between, leave the second unseen until another edit; key on a per-Record counter if that ever matters.
-type Cache = { db: unknown; titles: number; revision: number; text: number; entries: Map<string, Entry>; tags: Map<string, string[]> }
+// `sorted` is the entries by title, kept until one comes, goes or is renamed: typing in the box then needs no sort.
+type Cache = {
+  db: unknown
+  titles: number
+  revision: number
+  text: number
+  entries: Map<string, Entry>
+  sorted?: string[]
+  tags: Map<string, string[]>
+}
 let cache: Cache | undefined
 
 function sync(): Cache {
@@ -38,9 +47,17 @@ function sync(): Cache {
     })
     const reread =
       stale.length > 500 ? rows<Rec>(`select * from ${type}`) : stale.length ? rows<Rec>(`select * from ${type} where id in (${stale.map((r) => r.id).join(',')})`) : []
-    for (const r of reread) c.entries.set(`${type}:${r.id}`, entry(type, r))
+    for (const r of reread) {
+      const key = `${type}:${r.id}`
+      if (c.entries.get(key)?.title !== r.title) c.sorted = undefined
+      c.entries.set(key, entry(type, r))
+    }
   }
-  for (const key of c.entries.keys()) if (!seen.has(key)) c.entries.delete(key)
+  for (const key of c.entries.keys())
+    if (!seen.has(key)) {
+      c.entries.delete(key)
+      c.sorted = undefined
+    }
   if (c.revision !== revision.value) {
     c.tags = new Map()
     for (const t of rows<RecordRef & { name: string }>('select rt.type, rt.id, t.name from record_tag rt join tag t on t.id = rt.tag_id'))
@@ -59,13 +76,16 @@ export function globalSearch(text: string): Hit[] {
   const needle = foldTitle(text)
   if (!needle) return []
   const c = sync()
-  const hits: Hit[] = []
-  for (const [key, e] of c.entries) {
-    const where = e.folded.includes(needle)
-      ? undefined
-      : (e.texts.find(([, folded]) => folded.includes(needle))?.[0] ??
-        (c.tags.get(key)?.some((name) => name.includes(needle)) ? 'Tag' : null))
-    if (where !== null) hits.push({ type: e.type, id: e.id, title: e.title, where })
+  c.sorted ??= [...c.entries.keys()].sort((a, b) => byTitle(c.entries.get(a)!, c.entries.get(b)!))
+  // Title matches first, then the rest, each already in title order.
+  const [titles, others]: Hit[][] = [[], []]
+  for (const key of c.sorted) {
+    const e = c.entries.get(key)!
+    if (e.folded.includes(needle)) titles.push({ type: e.type, id: e.id, title: e.title, where: undefined })
+    else {
+      const where = e.texts.find(([, folded]) => folded.includes(needle))?.[0] ?? (c.tags.get(key)?.some((name) => name.includes(needle)) ? 'Tag' : null)
+      if (where !== null) others.push({ type: e.type, id: e.id, title: e.title, where })
+    }
   }
-  return hits.sort((a, b) => Number(!!a.where) - Number(!!b.where) || byTitle(a, b))
+  return [...titles, ...others]
 }
