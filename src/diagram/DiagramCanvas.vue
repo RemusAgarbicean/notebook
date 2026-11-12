@@ -984,8 +984,12 @@ const tool =
   z-index: -1;
   content: '';
 }
+/* The padding comes from the text's size (DiagramNode), which a diamond's own width no longer limits. */
 .diagram-node.diamond {
-  padding: 1.1rem 2rem;
+  max-width: none;
+}
+.diagram-node.diamond .node-text {
+  max-width: 8rem;
 }
 .diagram-node.diamond::before,
 .diagram-node.diamond::after {
