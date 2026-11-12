@@ -190,8 +190,11 @@ watch(
 watch(gestures, commit)
 // A dragged Frame takes along what lies in it: each of those keeps its distance to the Frame.
 let carried: { node: GraphNode; frame: GraphNode; dx: number; dy: number }[] = []
+// Snap to grid applies to drags only: Vue Flow also snaps each Node as it appears, which would move it just by opening.
+const dragging = ref(false)
 for (const on of [onNodeDragStart, onSelectionDragStart])
   on(({ nodes: dragged }) => {
+    dragging.value = true
     gestures.value++
     const parents = parentsOf(placed())
     const moving = new Set(dragged.map((n) => n.id))
@@ -208,6 +211,7 @@ for (const on of [onNodeDrag, onSelectionDrag])
   })
 for (const on of [onNodeDragStop, onSelectionDragStop])
   on(() => {
+    dragging.value = false
     carried = []
     gestures.value--
   })
@@ -801,7 +805,7 @@ const tool =
       :max-zoom="MAX_ZOOM"
       :delete-key-code="null"
       :zoom-on-double-click="false"
-      :snap-to-grid="snap"
+      :snap-to-grid="snap && dragging"
       :snap-grid="[GRID, GRID]"
       tabindex="-1"
       class="flex-1 outline-none"

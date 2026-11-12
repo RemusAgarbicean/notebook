@@ -445,3 +445,17 @@ test('snap to grid is remembered in the Diagram, and the arrow keys then step by
   await expect.poll(() => app.find('[data-testid="diagram-canvas"]').attributes('data-ready')).toBe('true')
   expect(button('Snap to grid').attributes('aria-pressed')).toBe('true')
 })
+
+test('opening a Diagram with snap on leaves Nodes off the grid where they are, and saves nothing', async () => {
+  const canvas = JSON.stringify({ nodes: [node('1', 5), node('2', 203)], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, snap: true })
+  updateRecord('diagram', id, { canvas })
+  openRecord('diagram', id)
+  await expect.poll(() => app.find('[data-testid="diagram-canvas"]').attributes('data-ready')).toBe('true')
+  await expect.poll(() => app.findAll('.vue-flow__node')).toHaveLength(2)
+  await new Promise((r) => setTimeout(r, 400))
+  await flushPromises()
+
+  expect(at('1')).toEqual({ x: 5, y: 0 })
+  expect(at('2')).toEqual({ x: 203, y: 0 })
+  expect(getRecord('diagram', id)!.canvas).toBe(canvas)
+})
