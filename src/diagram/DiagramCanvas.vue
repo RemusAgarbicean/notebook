@@ -251,15 +251,6 @@ const select = (ids: string[]) => {
   removeSelectedElements()
   addSelectedNodes(ids.map((id) => findNode(id)!))
 }
-// The minimap is shown only while part of the drawing is out of view: over a drawing that fits it would only cover Nodes.
-const allInView = computed(() => {
-  const { x, y, zoom } = viewport.value
-  const { width, height } = dimensions.value
-  return nodes.value.every((n) => {
-    const b = box(n)
-    return b.x * zoom + x >= 0 && b.y * zoom + y >= 0 && (b.x + b.width) * zoom + x <= width && (b.y + b.height) * zoom + y <= height
-  })
-})
 // Fitting the drawing in view leaves the bottom free for the controls (about 125px tall) and the minimap.
 const FIT = { padding: { top: '32px', right: '32px', bottom: '136px', left: '32px' } as const }
 
@@ -828,7 +819,7 @@ const tool =
     >
       <Background :gap="GRID" />
       <Controls :fit-view-params="FIT" />
-      <MiniMap v-if="!allInView" pannable zoomable :width="120" :height="80" />
+      <MiniMap pannable zoomable :width="120" :height="80" />
     </VueFlow>
 
     <div
