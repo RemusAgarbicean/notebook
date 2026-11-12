@@ -9,7 +9,7 @@ import { shortcut } from './platform'
 import QuickTask from './QuickTask.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
-import { incompleteRecords, rows, todaysLog } from './records'
+import { incompleteRecords, rows, textRows, todaysLog } from './records'
 import { LABEL } from './relation-slots'
 
 // The landing page: a search box that opens the palette, then the cards.
@@ -74,7 +74,8 @@ const cards = computed<Card[]>(() => [
     key: 'recent',
     title: 'Recently edited',
     empty: 'Nothing edited yet.',
-    rows: rows<Row>(
+    // A notes edit moves a Record up here too.
+    rows: textRows<Row>(
       `select * from (${RECORD_TYPES.map(({ type }) => `select '${type}' as type, id, title, updated_at from ${type}`).join(
         ' union all ',
       )}) order by updated_at desc limit ${LATEST}`,

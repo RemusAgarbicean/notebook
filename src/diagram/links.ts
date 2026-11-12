@@ -1,6 +1,6 @@
 import { db } from '../notebook'
 import { RECORD_TYPES } from '../record-types'
-import { getRecord, rows, sameRecord, type RecordRef, type Titled } from '../records'
+import { getRecord, rows, sameRecord, titleOf, type RecordRef, type Titled } from '../records'
 import { parseCanvas, type NodeData } from './canvas'
 
 /** The Record a Node is linked to; null for a free-text Node. */
@@ -77,7 +77,7 @@ export function relinkNodes(target: RecordRef, title: string, where: readonly No
 export const withLiveTitles = <N extends { data?: NodeData }>(nodes: N[]): N[] =>
   nodes.map((n) => {
     const link = linkOf(n.data)
-    const title = link && getRecord(link.type, link.id)?.title
+    const title = link && titleOf(link)
     return title ? { ...n, data: { ...n.data, label: title } } : n
   })
 
@@ -85,5 +85,5 @@ export const withLiveTitles = <N extends { data?: NodeData }>(nodes: N[]): N[] =
 export const withoutDeadLinks = <N extends { data?: NodeData }>(nodes: N[]): N[] =>
   nodes.map((n) => {
     const link = linkOf(n.data)
-    return n.data && link && !getRecord(link.type, link.id) ? { ...n, data: unlinked(n.data, undefined) } : n
+    return n.data && link && titleOf(link) === undefined ? { ...n, data: unlinked(n.data, undefined) } : n
   })

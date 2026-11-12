@@ -17,6 +17,7 @@ import {
   transaction,
   removeTag,
   revision,
+  textRevision,
   todaysLog,
   updateRecord,
 } from './records'
@@ -231,10 +232,23 @@ test('every write bumps the refresh signal and marks the Notebook unsaved', () =
   expect(saveStatus.value).toBe('unsaved')
 
   const afterCreate = revision.value
-  updateRecord('team', id, { notes: 'x' })
   addTag('team', id, 'core')
   deleteRecord('team', id)
-  expect(revision.value).toBeGreaterThanOrEqual(afterCreate + 3)
+  expect(revision.value).toBeGreaterThanOrEqual(afterCreate + 2)
+})
+
+test('a notes edit bumps only the text signal, so lists and counts are not refreshed by typing', () => {
+  const id = createRecord('team', 'Procurement')
+  saveStatus.value = 'saved'
+  const [before, text] = [revision.value, textRevision.value]
+
+  updateRecord('team', id, { notes: 'x' })
+  expect(revision.value).toBe(before)
+  expect(textRevision.value).toBeGreaterThan(text)
+  expect(saveStatus.value).toBe('unsaved')
+
+  updateRecord('team', id, { notes: 'y', title: 'Buying' })
+  expect(revision.value).toBeGreaterThan(before)
 })
 
 test('a transaction that throws leaves none of its writes, also when transactions nest', () => {

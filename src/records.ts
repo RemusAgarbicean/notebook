@@ -28,14 +28,30 @@ export type Patch = Record<string, Value | boolean | undefined>
  * depends on it and every write bumps it through `changed()`.
  */
 export const revision = ref(0)
+/**
+ * Bumped by `changed('text')`: a notes or other markdown edit, which lists, counts and titles
+ * don't show. Only the reads that show text (a Record's page, search) depend on it, so typing
+ * doesn't refresh the rest of the app.
+ */
+export const textRevision = ref(0)
+// Plain copies for caches: reading them does not make a computed depend on them.
+let texts = 0
+let titleVersion = 0
 
-/** Call after any write to the database: refreshes the UI and schedules a save. */
-export function changed() {
-  revision.value++
+/**
+ * Call after any write to the database: refreshes the UI and schedules a save.
+ * `what` narrows what the write may have changed: 'text' only notes and other markdown text
+ * of existing Records; 'keep-titles' anything but a Record's title or existence.
+ */
+export function changed(what: 'any' | 'keep-titles' | 'text' = 'any') {
+  texts++
+  textRevision.value++
+  if (what !== 'text') revision.value++
+  if (what === 'any') titleVersion++
   markDirty()
 }
 
-/** Runs a query and returns its rows as objects. Reactive: re-runs in a computed after `changed()`. */
+/** Runs a query and returns its rows as objects. Reactive: re-runs in a computed after `changed()`, but not after `changed('text')`. */
 export function rows<T = Record<string, Value>>(sql: string, params: Value[] = []): T[] {
   void revision.value
   const [result] = db.value!.exec(sql, params)
@@ -44,6 +60,17 @@ export function rows<T = Record<string, Value>>(sql: string, params: Value[] = [
     (v) => Object.fromEntries(result.columns.map((c, i) => [c, v[i]])) as T,
   )
 }
+
+/** Like `rows`, for reads that show text: also re-runs after `changed('text')`. */
+export function textRows<T = Record<string, Value>>(sql: string, params: Value[] = []): T[] {
+  void textRevision.value
+  return rows<T>(sql, params)
+}
+
+/** Changes on every write, text included; for caches that hold text. Not reactive. */
+export const textVersion = () => texts
+/** Changes when a Record's title, or whether it exists, may have changed, or text was rewritten behind its updated_at. Not reactive. */
+export const titlesVersion = () => titleVersion
 
 /** A title as it is compared: trimmed and lower-cased in JS, because SQLite's `nocase` only folds ASCII. */
 export const foldTitle = (s: string) => s.trim().toLocaleLowerCase()
@@ -79,21 +106,37 @@ export function transaction<T>(work: () => T): T {
   }
 }
 
-let titles: { db: unknown; revision: number; all: Titled[] } | undefined
-/** Every Record's title, in sidebar order then by id. Reactive like `rows`; treat the array as read-only. */
-export function recordTitles(): Titled[] {
-  if (titles?.db !== db.value || titles.revision !== revision.value)
-    titles = {
-      db: db.value,
-      revision: revision.value,
-      all: rows<Titled & { ord?: number }>(
-        RECORD_TYPES.map(({ type }, i) => `select ${i} as ord, '${type}' as type, id, title from ${type}`).join(
-          ' union all ',
-        ) + ' order by ord, id',
-      ).map(({ type, id, title }) => ({ type, id, title })),
-    }
-  return titles.all
+type TitleIndex = { db: unknown; version: number; all: Titled[]; byFold: Map<string, Titled[]>; byKey: Map<string, Titled> }
+let titles: TitleIndex | undefined
+const ORD = new Map<string, number>(RECORD_TYPES.map(({ type }, i) => [type, i]))
+const inOrder = (a: Titled, b: Titled) => ORD.get(a.type)! - ORD.get(b.type)! || a.id - b.id
+const recordKey = (r: RecordRef) => `${r.type}:${r.id}`
+function index(t: TitleIndex, r: Titled) {
+  const same = t.byFold.get(foldTitle(r.title))
+  if (same) same.push(r)
+  else t.byFold.set(foldTitle(r.title), [r])
+  t.byKey.set(recordKey(r), r)
 }
+// Built once per change of titles, not per write: a write that keeps the titles keeps it.
+function titleIndex(): TitleIndex {
+  void revision.value
+  if (titles?.db !== db.value || titles.version !== titleVersion) {
+    const all = rows<Titled & { ord?: number }>(
+      RECORD_TYPES.map(({ type }, i) => `select ${i} as ord, '${type}' as type, id, title from ${type}`).join(
+        ' union all ',
+      ) + ' order by ord, id',
+    ).map(({ type, id, title }) => ({ type, id, title }))
+    titles = { db: db.value, version: titleVersion, all, byFold: new Map(), byKey: new Map() }
+    for (const r of all) index(titles, r)
+  }
+  return titles
+}
+/** Every Record's title, in sidebar order then by id. Reactive like `rows`; treat the array as read-only. */
+export const recordTitles = (): Titled[] => titleIndex().all
+/** The Records with this title ignoring case, in sidebar order then by id. Reactive like `rows`. */
+export const titled = (title: string): readonly Titled[] => titleIndex().byFold.get(foldTitle(title)) ?? []
+/** A Record's title, or undefined when it does not exist. Reactive like `rows`. */
+export const titleOf = (r: RecordRef): string | undefined => titleIndex().byKey.get(recordKey(r))?.title
 
 // Types reach SQL as table names, and can come from stored rows, so they are checked.
 function table(type: RecordType): RecordType {
@@ -164,13 +207,23 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
     if (top) values.id = Math.max(top, rows<{ id: number }>(`select max(id) as id from ${table(type)}`)[0].id ?? 0) + 1
     const columns = Object.keys(values)
     // Mentions of a Record that already has this title keep pointing at it.
-    keepMentions(String(values.title))
+    const rewrote = keepMentions(String(values.title))
     db.value!.run(
       `insert into ${table(type)} (${columns.join(', ')}) values (${columns.map(() => '?').join(', ')})`,
       Object.values(values),
     )
     const id = db.value!.exec('select last_insert_rowid()')[0].values[0][0] as number
-    changed()
+    // The title index takes the new Record in place, so creating many in a row does not re-read every title.
+    const t = titles?.db === db.value && titles.version === titleVersion ? titles : undefined
+    if (t) {
+      const added = { type, id, title: String(values.title) }
+      let at = t.all.length
+      while (at && inOrder(t.all[at - 1], added) > 0) at--
+      t.all = [...t.all.slice(0, at), added, ...t.all.slice(at)]
+      index(t, added)
+      t.byFold.get(foldTitle(added.title))!.sort(inOrder)
+    }
+    changed(rewrote ? 'any' : 'keep-titles')
     return id
   })
 }
@@ -219,7 +272,7 @@ export function incompleteRecords(): (Titled & { missing: string })[] {
 }
 
 export const getRecord = (type: RecordType, id: number): Rec | null =>
-  rows<Rec>(`select * from ${table(type)} where id = ?`, [id])[0] ?? null
+  textRows<Rec>(`select * from ${table(type)} where id = ?`, [id])[0] ?? null
 
 const ORDER: Partial<Record<RecordType, string>> = {
   task: 'done, due is null, due,',
@@ -241,10 +294,10 @@ export function updateRecord(type: RecordType, id: number, patch: Patch) {
     if (closes !== isClosed(type, getRecord(type, id) ?? {})) values[rule.stamp] = closes ? now() : null
   }
   values.updated_at = now()
+  const renamed = 'title' in values && values.title !== getRecord(type, id)?.title
   transaction(() => {
     // A rename also rewrites every Mention of the Record, in the same transaction.
-    if ('title' in values && values.title !== getRecord(type, id)?.title)
-      renameMentions({ type, id }, String(values.title))
+    if (renamed) renameMentions({ type, id }, String(values.title))
     db.value!.run(
       `update ${table(type)} set ${Object.keys(values)
         .map((c) => `${c} = ?`)
@@ -252,8 +305,12 @@ export function updateRecord(type: RecordType, id: number, patch: Patch) {
       [...Object.values(values), id],
     )
   })
-  changed()
+  changed(renamed ? 'any' : Object.keys(patch).every((name) => isText(type, name)) ? 'text' : 'keep-titles')
 }
+
+/** Whether a field holds markdown text: notes, or an Open question's answer. */
+const isText = (type: RecordType, name: string) =>
+  name === 'notes' || RECORD_FIELDS[type].fields.some((f) => f.name === name && f.kind === 'markdown')
 
 const DROP_UNUSED_TAGS = 'delete from tag where id not in (select tag_id from record_tag)'
 
@@ -323,13 +380,13 @@ export function addTag(type: RecordType, id: number, name: string) {
     'insert or ignore into record_tag (tag_id, type, id) select id, ?, ? from tag where name = ? collate nocase',
     [table(type), id, name],
   )
-  changed()
+  changed('keep-titles')
 }
 
 export function removeTag(type: RecordType, id: number, tagId: number) {
   db.value!.run('delete from record_tag where tag_id = ? and type = ? and id = ?', [tagId, type, id])
   db.value!.run(DROP_UNUSED_TAGS)
-  changed()
+  changed('keep-titles')
 }
 
 /** Every Record with the Tag, across all types, by title. */
