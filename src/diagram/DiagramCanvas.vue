@@ -21,7 +21,7 @@ import {
   Grid3x3,
 } from 'lucide-vue-next'
 import { ArrowDown, ArrowRight, ClipboardCopy, Frame, ImageDown, Maximize2, Minimize2, Redo2, SquareMenu, SquarePlus, Undo2, Unlink } from 'lucide-vue-next'
-import { markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
+import { computed, markRaw, nextTick, onBeforeUnmount, ref, shallowRef, useTemplateRef, watch } from 'vue'
 import ConfirmDialog from '../ConfirmDialog.vue'
 import { focusable, vDialog } from '../dialog'
 import { db, markDirty } from '../notebook'
@@ -251,6 +251,18 @@ const select = (ids: string[]) => {
   removeSelectedElements()
   addSelectedNodes(ids.map((id) => findNode(id)!))
 }
+// The minimap is shown only while part of the drawing is out of view: over a drawing that fits it would only cover Nodes.
+const allInView = computed(() => {
+  const { x, y, zoom } = viewport.value
+  const { width, height } = dimensions.value
+  return nodes.value.every((n) => {
+    const b = box(n)
+    return b.x * zoom + x >= 0 && b.y * zoom + y >= 0 && (b.x + b.width) * zoom + x <= width && (b.y + b.height) * zoom + y <= height
+  })
+})
+// Fitting the drawing in view leaves the bottom free for the controls and the minimap.
+const FIT = { padding: { top: '32px', right: '32px', bottom: '112px', left: '32px' } }
+
 // Brings a spot of the canvas into view when it is outside it.
 function reveal({ x, y }: { x: number; y: number }) {
   const { x: left, y: top, zoom } = viewport.value
@@ -601,7 +613,7 @@ function runTidy(direction: Direction) {
     else updateNode(n.id, { position: { x, y }, targetPosition, sourcePosition })
   }
   // A frame later, once Vue Flow has taken in the new positions.
-  requestAnimationFrame(() => fitView())
+  requestAnimationFrame(() => fitView(FIT))
 }
 
 // --- Export PNG: the whole Diagram, always in the light shades.
@@ -815,8 +827,8 @@ const tool =
       @pointerdown.capture="onCanvasPointerDown"
     >
       <Background :gap="GRID" />
-      <Controls />
-      <MiniMap pannable zoomable :width="120" :height="80" />
+      <Controls :fit-view-params="FIT" />
+      <MiniMap v-if="!allInView" pannable zoomable :width="120" :height="80" />
     </VueFlow>
 
     <div

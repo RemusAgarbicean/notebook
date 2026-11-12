@@ -446,6 +446,18 @@ test('snap to grid is remembered in the Diagram, and the arrow keys then step by
   expect(button('Snap to grid').attributes('aria-pressed')).toBe('true')
 })
 
+test('the minimap shows only while part of the drawing is out of view, so it never covers a drawing that fits', async () => {
+  await open()
+  flow().dimensions.value = { width: 1000, height: 600 }
+  await flow().setViewport({ x: 0, y: 0, zoom: 1 })
+  await flushPromises()
+  expect(app.find('.vue-flow__minimap').exists()).toBe(false)
+
+  await flow().setViewport({ x: -150, y: 0, zoom: 1 })
+  await flushPromises()
+  expect(app.find('.vue-flow__minimap').exists()).toBe(true)
+})
+
 test('opening a Diagram with snap on leaves Nodes off the grid where they are, and saves nothing', async () => {
   const canvas = JSON.stringify({ nodes: [node('1', 5), node('2', 203)], edges: [], viewport: { x: 0, y: 0, zoom: 1 }, snap: true })
   updateRecord('diagram', id, { canvas })
