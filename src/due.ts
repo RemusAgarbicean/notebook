@@ -21,3 +21,14 @@ export function parseQuickTask(text: string): { title: string; due: string | nul
   const due = words.length > 1 ? parseDate(words.at(-1)!) : null
   return { title: (due ? words.slice(0, -1) : words).join(' '), due }
 }
+
+/** A Push choice that moves a Task's due date without picking one. */
+export type PushChoice = 'tomorrow' | 'next-week'
+
+/** The new due date for a Push: counted from today, never from the old due date, so an overdue Task never stays in the past. */
+export function pushDate(choice: PushChoice, now = today()): string {
+  // Counted on the date alone, in UTC, so a daylight-saving change cannot shift the day.
+  const date = new Date(`${now}T00:00:00Z`)
+  date.setUTCDate(date.getUTCDate() + (choice === 'tomorrow' ? 1 : 7))
+  return date.toISOString().slice(0, 10)
+}

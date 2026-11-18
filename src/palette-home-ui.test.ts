@@ -191,7 +191,8 @@ test('clicking a Record on a Home card opens its page', async () => {
   const id = createRecord('task', 'Book room')
   await flushPromises()
 
-  await get('home-task').trigger('click')
+  // An Open Tasks row holds a done box, the title and Push: the title opens the page.
+  await get('home-task').findAll('button').find((b) => b.text() === 'Book room')!.trigger('click')
 
   expect(current.value).toEqual({ type: 'task', id })
   expect(app.find('[data-testid="page-column"]').exists()).toBe(true)

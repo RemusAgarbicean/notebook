@@ -3,6 +3,7 @@ import { CircleAlert, NotebookPen, Pin, Search } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
 import DueDate from './DueDate.vue'
 import HomeRows from './HomeRows.vue'
+import Push from './Push.vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
 import { pinnedRecords } from './pins'
@@ -10,7 +11,7 @@ import { shortcut } from './platform'
 import QuickTask from './QuickTask.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
-import { incompleteRecords, rows, textRows, todaysLog } from './records'
+import { incompleteRecords, rows, textRows, todaysLog, updateRecord } from './records'
 import { LABEL } from './relation-slots'
 
 // The landing page: a search box that opens the palette, then the cards.
@@ -141,7 +142,27 @@ const cards = computed<Card[]>(() => [
             </button>
           </h2>
           <HomeRows v-if="c.rows.length" v-slot="{ row: r }" :rows="c.rows">
+            <!-- A row, not one button, so the done box and Push are not nested inside a button. -->
+            <div v-if="c.key === 'task'" data-testid="home-task" class="flex h-7 items-center gap-2 rounded-md px-2 hover:bg-accent">
+              <input
+                type="checkbox"
+                :aria-label="`Done: ${r.title}`"
+                class="size-4 shrink-0"
+                @change="updateRecord('task', r.id, { done: ($event.target as HTMLInputElement).checked })"
+              />
+              <button
+                type="button"
+                class="flex min-w-0 flex-1 items-baseline gap-2 text-left"
+                @click="openRecord(r.type, r.id)"
+              >
+                <span class="truncate">{{ r.title }}</span>
+                <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
+                <DueDate :due="r.right" class="ml-auto shrink-0" />
+              </button>
+              <Push :id="r.id" :title="r.title" />
+            </div>
             <button
+              v-else
               type="button"
               :data-testid="`home-${c.key}`"
               class="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left hover:bg-accent"
@@ -150,8 +171,7 @@ const cards = computed<Card[]>(() => [
               <span class="truncate">{{ r.title }}</span>
               <!-- No base width: the title keeps its room and the grey text gets what is left. -->
               <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
-              <DueDate v-if="c.key === 'task'" :due="r.right" class="ml-auto shrink-0" />
-              <span v-else-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
+              <span v-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
             </button>
           </HomeRows>
           <p v-else class="px-2 py-1 text-muted-foreground">{{ c.empty }}</p>

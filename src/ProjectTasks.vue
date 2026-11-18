@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import DueDate from './DueDate.vue'
 import { openRecord } from './navigation'
+import Push from './Push.vue'
 import type { RecordType } from './record-types'
 import { createRecord, listRecords, transaction, updateRecord } from './records'
 import { LABEL } from './relation-slots'
@@ -49,6 +50,9 @@ function add() {
           {{ t.title }}
         </button>
         <DueDate :due="t.due" :done="t.done" class="shrink-0" />
+        <!-- Finished work is not rescheduled. -->
+        <Push v-if="!t.done" :id="t.id as number" :title="String(t.title)" />
+        <span v-else aria-hidden="true" class="size-6 shrink-0" />
       </li>
     </ul>
     <form class="px-2 pt-1" @submit.prevent="add">
