@@ -1,7 +1,7 @@
 # Spec: Today strip on Home
 
 Labels: `ready-for-agent`
-Status: open (local; becomes a GitHub issue once `gh` is set up)
+Status: implemented on `feature/today-strip`, not yet merged to main
 Source: roadmap rank 1 (`.scratch/roadmap/roadmap.md`), tickets `02-today-view.md` and `06-recurring-tasks-snooze.md` (Push); prototype branch `prototype/today-view`, variant A (local only, never merge).
 
 ## Problem Statement

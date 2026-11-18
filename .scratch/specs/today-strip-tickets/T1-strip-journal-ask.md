@@ -1,6 +1,6 @@
 # T1: Today strip with Journal and Ask columns
 
-Spec: `.scratch/specs/today-strip.md`. Labels: `ready-for-agent`. Blocked by: none.
+Status: resolved on `feature/today-strip` (2026-11-18). Spec: `.scratch/specs/today-strip.md`. Labels: `ready-for-agent`. Blocked by: none.
 
 Build the Today strip component at the top of Home (between the search box and the card grid) with three column slots. Fill in **Journal** and **Ask**. Leave a placeholder Due now column that T3 fills; it can render nothing or the empty text for now.
 
