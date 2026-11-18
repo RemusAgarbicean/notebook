@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CircleAlert, NotebookPen, Pin, Search } from 'lucide-vue-next'
+import { CircleAlert, Pin, Search } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
 import DueDate from './DueDate.vue'
 import HomeRows from './HomeRows.vue'
@@ -11,10 +11,11 @@ import { shortcut } from './platform'
 import QuickTask from './QuickTask.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
-import { incompleteRecords, rows, textRows, todaysLog, updateRecord } from './records'
+import { incompleteRecords, rows, textRows, updateRecord } from './records'
 import { LABEL } from './relation-slots'
+import TodayStrip from './TodayStrip.vue'
 
-// The landing page: a search box that opens the palette, then the cards.
+// The landing page: a search box that opens the palette, the Today strip, then the cards.
 type Row = { type: RecordType; id: number; title: string; grey?: string | null; right?: string | null }
 
 // "Task part of Project", by label id because the label can be renamed.
@@ -115,6 +116,8 @@ const cards = computed<Card[]>(() => [
         <kbd class="rounded border px-1.5 font-sans text-xs">{{ shortcut('K') }}</kbd>
       </button>
 
+      <TodayStrip />
+
       <div class="grid gap-4 md:grid-cols-2">
         <section
           v-for="c in cards"
@@ -129,17 +132,6 @@ const cards = computed<Card[]>(() => [
               class="size-4 text-muted-foreground"
             />
             {{ c.title }}
-            <button
-              v-if="c.key === 'journal_entry'"
-              type="button"
-              data-testid="todays-log"
-              title="Open today's Journal entry of kind log, or start it"
-              class="ml-auto flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-accent"
-              @click="openRecord('journal_entry', todaysLog())"
-            >
-              <NotebookPen class="size-3.5" />
-              Today's log
-            </button>
           </h2>
           <HomeRows v-if="c.rows.length" v-slot="{ row: r }" :rows="c.rows">
             <!-- A row, not one button, so the done box and Push are not nested inside a button. -->
