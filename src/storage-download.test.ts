@@ -7,8 +7,8 @@ import { closeNotebook, db, markDirty, openNotebook, saveNow, takeBackup } from 
 import { saveStatus } from './save-status'
 import { loadSqlite } from './sqlite'
 import type { NotebookStorage } from './storage'
-import { download, downloadFolder } from './storage-download'
-import { memoryFolder } from './storage-memory'
+import { download, downloadFolder, downloadStorage } from './storage-download'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 beforeEach(() => {
   closeNotebook()
@@ -142,9 +142,8 @@ test('with a folder, leaving asks first while an edit still waits for autosave',
 
 const fallbackStorage = (save: (bytes: Uint8Array, name: string) => void, picked: File | null = null) =>
   ({
+    ...downloadStorage,
     pick: async () => picked && downloadFolder(picked, save),
-    lastName: async () => null,
-    reopen: async () => null,
     blank: () => downloadFolder(null, save),
   }) satisfies NotebookStorage
 
@@ -237,7 +236,7 @@ test('a download clicks a link that is in the page and keeps its URL alive for a
 
 test('with a folder there is no Download Notebook button', async () => {
   const folder = memoryFolder()
-  const { app, click } = await start({ pick: async () => folder, lastName: async () => null, reopen: async () => null })
+  const { app, click } = await start(memoryStorage(async () => folder))
   await click('Create new Notebook')
   await expect.poll(() => app.find('[data-testid="save-status"]').exists()).toBe(true)
 

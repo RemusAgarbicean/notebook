@@ -6,7 +6,7 @@ import { openRecord } from './navigation'
 import { closeNotebook } from './notebook'
 import { recordMarkdown } from './record-markdown'
 import { createRecord, getRecord, updateRecord } from './records'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 // Decoding and shrinking need a real browser's canvas: here every file comes out as a 40 × 30 WebP of 5 bytes.
 vi.mock('./image-file', () => ({
@@ -23,7 +23,7 @@ beforeEach(async () => {
   closeNotebook()
   const folder = memoryFolder()
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
     attachTo: document.body,
   })
   await flushPromises()

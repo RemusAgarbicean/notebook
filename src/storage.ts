@@ -22,15 +22,35 @@ export interface NotebookFolder {
   deleteBackup(fileName: string): Promise<void>
   /** When `notebook.sqlite` was last changed on disk, by anyone. Null when it is gone. */
   lastModified(): Promise<number | null>
+  /** Whether `other` is this same folder, reached another way. Without it, only the same object is. */
+  isSame?(other: NotebookFolder): Promise<boolean>
+}
+
+/** One of the Recent Notebooks, as the start screen and the sidebar list them. */
+export interface RecentNotebook {
+  /** Stays the same while the entry is in the list: two folders can have the same name. */
+  readonly id: string
+  readonly name: string
 }
 
 export interface NotebookStorage {
-  /** Asks the user for a folder and remembers it. Null when they cancel. */
+  /** Asks the user for a folder. Null when they cancel. */
   pick(): Promise<NotebookFolder | null>
-  /** The name of the remembered folder, if there is one. */
-  lastName(): Promise<string | null>
-  /** Re-asks permission for the remembered folder. Must be called from a click. Null when refused. */
-  reopen(): Promise<NotebookFolder | null>
+  /** The Recent Notebooks, most recent first. Always empty on the download fallback. */
+  recent(): Promise<RecentNotebook[]>
+  /**
+   * Re-asks permission for one of the Recent Notebooks. Must be called from a
+   * click. Null when refused, or when `id` is no longer in the list.
+   */
+  reopen(id: string): Promise<NotebookFolder | null>
+  /**
+   * Puts a folder that just opened at the front of the Recent Notebooks and
+   * returns its id there; null when it is not remembered (the download
+   * fallback, or IndexedDB unavailable).
+   */
+  remember(folder: NotebookFolder): Promise<string | null>
+  /** Takes one entry off the Recent Notebooks. */
+  forget(id: string): Promise<void>
   /**
    * Only on the download fallback, where there is no folder: a new, empty
    * Notebook. There pick() opens one notebook.sqlite file.

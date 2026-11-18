@@ -7,7 +7,7 @@ import type { RecordType } from './record-types'
 import { createRecord, listRecords } from './records'
 import { slotsOf } from './relation-slots'
 import { slotRecords } from './relations'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 let app: VueWrapper
 let folder: ReturnType<typeof memoryFolder>
@@ -16,7 +16,7 @@ beforeEach(async () => {
   closeNotebook()
   folder = memoryFolder()
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
     attachTo: document.body,
   })
   await flushPromises()

@@ -4,8 +4,9 @@ import { vDialog } from './dialog'
 
 // A small modal that asks one thing: Enter confirms, Esc or a click outside cancels.
 // The slot holds the message, or an input that then gets the focus.
-defineProps<{ title: string; confirmLabel: string; destructive?: boolean }>()
-defineEmits<{ confirm: []; cancel: [] }>()
+// `alternativeLabel` adds a third choice, between Cancel and the confirm button.
+defineProps<{ title: string; confirmLabel: string; destructive?: boolean; alternativeLabel?: string }>()
+defineEmits<{ confirm: []; cancel: []; alternative: [] }>()
 
 const id = useId()
 const form = useTemplateRef('form')
@@ -44,6 +45,15 @@ const button = 'h-8 rounded-md border px-3 font-medium'
       <div class="flex justify-end gap-2">
         <button type="button" data-testid="dialog-cancel" :class="[button, 'hover:bg-accent']" @click="$emit('cancel')">
           Cancel
+        </button>
+        <button
+          v-if="alternativeLabel"
+          type="button"
+          data-testid="dialog-alternative"
+          :class="[button, 'hover:bg-accent']"
+          @click="$emit('alternative')"
+        >
+          {{ alternativeLabel }}
         </button>
         <button
           ref="ok"

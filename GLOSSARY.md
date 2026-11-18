@@ -139,3 +139,7 @@ _Avoid_: Invalid, incomplete, orphan
 **Backup**:
 A dated copy of the whole Notebook, taken automatically once a day and before upgrades, imports and restores, or by hand, and kept next to it. Restoring a Backup replaces the Notebook with that copy.
 _Avoid_: Snapshot, version
+
+**Recent Notebooks**:
+The up to five Notebook folders this browser remembers, most recently opened first, so the user can reopen or switch to one without picking its folder again; removing one from the list leaves the folder as it is.
+_Avoid_: History, favourites, last opened, workspaces

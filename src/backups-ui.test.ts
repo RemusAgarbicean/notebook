@@ -7,14 +7,14 @@ import { paletteOpen } from './palette'
 import { createRecord, listRecords } from './records'
 import type { NotebookFolder } from './storage'
 import { downloadFolder } from './storage-download'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 let app: VueWrapper
 let folder: ReturnType<typeof memoryFolder>
 
 async function start(picked: NotebookFolder) {
   app = mount(App, {
-    props: { storage: { pick: async () => picked, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => picked) },
     attachTo: document.body,
   })
   await flushPromises()

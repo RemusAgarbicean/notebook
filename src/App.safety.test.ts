@@ -4,7 +4,7 @@ import App from './App.vue'
 import { closeNotebook, db, markDirty, saveNow } from './notebook'
 import { loadSqlite } from './sqlite'
 import type { NotebookStorage } from './storage'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 // The tab lock only exists where tabs can share a folder: a browser with the folder picker.
 vi.hoisted(() => (window.showDirectoryPicker = async () => new FileSystemDirectoryHandle()))
@@ -17,11 +17,7 @@ const onDisk = async (bytes: Uint8Array | null, sql: string) =>
 
 async function openApp() {
   const folder = memoryFolder()
-  const storage: NotebookStorage = {
-    pick: async () => folder,
-    lastName: async () => null,
-    reopen: async () => null,
-  }
+  const storage: NotebookStorage = memoryStorage(folder)
   const app = mount(App, { props: { storage }, attachTo: document.body })
   await flushPromises()
   await click(app, 'Create new Notebook')

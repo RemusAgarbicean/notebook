@@ -20,7 +20,7 @@ const os = vi.hoisted(() => {
 import App from './App.vue'
 import { db, saveNow } from './notebook'
 import type { NotebookFolder } from './storage'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 beforeEach(() => {
   db.value = null
@@ -32,7 +32,7 @@ const isDark = () => document.documentElement.classList.contains('dark')
 // Opens the Notebook in `folder` (creating it when empty) and returns the app.
 async function open(folder: NotebookFolder) {
   const app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
   })
   await flushPromises()
   await app

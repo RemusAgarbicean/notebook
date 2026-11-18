@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, test } from 'vitest'
 import App from './App.vue'
 import { closeNotebook } from './notebook'
 import { createRecord, listRecords } from './records'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 let app: VueWrapper
 
@@ -11,7 +11,7 @@ beforeEach(async () => {
   closeNotebook()
   const folder = memoryFolder()
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
     attachTo: document.body,
   })
   await flushPromises()

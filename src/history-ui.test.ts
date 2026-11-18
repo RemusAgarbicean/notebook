@@ -5,14 +5,14 @@ import { current, list, openRecord } from './navigation'
 import { closeNotebook, markDirty, openNotebook, saveNow } from './notebook'
 import { paletteOpen } from './palette'
 import { addTag, createRecord, deleteRecord, listTags, updateRecord } from './records'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 let app: VueWrapper
 let folder: ReturnType<typeof memoryFolder>
 
 const start = (last: ReturnType<typeof memoryFolder> | null = null) => {
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => last?.name ?? null, reopen: async () => last } },
+    props: { storage: memoryStorage(async () => folder, last ? [last] : []) },
     attachTo: document.body,
   })
   return flushPromises()

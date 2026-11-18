@@ -5,7 +5,7 @@ import { current, openRecord } from '../navigation'
 import { closeNotebook, db, listBackups, reloadFromDisk, restoreBackup, saveNow, takeBackup } from '../notebook'
 import { createRecord, getRecord, updateRecord } from '../records'
 import { saveStatus } from '../save-status'
-import { memoryFolder } from '../storage-memory'
+import { memoryFolder, memoryStorage } from '../storage-memory'
 import { useVueFlow } from '@vue-flow/core'
 import { parseCanvas } from './canvas'
 import { SAVED_WITH_SHAPES } from './saved-canvas.fixture'
@@ -18,7 +18,7 @@ beforeEach(async () => {
   closeNotebook()
   folder = memoryFolder()
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
     attachTo: document.body,
   })
   await flushPromises()
