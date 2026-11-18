@@ -56,8 +56,68 @@ test('Next week and Pick a date on the Open Tasks card move an overdue Task from
   await byLabel('Push: Other').trigger('click')
   await menuItem('Pick a date').trigger('click')
   await byLabel('Push date: Other').setValue('2099-05-06')
+  await byLabel('Push date: Other').trigger('keydown', { key: 'Enter' })
   await flushPromises()
   expect(due(other)).toBe('2099-05-06')
+  expect(app.find('[role="menu"]').exists()).toBe(false)
+})
+
+test('a date typed into Pick a date is saved only on Enter or Set, and only when it is complete', async () => {
+  const id = createRecord('task', 'Book room', { due: '2020-01-31' })
+  await flushPromises()
+  await byLabel('Push: Book room').trigger('click')
+  await menuItem('Pick a date').trigger('click')
+  const picker = byLabel('Push date: Book room')
+
+  // Typing fires change on every complete date; none of it is saved yet.
+  await picker.setValue('2099-05-06')
+  await flushPromises()
+  expect(due(id)).toBe('2020-01-31')
+  expect(app.find('[role="menu"]').exists()).toBe(true)
+
+  // A partly typed date reads as empty: Enter and Set leave the due date alone and the menu open.
+  await picker.setValue('')
+  await picker.trigger('keydown', { key: 'Enter' })
+  await byLabel('Set date: Book room').trigger('click')
+  await flushPromises()
+  expect(due(id)).toBe('2020-01-31')
+  expect(app.find('[role="menu"]').exists()).toBe(true)
+
+  await picker.setValue('2099-07-08')
+  await byLabel('Set date: Book room').trigger('click')
+  await flushPromises()
+  expect(due(id)).toBe('2099-07-08')
+  expect(app.find('[role="menu"]').exists()).toBe(false)
+})
+
+test('ArrowDown and ArrowUp move between the Push menu items, wrapping at the ends', async () => {
+  createRecord('task', 'Book room')
+  await flushPromises()
+  await byLabel('Push: Book room').trigger('click')
+  const focused = () => (document.activeElement as HTMLElement).textContent?.trim()
+  const key = (key: string) => app.get('[role="menu"]').trigger('keydown', { key })
+
+  expect(focused()).toBe('Tomorrow')
+  await key('ArrowDown')
+  expect(focused()).toBe('Next week')
+  await key('ArrowDown')
+  expect(focused()).toBe('Pick a date')
+  await key('ArrowDown')
+  expect(focused()).toBe('Tomorrow')
+  await key('ArrowUp')
+  expect(focused()).toBe('Pick a date')
+})
+
+test('the Push menu closes when focus moves out of it', async () => {
+  createRecord('task', 'Book room')
+  await flushPromises()
+  await byLabel('Push: Book room').trigger('click')
+
+  // Moving within the menu keeps it open.
+  await menuItem('Tomorrow').trigger('focusout', { relatedTarget: menuItem('Next week').element })
+  expect(app.find('[role="menu"]').exists()).toBe(true)
+
+  await menuItem('Tomorrow').trigger('focusout', { relatedTarget: app.get('[data-testid="home-search"]').element })
   expect(app.find('[role="menu"]').exists()).toBe(false)
 })
 

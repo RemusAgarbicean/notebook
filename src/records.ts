@@ -263,10 +263,13 @@ export function duplicateRecord(type: RecordType, id: number): number {
   })
 }
 
-/** The id of today's Journal entry of kind log (the earliest, if there are several), started now if there is none. */
-export const todaysLog = (): number =>
+/** The id of today's Journal entry of kind log (the earliest, if there are several), or null if there is none. Reactive like `rows`. */
+export const todaysLogId = (): number | null =>
   rows<{ id: number }>("select id from journal_entry where date = ? and kind = 'log' order by id limit 1", [today()])[0]
-    ?.id ?? createRecord('journal_entry', '', { kind: 'log' })
+    ?.id ?? null
+
+/** The id of today's Journal entry of kind log, started now if there is none. */
+export const todaysLog = (): number => todaysLogId() ?? createRecord('journal_entry', '', { kind: 'log' })
 
 /** Every Record (of the type `only`, if given) with an empty required field, by title, with the label of the first such field. No column says so: it follows from `RECORD_FIELDS`. */
 export function incompleteRecords(only?: RecordType): (Titled & { missing: string })[] {

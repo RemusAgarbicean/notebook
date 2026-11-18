@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { CircleAlert, Pin, Search } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
-import DueDate from './DueDate.vue'
 import HomeRows from './HomeRows.vue'
-import Push from './Push.vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
 import { pinnedRecords } from './pins'
@@ -11,15 +9,14 @@ import { shortcut } from './platform'
 import QuickTask from './QuickTask.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
-import { incompleteRecords, rows, textRows, updateRecord } from './records'
-import { LABEL } from './relation-slots'
+import { incompleteRecords, rows, textRows } from './records'
+import { FIRST_PROJECT_SQL, IN_PROJECT_SQL } from './relations'
+import TaskRow from './TaskRow.vue'
 import TodayStrip from './TodayStrip.vue'
 
 // The landing page: a search box that opens the palette, the Today strip, then the cards.
 type Row = { type: RecordType; id: number; title: string; grey?: string | null; right?: string | null }
 
-// "Task part of Project", by label id because the label can be renamed.
-const IN_PROJECT = `r.from_type = 'task' and r.label_id = ${LABEL.partOf} and r.to_type = 'project'`
 const LATEST = 8
 
 type Card = { key: string; title: string; type?: RecordType; icon?: Component; empty: string; rows: Row[] }
@@ -47,9 +44,7 @@ const cards = computed<Card[]>(() => [
     title: 'Open Tasks',
     empty: 'No open Tasks.',
     rows: rows<Row>(
-      `select 'task' as type, t.id, t.title, t.due as right,
-         (select p.title from relation r join project p on p.id = r.to_id
-          where ${IN_PROJECT} and r.from_id = t.id order by p.title collate nocase limit 1) as grey
+      `select 'task' as type, t.id, t.title, t.due as right, ${FIRST_PROJECT_SQL} as grey
        from task t where t.done = 0 order by t.due is null, t.due, t.title collate nocase, t.id`,
     ),
   },
@@ -94,7 +89,7 @@ const cards = computed<Card[]>(() => [
       `select 'project' as type, p.id, p.title, coalesce(o.n, 0) as open
        from project p left join (
          select r.to_id as id, count(*) as n from relation r join task t on t.id = r.from_id
-         where ${IN_PROJECT} and t.done = 0 group by r.to_id
+         where ${IN_PROJECT_SQL} and t.done = 0 group by r.to_id
        ) o on o.id = p.id
        where p.status = 'active' order by p.title collate nocase, p.id`,
     ).map((r) => ({ ...r, right: `${r.open} open ${r.open === 1 ? 'Task' : 'Tasks'}` })),
@@ -134,25 +129,14 @@ const cards = computed<Card[]>(() => [
             {{ c.title }}
           </h2>
           <HomeRows v-if="c.rows.length" v-slot="{ row: r }" :rows="c.rows">
-            <!-- A row, not one button, so the done box and Push are not nested inside a button. -->
-            <div v-if="c.key === 'task'" data-testid="home-task" class="flex h-7 items-center gap-2 rounded-md px-2 hover:bg-accent">
-              <input
-                type="checkbox"
-                :aria-label="`Done: ${r.title}`"
-                class="size-4 shrink-0"
-                @change="updateRecord('task', r.id, { done: ($event.target as HTMLInputElement).checked })"
-              />
-              <button
-                type="button"
-                class="flex min-w-0 flex-1 items-baseline gap-2 text-left"
-                @click="openRecord(r.type, r.id)"
-              >
-                <span class="truncate">{{ r.title }}</span>
-                <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
-                <DueDate :due="r.right" class="ml-auto shrink-0" />
-              </button>
-              <Push :id="r.id" :title="r.title" />
-            </div>
+            <TaskRow
+              v-if="c.key === 'task'"
+              :id="r.id"
+              data-testid="home-task"
+              :title="r.title"
+              :due="r.right"
+              :project="r.grey"
+            />
             <button
               v-else
               type="button"

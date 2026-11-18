@@ -193,12 +193,28 @@ test('ticking a done box in Due now marks the Task done, and it leaves Due now a
   createRecord('task', 'Call Anna', { due: today() })
   await flushPromises()
 
-  await inStrip('Done: Book room').setValue(true)
+  await inStrip('Done: Book room (Due now)').setValue(true)
   await flushPromises()
 
   expect(getRecord('task', id)?.done).toBeTruthy()
   expect(dueNow()).toEqual(['Call AnnaDue today'])
   expect(homeTasks()).toEqual(['Call AnnaDue today'])
+})
+
+test('the done box and Push in Due now are labelled apart from the same Task on the Open Tasks card', async () => {
+  createRecord('task', 'Book room', { due: today() })
+  await flushPromises()
+
+  const labels = app.findAll('[aria-label]').map((e) => e.attributes('aria-label'))
+  expect(labels.filter((l) => l?.endsWith('Book room') || l?.endsWith('Book room (Due now)')).sort()).toEqual([
+    'Done: Book room',
+    'Done: Book room (Due now)',
+    'Push: Book room',
+    'Push: Book room (Due now)',
+  ])
+  // The strip's own controls carry the "(Due now)" labels.
+  inStrip('Done: Book room (Due now)')
+  inStrip('Push: Book room (Due now)')
 })
 
 test("clicking a Due now row's title opens the Task", async () => {
@@ -210,7 +226,7 @@ test("clicking a Due now row's title opens the Task", async () => {
 })
 
 async function push(title: string, choice: string) {
-  await inStrip(`Push: ${title}`).trigger('click')
+  await inStrip(`Push: ${title} (Due now)`).trigger('click')
   await app.findAll('[role="menuitem"]').find((b) => b.text() === choice)!.trigger('click')
   await flushPromises()
 }
@@ -237,9 +253,10 @@ test('Push Pick a date in Due now saves the picked date', async () => {
   const id = createRecord('task', 'Late', { due: '2020-01-31' })
   await flushPromises()
 
-  await inStrip('Push: Late').trigger('click')
+  await inStrip('Push: Late (Due now)').trigger('click')
   await app.findAll('[role="menuitem"]').find((b) => b.text() === 'Pick a date')!.trigger('click')
-  await inStrip('Push date: Late').setValue('2099-05-06')
+  await inStrip('Push date: Late (Due now)').setValue('2099-05-06')
+  await inStrip('Push date: Late (Due now)').trigger('keydown', { key: 'Enter' })
   await flushPromises()
 
   expect(getRecord('task', id)?.due).toBe('2099-05-06')

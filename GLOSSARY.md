@@ -106,6 +106,7 @@ _Avoid_: Briefing, agenda
 
 **Today strip**:
 The act-now section at the top of Home: Due now, Journal, Ask.
+_Avoid_: Today panel, dashboard, agenda
 
 **Inbox**:
 Where unsorted thoughts wait until the user sorts each one into a new Record, adds it to an existing Record, or deletes it.

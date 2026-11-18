@@ -32,13 +32,3 @@ export function pushDate(choice: PushChoice, now = today()): string {
   date.setUTCDate(date.getUTCDate() + (choice === 'tomorrow' ? 1 : 7))
   return date.toISOString().slice(0, 10)
 }
-
-// A YYYY-MM-DD date as a day number, so two dates subtract to whole days whatever the time zone does in between.
-const dayNumber = (date: string) => Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10)) / 86_400_000
-
-/** Whole days from the local date of a `created_at` timestamp to today. */
-export const waitedDays = (createdAt: string, now = today()): number =>
-  dayNumber(now) - dayNumber(new Date(createdAt).toLocaleDateString('sv'))
-
-/** How long an Open question has waited, in words: "today", "1 day" or "N days". */
-export const waitedText = (days: number): string => (days === 0 ? 'today' : days === 1 ? '1 day' : `${days} days`)
