@@ -44,6 +44,18 @@ _Avoid_: Question, doubt
 Something the user needs to get done; it is either open or done.
 _Avoid_: To-do, action item
 
+**Recurring Task**:
+A Task with a repeat rule; ticking it off keeps it open and moves its due date to the next date in the rule.
+_Avoid_: Routine, habit, repeating to-do
+
+**Push**:
+Moving an open Task's due date later; on a Recurring Task it moves only the current occurrence.
+_Avoid_: Defer, reschedule, snooze (for Tasks)
+
+**Snooze**:
+Hiding an Open question from the daily view and the Review until a chosen date.
+_Avoid_: Defer, hide, mute
+
 **Journal entry**:
 A dated note, covering both meeting/1:1 notes and the daily learning log.
 _Avoid_: Meeting note, log, diary
@@ -85,6 +97,38 @@ _Avoid_: Shape, box
 **Edge**:
 A line connecting two Nodes on a Diagram; it is part of the drawing and never a Relation, even between linked Nodes.
 _Avoid_: Link, arrow, connector
+
+**Prep**:
+What the Notebook gathers for a meeting's Attendees: the Open questions to ask them, the open Tasks shared with them and their recent Journal entries.
+_Avoid_: Briefing, agenda
+
+## Capture
+
+**Inbox**:
+Where unsorted thoughts wait until the user sorts each one into a new Record, adds it to an existing Record, or deletes it.
+_Avoid_: Queue, scratchpad
+
+**Inbox item**:
+One line of captured text in the Inbox, possibly containing Mentions; it has no type and is not a Record until it is sorted.
+_Avoid_: Capture (as a noun), note, draft
+
+## Upkeep
+
+**Review**:
+A periodic pass over the Records that have gone Stale or Broken, acting on each one in place (answering, pushing, confirming, fixing) or skipping it until the next Review.
+_Avoid_: Audit, cleanup, health check
+
+**Stale**:
+Said of a Record that has waited too long for attention: an unanswered Open question, an overdue Task, an active Project with no open Tasks, a System, Process, Person or Team neither edited nor checked in months, or an old Inbox item.
+_Avoid_: Old, outdated, expired
+
+**Checked**:
+The date the user last confirmed in a Review that a Record is still accurate without editing it; it counts against staleness like an edit does.
+_Avoid_: Verified, reviewed, touched
+
+**Broken**:
+Said of a Record whose notes hold a Mention that matches no Record, or which has an empty required field.
+_Avoid_: Invalid, incomplete, orphan
 
 ## Storage
 
