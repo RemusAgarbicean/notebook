@@ -1,9 +1,9 @@
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import App from './App.vue'
-import { current, list } from './navigation'
+import { current, list, openRecord } from './navigation'
 import { closeNotebook } from './notebook'
-import { createRecord, listRecords, today, updateRecord } from './records'
+import { createRecord, getRecord, listRecords, today, updateRecord } from './records'
 import { LABEL } from './relation-slots'
 import { addRelation } from './relations'
 import { memoryFolder } from './storage-memory'
@@ -153,4 +153,105 @@ test('an empty Ask column says nothing is waiting for an answer', async () => {
 
   expect(app.findAll('[data-testid="today-ask-group"]')).toHaveLength(0)
   expect(get('today-ask-empty').text()).toBe('Nothing waiting for an answer.')
+})
+
+const dueNow = () => app.findAll('[data-testid="today-due"]').map((r) => r.text())
+
+test('Due now lists open overdue Tasks oldest first, then those due today, with their Project in grey', async () => {
+  const project = createRecord('project', 'ERP rollout')
+  const now = createRecord('task', 'Now', { due: today() })
+  createRecord('task', 'Late', { due: '2020-01-31' })
+  createRecord('task', 'Later still', { due: '2020-02-03' })
+  createRecord('task', 'Also now', { due: today() })
+  createRecord('task', 'Later', { due: '2099-01-01' })
+  createRecord('task', 'Undated')
+  createRecord('task', 'Late but done', { due: '2020-01-01', done: true })
+  addRelation({ type: 'task', id: now }, LABEL.partOf, { type: 'project', id: project })
+  await flushPromises()
+
+  expect(dueNow()).toEqual([
+    'LateOverdue 2020-01-31',
+    'Later stillOverdue 2020-02-03',
+    'Also nowDue today',
+    'NowERP rolloutDue today',
+  ])
+})
+
+test('an empty Due now says nothing is due today', async () => {
+  createRecord('task', 'Later', { due: '2099-01-01' })
+  await flushPromises()
+
+  expect(app.findAll('[data-testid="today-due"]')).toHaveLength(0)
+  expect(get('today-due-empty').text()).toBe('Nothing due today.')
+})
+
+const inStrip = (label: string) => get('today-strip').get(`[aria-label="${label}"]`)
+const homeTasks = () => app.findAll('[data-testid="home-task"]').map((r) => r.text())
+
+test('ticking a done box in Due now marks the Task done, and it leaves Due now and the Open Tasks card', async () => {
+  const id = createRecord('task', 'Book room', { due: today() })
+  createRecord('task', 'Call Anna', { due: today() })
+  await flushPromises()
+
+  await inStrip('Done: Book room').setValue(true)
+  await flushPromises()
+
+  expect(getRecord('task', id)?.done).toBeTruthy()
+  expect(dueNow()).toEqual(['Call AnnaDue today'])
+  expect(homeTasks()).toEqual(['Call AnnaDue today'])
+})
+
+test("clicking a Due now row's title opens the Task", async () => {
+  const id = createRecord('task', 'Book room', { due: today() })
+  await flushPromises()
+
+  await get('today-due').findAll('button').find((b) => b.text().startsWith('Book room'))!.trigger('click')
+  expect(current.value).toEqual({ type: 'task', id })
+})
+
+async function push(title: string, choice: string) {
+  await inStrip(`Push: ${title}`).trigger('click')
+  await app.findAll('[role="menuitem"]').find((b) => b.text() === choice)!.trigger('click')
+  await flushPromises()
+}
+
+test('Push Tomorrow and Next week move a Task in Due now from today, and it leaves Due now', async () => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 10, 21, 9, 0))
+  const late = createRecord('task', 'Late', { due: '2020-01-31' })
+  const now = createRecord('task', 'Now', { due: '2026-11-21' })
+  createRecord('task', 'Stay', { due: '2026-11-21' })
+  await flushPromises()
+  expect(app.findAll('[data-testid="today-push"]')).toHaveLength(3)
+
+  await push('Late', 'Tomorrow')
+  expect(getRecord('task', late)?.due).toBe('2026-11-22')
+  await push('Now', 'Next week')
+  expect(getRecord('task', now)?.due).toBe('2026-11-28')
+
+  expect(dueNow()).toEqual(['StayDue today'])
+  expect(homeTasks()).toEqual(['StayDue today', 'Late2026-11-22', 'Now2026-11-28'])
+})
+
+test('Push Pick a date in Due now saves the picked date', async () => {
+  const id = createRecord('task', 'Late', { due: '2020-01-31' })
+  await flushPromises()
+
+  await inStrip('Push: Late').trigger('click')
+  await app.findAll('[role="menuitem"]').find((b) => b.text() === 'Pick a date')!.trigger('click')
+  await inStrip('Push date: Late').setValue('2099-05-06')
+  await flushPromises()
+
+  expect(getRecord('task', id)?.due).toBe('2099-05-06')
+  expect(app.findAll('[data-testid="today-due"]')).toHaveLength(0)
+})
+
+test('a Task changed elsewhere shows in Due now on the way back to Home', async () => {
+  const id = createRecord('task', 'Book room', { due: '2099-01-01' })
+  openRecord('task', id)
+  await flushPromises()
+  updateRecord('task', id, { due: today() })
+
+  await goHome()
+  expect(dueNow()).toEqual(['Book roomDue today'])
 })

@@ -4,10 +4,26 @@ import { computed } from 'vue'
 import { waitedDays, waitedText } from './due'
 import { openRecord } from './navigation'
 import { recordType } from './record-types'
-import { createRecord, rows, today, todaysLog } from './records'
+import DueDate from './DueDate.vue'
+import Push from './Push.vue'
+import { createRecord, rows, today, todaysLog, updateRecord } from './records'
 import { LABEL } from './relation-slots'
 
 // The act-now section at the top of Home: Due now, Journal, Ask.
+
+// Open Tasks overdue or due today, oldest due date first, with the first Project each is part of (by label id).
+type Due = { id: number; title: string; due: string; project: string | null }
+const dueNow = computed(() =>
+  rows<Due>(
+    `select t.id, t.title, t.due,
+       (select p.title from relation r join project p on p.id = r.to_id
+        where r.from_type = 'task' and r.label_id = ${LABEL.partOf} and r.to_type = 'project' and r.from_id = t.id
+        order by p.title collate nocase limit 1) as project
+     from task t where t.done = 0 and t.due is not null and t.due <= ?
+     order by t.due, t.title collate nocase, t.id`,
+    [today()],
+  ),
+)
 
 const hasLog = computed(
   () => rows("select 1 from journal_entry where date = ? and kind = 'log' limit 1", [today()]).length > 0,
@@ -51,6 +67,35 @@ const action = 'flex h-8 items-center gap-2 rounded-md border px-3 text-sm font-
           <CalendarCheck class="size-4 text-muted-foreground" />
           Due now
         </h3>
+        <ul v-if="dueNow.length" class="flex max-h-72 flex-col overflow-y-auto">
+          <!-- A row, not one button, so the done box and Push are not nested inside a button. -->
+          <li
+            v-for="t in dueNow"
+            :key="t.id"
+            data-testid="today-due"
+            class="flex h-7 items-center gap-2 rounded-md px-2 hover:bg-accent"
+          >
+            <input
+              type="checkbox"
+              :aria-label="`Done: ${t.title}`"
+              class="size-4 shrink-0"
+              @change="updateRecord('task', t.id, { done: ($event.target as HTMLInputElement).checked })"
+            />
+            <button
+              type="button"
+              class="flex min-w-0 flex-1 items-baseline gap-2 text-left"
+              @click="openRecord('task', t.id)"
+            >
+              <span class="truncate">{{ t.title }}</span>
+              <span v-if="t.project" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{
+                t.project
+              }}</span>
+              <DueDate :due="t.due" class="ml-auto shrink-0" />
+            </button>
+            <Push :id="t.id" :title="t.title" data-testid="today-push" />
+          </li>
+        </ul>
+        <p v-else data-testid="today-due-empty" class="px-2 py-1 text-muted-foreground">Nothing due today.</p>
       </section>
 
       <section aria-labelledby="today-journal-title" :class="column">
