@@ -4,7 +4,7 @@ import App from '../App.vue'
 import { openRecord } from '../navigation'
 import { closeNotebook } from '../notebook'
 import { createRecord } from '../records'
-import { memoryFolder } from '../storage-memory'
+import { memoryFolder, memoryStorage } from '../storage-memory'
 
 // Drawing the PNG needs a real browser; here it is a stand-in, and the tests are about where the PNG goes.
 const png = new Blob(['png'], { type: 'image/png' })
@@ -22,7 +22,7 @@ beforeEach(async () => {
   }
   const folder = memoryFolder()
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
     attachTo: document.body,
   })
   await flushPromises()

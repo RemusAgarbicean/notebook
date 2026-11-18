@@ -1,5 +1,6 @@
-// Storage on the File System Access API (Chrome and Edge), with the picked
-// directory handle remembered in IndexedDB.
+// Storage on the File System Access API (Chrome and Edge), with the directory
+// handles of the Recent Notebooks remembered in IndexedDB.
+import { promote, recentFromStore, type Remembered } from './recent'
 import type { NotebookFolder, NotebookStorage } from './storage'
 
 const FILE = 'notebook.sqlite'
@@ -54,7 +55,23 @@ const openFolder = (dir: FileSystemDirectoryHandle): NotebookFolder => ({
   },
 })
 
-// One IndexedDB store holding one value: the last picked directory handle.
+// The handle behind each folder this storage handed out.
+const handleOf = new WeakMap<NotebookFolder, FileSystemDirectoryHandle>()
+
+function folderFor(dir: FileSystemDirectoryHandle): NotebookFolder {
+  const folder: NotebookFolder = {
+    ...openFolder(dir),
+    async isSame(other) {
+      const theirs = handleOf.get(other)
+      return !!theirs && dir.isSameEntry(theirs)
+    },
+  }
+  handleOf.set(folder, dir)
+  return folder
+}
+
+// One IndexedDB store, 'handles', holding the Recent Notebooks under 'recent'.
+// Before there was a list it held one handle under 'folder'.
 const request = <T>(r: IDBRequest<T>) =>
   new Promise<T>((resolve, reject) => {
     r.onsuccess = () => resolve(r.result)
@@ -67,35 +84,54 @@ async function handles(mode: IDBTransactionMode) {
   return (await request(open)).transaction('handles', mode).objectStore('handles')
 }
 
-const lastHandle = async (): Promise<FileSystemDirectoryHandle | undefined> => {
+type Recent = Remembered<FileSystemDirectoryHandle>[]
+const newId = () => crypto.randomUUID()
+
+async function loadRecent(): Promise<Recent> {
   try {
-    return await request((await handles('readonly')).get('folder'))
+    const store = await handles('readonly')
+    const [stored, legacy] = await Promise.all([request(store.get('recent')), request(store.get('folder'))])
+    return recentFromStore<FileSystemDirectoryHandle>(stored, legacy, newId)
   } catch {
-    return undefined // IndexedDB unavailable: the user just picks the folder again.
+    return [] // IndexedDB unavailable: the user just picks the folder again.
   }
+}
+
+async function saveRecent(list: Recent) {
+  const store = await handles('readwrite')
+  await request(store.put(list, 'recent'))
+  await request(store.delete('folder'))
 }
 
 export const fsaStorage: NotebookStorage = {
   async pick() {
     if (!window.showDirectoryPicker)
       throw new Error("This browser can't open folders. Use Chrome or Edge.")
-    let dir
     try {
-      dir = await window.showDirectoryPicker({ id: 'notebook', mode: 'readwrite' })
+      return folderFor(await window.showDirectoryPicker({ id: 'notebook', mode: 'readwrite' }))
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return null
       throw e
     }
-    // Not being able to remember the folder must not stop it from opening.
-    await handles('readwrite')
-      .then((store) => request(store.put(dir, 'folder')))
-      .catch(() => {})
-    return openFolder(dir)
   },
-  lastName: async () => (await lastHandle())?.name ?? null,
-  async reopen() {
-    const dir = await lastHandle()
+  recent: async () => (await loadRecent()).map((r) => ({ id: r.id, name: r.handle.name })),
+  async reopen(id) {
+    const dir = (await loadRecent()).find((r) => r.id === id)?.handle
     if (!dir) return null
-    return (await dir.requestPermission({ mode: 'readwrite' })) === 'granted' ? openFolder(dir) : null
+    return (await dir.requestPermission({ mode: 'readwrite' })) === 'granted' ? folderFor(dir) : null
+  },
+  async remember(folder) {
+    const dir = handleOf.get(folder)
+    if (!dir) return null
+    try {
+      const list = await promote(await loadRecent(), dir, (a, b) => a.isSameEntry(b), newId)
+      await saveRecent(list)
+      return list[0].id
+    } catch {
+      return null // Not being able to remember the folder must not stop it from opening.
+    }
+  },
+  async forget(id) {
+    await saveRecent((await loadRecent()).filter((r) => r.id !== id)).catch(() => {})
   },
 }

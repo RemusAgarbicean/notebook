@@ -1,35 +1,35 @@
 <script setup lang="ts">
 import { FilePlus, Folder, FolderOpen, NotebookText } from 'lucide-vue-next'
 import { onMounted, ref } from 'vue'
-import { openNotebook } from './notebook'
-import type { NotebookFolder, NotebookStorage } from './storage'
+import type { NotebookFolder, NotebookStorage, RecentNotebook } from './storage'
+import { openFrom, type OpenOutcome } from './switch-notebook'
 
 const props = defineProps<{ storage: NotebookStorage }>()
 
-const lastName = ref<string | null>(null)
-const error = ref('')
+const recent = ref<RecentNotebook[]>([])
+const problem = ref<OpenOutcome>({ error: '' })
 const busy = ref(false)
 
-onMounted(async () => (lastName.value = await props.storage.lastName()))
+const load = async () => (recent.value = await props.storage.recent())
+onMounted(load)
 
-// `refused` is what to say when no folder comes back; left out for the picker, where that means Cancel.
-async function open(getFolder: () => Promise<NotebookFolder | null>, create = false, refused = '') {
-  error.value = ''
-  try {
-    // Not busy yet: a file chooser that is cancelled may never answer, and the buttons must keep working.
+async function open(getFolder: () => Promise<NotebookFolder | null>, create = false, entry?: RecentNotebook) {
+  problem.value = { error: '' }
+  // Not busy while the chooser is open: one that is cancelled may never answer, and the buttons must keep working.
+  problem.value = await openFrom(props.storage, async () => {
     const folder = await getFolder()
     busy.value = true
-    if (!folder) error.value = refused
-    else if (!(await openNotebook(folder, create))) {
-      // Not reached on the fallback: a picked file always has bytes.
-      error.value = `Can't find it: there is no notebook.sqlite in the folder "${folder.name}".`
-      lastName.value = null
-    }
-  } catch (e) {
-    error.value = e instanceof Error ? e.message : String(e)
-  } finally {
-    busy.value = false
-  }
+    return folder
+  }, { create, recent: entry })
+  busy.value = false
+}
+
+const reopen = (entry: RecentNotebook) => open(() => props.storage.reopen(entry.id), false, entry)
+
+async function forget(id: string) {
+  await props.storage.forget(id)
+  if (problem.value.missing === id) problem.value = { error: '' }
+  await load()
 }
 
 const button =
@@ -53,13 +53,21 @@ const card = 'flex flex-col gap-3 rounded-lg border bg-card p-4 text-card-foregr
         </div>
       </header>
 
-      <p
-        v-if="error"
+      <div
+        v-if="problem.error"
         role="alert"
-        class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive"
+        class="flex flex-col items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive"
       >
-        {{ error }}
-      </p>
+        <p>{{ problem.error }}</p>
+        <button
+          v-if="problem.missing"
+          type="button"
+          class="rounded-md border border-destructive/40 px-2 py-0.5 text-xs font-medium hover:bg-destructive/10"
+          @click="forget(problem.missing)"
+        >
+          Remove from list
+        </button>
+      </div>
 
       <template v-if="storage.blank">
         <section class="text-muted-foreground">
@@ -93,25 +101,39 @@ const card = 'flex flex-col gap-3 rounded-lg border bg-card p-4 text-card-foregr
       <template v-else>
         <section :class="card">
           <h2 class="font-medium">Open your Notebook</h2>
-          <template v-if="lastName">
-            <p class="flex items-center gap-2 text-muted-foreground">
-              <Folder class="size-4 shrink-0" />
-              <span class="shrink-0">Last opened:</span>
-              <span class="truncate font-medium text-foreground" :title="lastName">{{ lastName }}</span>
-            </p>
-            <button
-              type="button"
-              :disabled="busy"
-              :class="primary"
-              @click="open(storage.reopen, false, 'The browser did not give permission to open the folder. Click Reopen and allow it, or pick the folder again.')"
-            >
-              Reopen
-            </button>
-          </template>
+          <ul v-if="recent.length" class="flex flex-col gap-2" aria-label="Recent Notebooks">
+            <li v-for="(entry, i) in recent" :key="entry.id" data-testid="recent" class="flex flex-col gap-1">
+              <p class="flex items-center gap-2 text-muted-foreground">
+                <Folder class="size-4 shrink-0" />
+                <span class="truncate font-medium text-foreground" :title="entry.name">{{ entry.name }}</span>
+              </p>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  :disabled="busy"
+                  :aria-label="`Reopen ${entry.name}`"
+                  :class="i === 0 ? primary : plain"
+                  @click="reopen(entry)"
+                >
+                  Reopen
+                </button>
+                <button
+                  type="button"
+                  :disabled="busy"
+                  :aria-label="`Remove ${entry.name} from the list`"
+                  :title="`Remove ${entry.name} from this list. The folder stays as it is.`"
+                  class="h-9 shrink-0 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                  @click="forget(entry.id)"
+                >
+                  Remove
+                </button>
+              </div>
+            </li>
+          </ul>
           <p class="text-muted-foreground">
-            {{ lastName ? 'Somewhere else? Pick' : 'Pick' }} the folder that holds your notebook.sqlite.
+            {{ recent.length ? 'Somewhere else? Pick' : 'Pick' }} the folder that holds your notebook.sqlite.
           </p>
-          <button type="button" :disabled="busy" :class="lastName ? plain : primary" @click="open(storage.pick)">
+          <button type="button" :disabled="busy" :class="recent.length ? plain : primary" @click="open(storage.pick)">
             <FolderOpen />
             Pick folder
           </button>

@@ -4,17 +4,13 @@ import App from './App.vue'
 import { db, markDirty, saveNow } from './notebook'
 import { shortcut } from './platform'
 import type { NotebookFolder, NotebookStorage } from './storage'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 beforeEach(() => (db.value = null))
 
 // A storage whose picker "picks" the given folder and which remembers `last`.
 const fakeStorage = (picked: NotebookFolder | null, last: NotebookFolder | null = null) =>
-  ({
-    pick: async () => picked,
-    lastName: async () => last?.name ?? null,
-    reopen: async () => last,
-  }) satisfies NotebookStorage
+  memoryStorage(picked, last ? [last] : [])
 
 const start = async (storage: NotebookStorage) => {
   const app = mount(App, { props: { storage } })
@@ -63,19 +59,24 @@ test('after a reload the start screen names the last folder and Reopen loads its
 
   const app = await start(fakeStorage(null, memoryFolder(folder.file, 'Work notes')))
   expect(app.text()).toContain('Work notes')
-  expect(buttons(app)).toEqual(['Reopen', 'Pick folder', 'Create new Notebook'])
+  expect(buttons(app)).toEqual(['Reopen', 'Remove', 'Pick folder', 'Create new Notebook'])
   await click(app, 'Reopen')
 
   expect(app.find('[data-testid="sidebar"]').exists()).toBe(true)
   expect(db.value!.exec('select title from team')[0].values).toEqual([['Procurement']])
 })
 
-test('"Can\'t find it" shows with Pick folder and Create new when notebook.sqlite is gone', async () => {
+test('"Can\'t find it" shows, with Remove from list, when notebook.sqlite is gone', async () => {
   const app = await start(fakeStorage(null, memoryFolder(null, 'Work notes')))
 
   await click(app, 'Reopen')
 
   expect(app.get('[role="alert"]').text()).toContain("Can't find it")
+  await app.get('[role="alert"] button').trigger('click')
+  await flushPromises()
+
+  expect(app.find('[role="alert"]').exists()).toBe(false)
+  expect(app.text()).not.toContain('Work notes')
   expect(buttons(app)).toEqual(['Pick folder', 'Create new Notebook'])
 })
 
@@ -145,16 +146,12 @@ test('the list and page columns sit next to the sidebar', async () => {
 })
 
 test('Reopen says so when the browser refuses permission', async () => {
-  const app = await start({
-    pick: async () => null,
-    lastName: async () => 'Work notes',
-    reopen: async () => null,
-  })
+  const app = await start({ ...fakeStorage(null, memoryFolder(null, 'Work notes')), reopen: async () => null })
 
   await click(app, 'Reopen')
 
   expect(app.get('[role="alert"]').text()).toContain('permission')
-  expect(buttons(app)).toEqual(['Reopen', 'Pick folder', 'Create new Notebook'])
+  expect(buttons(app)).toEqual(['Reopen', 'Remove', 'Pick folder', 'Create new Notebook'])
 })
 
 test('cancelling the folder picker shows no message', async () => {
@@ -173,4 +170,56 @@ test('the start screen stays usable while a file chooser that never answers is o
   await flushPromises()
 
   expect(app.findAll('button').map((b) => b.attributes('disabled'))).toEqual([undefined, undefined])
+})
+
+const recentRows = (app: Awaited<ReturnType<typeof start>>) =>
+  app.findAll('[data-testid="recent"]').map((r) => r.text().replace(/\s+/g, ' '))
+
+test('the start screen lists the Recent Notebooks, the most recent first and primary, each with Reopen and Remove', async () => {
+  const app = await start(memoryStorage(null, [memoryFolder(null, 'Work notes'), memoryFolder(null, 'Home notes')]))
+
+  expect(recentRows(app)).toEqual(['Work notes Reopen Remove', 'Home notes Reopen Remove'])
+  const reopens = app.findAll('[data-testid="recent"]').map((r) => r.get('button'))
+  expect(reopens[0].classes()).toContain('bg-primary')
+  expect(reopens[1].classes()).not.toContain('bg-primary')
+  expect(reopens[1].attributes('aria-label')).toBe('Reopen Home notes')
+  // With a list, picking is the second choice.
+  expect(app.findAll('button').find((b) => b.text() === 'Pick folder')!.classes()).not.toContain('bg-primary')
+})
+
+test("Remove takes a Notebook off the start screen's list, and the next one becomes primary", async () => {
+  const app = await start(memoryStorage(null, [memoryFolder(null, 'Work notes'), memoryFolder(null, 'Home notes')]))
+
+  await app.get('button[aria-label="Remove Work notes from the list"]').trigger('click')
+  await flushPromises()
+
+  expect(recentRows(app)).toEqual(['Home notes Reopen Remove'])
+  expect(app.get('[data-testid="recent"] button').classes()).toContain('bg-primary')
+})
+
+test('Reopen opens the Notebook of its own row', async () => {
+  const { folder } = await openApp()
+  db.value!.run("insert into team (title) values ('Procurement')")
+  markDirty()
+  await saveNow()
+  db.value = null
+
+  const app = await start(memoryStorage(null, [memoryFolder(null, 'Empty'), memoryFolder(folder.file, 'Work notes')]))
+  await app.get('button[aria-label="Reopen Work notes"]').trigger('click')
+  await expect.poll(() => app.find('[data-testid="sidebar"]').exists()).toBe(true)
+
+  expect(db.value!.exec('select title from team')[0].values).toEqual([['Procurement']])
+})
+
+test('a Notebook opened from the start screen is at the top of the list next time', async () => {
+  const { folder } = await openApp()
+  db.value = null
+  const storage = memoryStorage(memoryFolder(folder.file, 'Picked'), [memoryFolder(null, 'Older')])
+  let app = await start(storage)
+  await click(app, 'Pick folder')
+  app.unmount()
+  db.value = null
+
+  app = await start(storage)
+  expect(recentRows(app)).toEqual(['Picked Reopen Remove', 'Older Reopen Remove'])
 })

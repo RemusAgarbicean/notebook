@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { House, NotebookText, Search, Tag } from 'lucide-vue-next'
+import { House, Search, Tag } from 'lucide-vue-next'
 import { computed } from 'vue'
 import BackupsDialog from './BackupsDialog.vue'
 import CommandPalette from './CommandPalette.vue'
@@ -9,6 +9,7 @@ import Home from './Home.vue'
 import LabelsSettings from './LabelsSettings.vue'
 import { current, list } from './navigation'
 import { db } from './notebook'
+import NotebookSwitcher from './NotebookSwitcher.vue'
 import { paletteOpen } from './palette'
 import { shortcut } from './platform'
 import RecordList from './RecordList.vue'
@@ -18,6 +19,7 @@ import { listTags, recordCounts } from './records'
 import DownloadNotebook from './DownloadNotebook.vue'
 import { saveStatusLabel } from './save-status'
 import StartScreen from './StartScreen.vue'
+import { notebookGeneration } from './switch-notebook'
 import type { NotebookStorage } from './storage'
 import { downloadStorage } from './storage-download'
 import { fsaStorage } from './storage-fsa'
@@ -52,7 +54,8 @@ const item =
 <template>
   <OtherTabScreen v-if="tabLock.blocked.value" />
   <StartScreen v-else-if="!db" :storage="storage" />
-  <div v-else class="flex h-screen">
+  <!-- Keyed: what was open in the last Notebook (dialogs, menus) does not carry over to the next. -->
+  <div v-else :key="notebookGeneration" class="flex h-screen">
     <SaveGuards />
     <CommandPalette />
     <UndoDelete />
@@ -60,10 +63,7 @@ const item =
       data-testid="sidebar"
       class="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
     >
-      <div class="flex h-12 items-center gap-2 px-4 font-semibold">
-        <NotebookText class="size-4" />
-        Notebook
-      </div>
+      <NotebookSwitcher :storage="storage" />
 
       <nav class="flex-1 overflow-y-auto px-2 pb-2">
         <button

@@ -77,6 +77,12 @@ export async function openNotebook(target: NotebookFolder, create = false): Prom
 /** The name of the open Notebook's folder (or file), null on the start screen. */
 export const notebookName = () => folder?.name ?? null
 
+/** Whether `target` is the folder (or file) of the open Notebook. */
+export async function isOpen(target: NotebookFolder): Promise<boolean> {
+  if (!folder) return false
+  return folder === target || ((await folder.isSame?.(target)) ?? false)
+}
+
 /** Closes the open Notebook without saving, back to the start screen. */
 export function closeNotebook() {
   clearTimeout(timer)

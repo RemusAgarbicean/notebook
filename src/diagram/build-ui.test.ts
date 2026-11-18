@@ -5,7 +5,7 @@ import App from '../App.vue'
 import { current, openRecord } from '../navigation'
 import { closeNotebook } from '../notebook'
 import { createRecord, getRecord, listRecords, updateRecord } from '../records'
-import { memoryFolder } from '../storage-memory'
+import { memoryFolder, memoryStorage } from '../storage-memory'
 import { parseCanvas } from './canvas'
 
 // Building a Diagram: undo, the quick ways to add Nodes, shapes, Edge options, Frames and arranging.
@@ -17,7 +17,7 @@ beforeEach(async () => {
   closeNotebook()
   const folder = memoryFolder()
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
     attachTo: document.body,
   })
   await flushPromises()

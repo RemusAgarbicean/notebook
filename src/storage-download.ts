@@ -38,7 +38,10 @@ export const downloadStorage: NotebookStorage = {
       input.oncancel = () => resolve(null)
       input.click()
     }),
-  lastName: async () => null,
+  // A file input leaves nothing to come back to.
+  recent: async () => [],
   reopen: async () => null,
+  remember: async () => null,
+  forget: async () => {},
   blank: () => downloadFolder(null),
 }
