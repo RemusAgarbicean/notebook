@@ -6,7 +6,7 @@ import { closeNotebook } from './notebook'
 import { createRecord, getRecord, listRecords, today, updateRecord } from './records'
 import { LABEL } from './relation-slots'
 import { addRelation } from './relations'
-import { memoryFolder } from './storage-memory'
+import { memoryFolder, memoryStorage } from './storage-memory'
 
 let app: VueWrapper
 
@@ -14,7 +14,7 @@ beforeEach(async () => {
   closeNotebook()
   const folder = memoryFolder()
   app = mount(App, {
-    props: { storage: { pick: async () => folder, lastName: async () => null, reopen: async () => null } },
+    props: { storage: memoryStorage(async () => folder) },
     attachTo: document.body,
   })
   await flushPromises()
