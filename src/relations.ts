@@ -164,6 +164,13 @@ const inSlot = (slot: RelationSlot, e: RelationEntry) =>
   e.labelId === slot.labelId && e.forward === (slot.end === 'from') && slot.offers.includes(e.other.type)
 
 /** Seen from a Project: a Task that is part of it. These show in the Project's Tasks checklist. */
+/** SQL: the Relation aliased `r` reads "Task part of Project", by label id because the label can be renamed. */
+export const IN_PROJECT_SQL = `r.from_type = 'task' and r.label_id = ${LABEL.partOf} and r.to_type = 'project'`
+
+/** SQL: the title of the first Project, by title, that the Task aliased `t` is part of; null when it is in none. */
+export const FIRST_PROJECT_SQL = `(select p.title from relation r join project p on p.id = r.to_id
+  where ${IN_PROJECT_SQL} and r.from_id = t.id order by p.title collate nocase limit 1)`
+
 export const isProjectTask = (e: RelationEntry) =>
   e.labelId === LABEL.partOf && !e.forward && e.other.type === 'task'
 

@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { CircleAlert, NotebookPen, Pin, Search } from 'lucide-vue-next'
+import { CircleAlert, Pin, Search } from 'lucide-vue-next'
 import { computed, type Component } from 'vue'
-import DueDate from './DueDate.vue'
 import HomeRows from './HomeRows.vue'
 import { openRecord } from './navigation'
 import { paletteOpen } from './palette'
@@ -10,14 +9,14 @@ import { shortcut } from './platform'
 import QuickTask from './QuickTask.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, recordType, type RecordType } from './record-types'
-import { incompleteRecords, rows, textRows, todaysLog } from './records'
-import { LABEL } from './relation-slots'
+import { incompleteRecords, rows, textRows } from './records'
+import { FIRST_PROJECT_SQL, IN_PROJECT_SQL } from './relations'
+import TaskRow from './TaskRow.vue'
+import TodayStrip from './TodayStrip.vue'
 
-// The landing page: a search box that opens the palette, then the cards.
+// The landing page: a search box that opens the palette, the Today strip, then the cards.
 type Row = { type: RecordType; id: number; title: string; grey?: string | null; right?: string | null }
 
-// "Task part of Project", by label id because the label can be renamed.
-const IN_PROJECT = `r.from_type = 'task' and r.label_id = ${LABEL.partOf} and r.to_type = 'project'`
 const LATEST = 8
 
 type Card = { key: string; title: string; type?: RecordType; icon?: Component; empty: string; rows: Row[] }
@@ -45,9 +44,7 @@ const cards = computed<Card[]>(() => [
     title: 'Open Tasks',
     empty: 'No open Tasks.',
     rows: rows<Row>(
-      `select 'task' as type, t.id, t.title, t.due as right,
-         (select p.title from relation r join project p on p.id = r.to_id
-          where ${IN_PROJECT} and r.from_id = t.id order by p.title collate nocase limit 1) as grey
+      `select 'task' as type, t.id, t.title, t.due as right, ${FIRST_PROJECT_SQL} as grey
        from task t where t.done = 0 order by t.due is null, t.due, t.title collate nocase, t.id`,
     ),
   },
@@ -92,7 +89,7 @@ const cards = computed<Card[]>(() => [
       `select 'project' as type, p.id, p.title, coalesce(o.n, 0) as open
        from project p left join (
          select r.to_id as id, count(*) as n from relation r join task t on t.id = r.from_id
-         where ${IN_PROJECT} and t.done = 0 group by r.to_id
+         where ${IN_PROJECT_SQL} and t.done = 0 group by r.to_id
        ) o on o.id = p.id
        where p.status = 'active' order by p.title collate nocase, p.id`,
     ).map((r) => ({ ...r, right: `${r.open} open ${r.open === 1 ? 'Task' : 'Tasks'}` })),
@@ -114,6 +111,8 @@ const cards = computed<Card[]>(() => [
         <kbd class="rounded border px-1.5 font-sans text-xs">{{ shortcut('K') }}</kbd>
       </button>
 
+      <TodayStrip />
+
       <div class="grid gap-4 md:grid-cols-2">
         <section
           v-for="c in cards"
@@ -128,20 +127,18 @@ const cards = computed<Card[]>(() => [
               class="size-4 text-muted-foreground"
             />
             {{ c.title }}
-            <button
-              v-if="c.key === 'journal_entry'"
-              type="button"
-              data-testid="todays-log"
-              title="Open today's Journal entry of kind log, or start it"
-              class="ml-auto flex h-7 items-center gap-1 rounded-md border px-2 text-xs font-medium hover:bg-accent"
-              @click="openRecord('journal_entry', todaysLog())"
-            >
-              <NotebookPen class="size-3.5" />
-              Today's log
-            </button>
           </h2>
           <HomeRows v-if="c.rows.length" v-slot="{ row: r }" :rows="c.rows">
+            <TaskRow
+              v-if="c.key === 'task'"
+              :id="r.id"
+              data-testid="home-task"
+              :title="r.title"
+              :due="r.right"
+              :project="r.grey"
+            />
             <button
+              v-else
               type="button"
               :data-testid="`home-${c.key}`"
               class="flex w-full items-baseline gap-2 rounded-md px-2 py-1 text-left hover:bg-accent"
@@ -150,8 +147,7 @@ const cards = computed<Card[]>(() => [
               <span class="truncate">{{ r.title }}</span>
               <!-- No base width: the title keeps its room and the grey text gets what is left. -->
               <span v-if="r.grey" class="w-0 min-w-8 flex-1 truncate text-xs text-muted-foreground">{{ r.grey }}</span>
-              <DueDate v-if="c.key === 'task'" :due="r.right" class="ml-auto shrink-0" />
-              <span v-else-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
+              <span v-if="r.right" class="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">{{ r.right }}</span>
             </button>
           </HomeRows>
           <p v-else class="px-2 py-1 text-muted-foreground">{{ c.empty }}</p>

@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest'
-import { dueState, dueText, parseQuickTask } from './due'
+import { dueState, dueText, parseQuickTask, pushDate } from './due'
 
 const NOW = '2026-11-11'
 
@@ -33,4 +33,18 @@ test('a last word that is no real date, or a date alone, stays in the title', ()
   expect(parseQuickTask('Close 2026-13-45')).toEqual({ title: 'Close 2026-13-45', due: null })
   expect(parseQuickTask('2026-11-20')).toEqual({ title: '2026-11-20', due: null })
   expect(parseQuickTask('')).toEqual({ title: '', due: null })
+})
+
+test('Push counts from today: Tomorrow is the next day, Next week is 7 days on', () => {
+  expect(pushDate('tomorrow', NOW)).toBe('2026-11-12')
+  expect(pushDate('next-week', NOW)).toBe('2026-11-18')
+})
+
+test('Push rolls over month and year ends and the end of February', () => {
+  expect(pushDate('tomorrow', '2026-11-30')).toBe('2026-12-01')
+  expect(pushDate('tomorrow', '2026-12-31')).toBe('2027-01-01')
+  expect(pushDate('next-week', '2026-12-28')).toBe('2027-01-04')
+  expect(pushDate('tomorrow', '2028-02-28')).toBe('2028-02-29')
+  expect(pushDate('tomorrow', '2027-02-28')).toBe('2027-03-01')
+  expect(pushDate('next-week', '2028-02-25')).toBe('2028-03-03')
 })

@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import DueDate from './DueDate.vue'
-import { openRecord } from './navigation'
 import type { RecordType } from './record-types'
-import { createRecord, listRecords, transaction, updateRecord } from './records'
+import { createRecord, listRecords, transaction } from './records'
 import { LABEL } from './relation-slots'
 import { addRelation, isProjectTask, recordRelations } from './relations'
+import TaskRow from './TaskRow.vue'
 
 // The Tasks checklist of a Project page, with the "+ Task" box.
 const props = defineProps<{ type: RecordType; id: number; record?: unknown }>()
@@ -32,23 +31,8 @@ function add() {
   <section data-testid="project-tasks" class="flex flex-col">
     <h2 class="flex h-8 items-center text-xs font-medium text-muted-foreground">Tasks</h2>
     <ul>
-      <li v-for="t in tasks" :key="t.id" data-testid="project-task" class="flex min-h-8 items-center gap-2 px-2">
-        <input
-          type="checkbox"
-          :checked="!!t.done"
-          :aria-label="`Done: ${t.title}`"
-          class="size-4 shrink-0"
-          @change="updateRecord('task', t.id as number, { done: ($event.target as HTMLInputElement).checked })"
-        />
-        <button
-          type="button"
-          class="min-w-0 flex-1 truncate rounded-md px-1 text-left hover:bg-accent"
-          :class="{ 'text-muted-foreground line-through': t.done }"
-          @click="openRecord('task', t.id as number)"
-        >
-          {{ t.title }}
-        </button>
-        <DueDate :due="t.due" :done="t.done" class="shrink-0" />
+      <li v-for="t in tasks" :key="t.id">
+        <TaskRow :id="t.id as number" data-testid="project-task" :title="String(t.title)" :due="t.due" :done="t.done" />
       </li>
     </ul>
     <form class="px-2 pt-1" @submit.prevent="add">
