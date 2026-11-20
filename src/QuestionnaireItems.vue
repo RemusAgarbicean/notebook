@@ -4,6 +4,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { vFocus } from './dialog'
 import ItemAnswer from './ItemAnswer.vue'
 import ItemEditor from './ItemEditor.vue'
+import QuestionnaireExport from './QuestionnaireExport.vue'
 import QuestionPicker from './QuestionPicker.vue'
 import SaveItemsAsSet from './SaveItemsAsSet.vue'
 import { isAnswered, listItems, moveItem, progress, progressText, removeItem, restoreItem, type Item, type RemovedItem } from './questionnaires'
@@ -94,6 +95,7 @@ const button =
           <Plus class="size-3.5" />
           Add from bank
         </button>
+        <QuestionnaireExport :id="id" />
       </div>
     </header>
     <div

@@ -215,3 +215,75 @@
     break-inside: avoid;
   }
 }
+
+/*
+ * A Questionnaire's print view (Export > Print / Save as PDF): put into the page only while printing,
+ * never seen on screen, and on paper it is all there is: the app goes.
+ */
+.questionnaire-print {
+  display: none;
+}
+@media print {
+  body:has(> .questionnaire-print) > :not(.questionnaire-print) {
+    display: none !important;
+  }
+  .questionnaire-print {
+    display: block;
+    color: #000;
+    background: #fff;
+    font-size: 11pt;
+    line-height: 1.4;
+  }
+  .questionnaire-print h1 {
+    font-size: 18pt;
+    font-weight: 600;
+  }
+  .questionnaire-print .print-facts {
+    margin: 0.5rem 0 1rem;
+  }
+  .questionnaire-print .print-facts div {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .questionnaire-print dt {
+    min-width: 7rem;
+    font-weight: 600;
+  }
+  .questionnaire-print h2 {
+    margin-top: 1.25rem;
+    border-bottom: 1px solid #999;
+    font-size: 12pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    break-after: avoid;
+  }
+  .questionnaire-print .print-item {
+    margin-top: 0.75rem;
+    break-inside: avoid;
+  }
+  .questionnaire-print .print-question {
+    font-weight: 600;
+  }
+  .questionnaire-print .print-help {
+    color: #444;
+    font-size: 9.5pt;
+    font-style: italic;
+  }
+  .questionnaire-print .print-boxes {
+    margin: 0.25rem 0 0 1rem;
+    list-style: none;
+  }
+  .questionnaire-print .print-line {
+    min-height: 1.8em;
+    border-bottom: 1px solid #000;
+    text-align: right;
+  }
+  .questionnaire-print .print-answer {
+    margin: 0.25rem 0 0 1rem;
+  }
+  .questionnaire-print img {
+    max-width: 100%;
+    max-height: 20rem;
+  }
+}
