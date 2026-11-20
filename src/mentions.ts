@@ -54,24 +54,53 @@ function rewrite(text: string, target: RecordRef | null, newTitle: string): stri
   })
 }
 
-// Every markdown text that holds a Mention: all notes, and an Open question's answer.
-const mentionTexts = () =>
-  RECORD_TYPES.flatMap(({ type }) =>
-    ['notes', ...RECORD_FIELDS[type].fields.filter((f) => f.kind === 'markdown').map((f) => f.name)].flatMap(
-      (column) =>
-        rows<{ id: number; title: string; text: string }>(
-          `select id, title, ${column} as text from ${type} where ${column} like '%[[%' order by id`,
-        ).map((row) => ({ ...row, type, column })),
+// Every markdown text that holds a Mention: all notes, an Open question's answer, and the text and comment
+// in a Questionnaire's answers. Each comes with how to write it back.
+type MentionText = { type: RecordType; id: number; title: string; text: string; write: (next: string) => void }
+const mentionTexts = (): MentionText[] => [
+  ...RECORD_TYPES.flatMap(({ type }) =>
+    ['notes', ...RECORD_FIELDS[type].fields.filter((f) => f.kind === 'markdown').map((f) => f.name)].flatMap((column) =>
+      rows<{ id: number; title: string; text: string }>(
+        `select id, title, ${column} as text from ${type} where ${column} like '%[[%' order by id`,
+      ).map((row) => ({
+        ...row,
+        type,
+        write: (next: string) => db.value!.run(`update ${type} set ${column} = ? where id = ?`, [next, row.id]),
+      })),
     ),
-  )
+  ),
+  ...answerTexts(),
+]
+
+// The answers are JSON: the texts in them are read and written field by field, never as raw JSON.
+const ANSWER_TEXTS = ['text', 'comment'] as const
+const answerTexts = (): MentionText[] =>
+  rows<{ item: number; id: number; title: string; answer: string }>(
+    `select i.id as item, q.id, q.title, i.answer from questionnaire_item i join questionnaire q on q.id = i.questionnaire_id
+     where i.answer like '%[[%' order by q.id, i.position`,
+  ).flatMap((row) => {
+    const answer = JSON.parse(row.answer) as Record<string, unknown>
+    return ANSWER_TEXTS.filter((key) => typeof answer[key] === 'string').map((key) => ({
+      type: 'questionnaire' as RecordType,
+      id: row.id,
+      title: row.title,
+      text: answer[key] as string,
+      write: (next: string) => {
+        // Re-read: the other text of the same answer may have been rewritten already.
+        const [now] = rows<{ answer: string }>('select answer from questionnaire_item where id = ?', [row.item])
+        const value = { ...JSON.parse(now.answer), [key]: next }
+        db.value!.run('update questionnaire_item set answer = ? where id = ?', [JSON.stringify(value), row.item])
+      },
+    }))
+  })
 
 // Returns whether any text changed.
 function retitle(target: RecordRef | null, newTitle: string): boolean {
   let rewrote = false
-  for (const { type, id, column, text } of mentionTexts()) {
+  for (const { text, write } of mentionTexts()) {
     const next = rewrite(text, target, newTitle)
     if (next === text) continue
-    db.value!.run(`update ${type} set ${column} = ? where id = ?`, [next, id])
+    write(next)
     rewrote = true
   }
   return rewrote
@@ -98,7 +127,7 @@ export function keepMentions(title: string): boolean {
 // kept until the next write, so opening pages reads the notes once, not once per page.
 let mentions: { db: unknown; revision: number; text: number; to: Map<string, Titled[]> } | undefined
 
-/** The other Records whose notes or answer Mention this one. Reactive, but not on text edits: a Record's own text never changes what it is mentioned in. */
+/** The other Records whose notes or answers Mention this one. Reactive, but not on text edits: a Record's own text never changes what it is mentioned in. */
 export function mentionedIn(target: RecordRef): Titled[] {
   if (mentions?.db !== db.value || mentions.revision !== revision.value || mentions.text !== textVersion()) {
     const to = new Map<string, Titled[]>()

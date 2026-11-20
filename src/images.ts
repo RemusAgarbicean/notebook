@@ -123,15 +123,21 @@ export function imageTotals(): { count: number; bytes: number } {
 
 // ---- Lifecycle
 
-// Every markdown text that may hold an Image reference: all notes, and an Open question's answer.
-const referencingTexts = (d: Database) =>
-  RECORD_TYPES.flatMap(({ type }) =>
+// Every markdown text that may hold an Image reference: all notes, an Open question's answer,
+// and a Questionnaire's answers (their JSON is read as text: a reference shows in it as it is written).
+const referencingTexts = (d: Database) => [
+  ...RECORD_TYPES.flatMap(({ type }) =>
     ['notes', ...RECORD_FIELDS[type].fields.filter((f) => f.kind === 'markdown').map((f) => f.name)].flatMap((column) =>
       read<{ id: number; text: string }>(d, `select id, ${column} as text from ${type} where ${column} like '%image:%' order by id`).map(
         (row) => ({ type: type as RecordType, id: row.id, text: row.text }),
       ),
     ),
-  )
+  ),
+  ...read<{ id: number; text: string }>(
+    d,
+    "select questionnaire_id as id, answer as text from questionnaire_item where answer like '%image:%' order by questionnaire_id, position",
+  ).map((row) => ({ type: 'questionnaire' as RecordType, id: row.id, text: row.text })),
+]
 
 // For each referenced Image, the Records whose text refers to it.
 function referrers(d: Database): Map<number, RecordRef[]> {

@@ -14,10 +14,11 @@ import RelationsSection from './RelationsSection.vue'
 /**
  * A part of the Record page added by a feature. The component gets the props
  * `type`, `id` and `record`. `fields` sections sit with the fixed fields
- * (Relation slots); `below` sections follow the notes (Relations, Mentioned in).
+ * (Relation slots); `main` sections take the page's width between the fields and
+ * the notes (a Questionnaire's Items); `below` sections follow the notes (Relations, Mentioned in).
  */
 export type PageSection = {
-  slot: 'fields' | 'below'
+  slot: 'fields' | 'main' | 'below'
   component: Component
   /** Only on these types' pages; on every page when left out. */
   types?: readonly RecordType[]
@@ -29,7 +30,7 @@ export type PageSection = {
 export const PAGE_SECTIONS: PageSection[] = [
   { slot: 'fields', component: RelationSlots, types: [...new Set(RELATION_SLOTS.map((s) => s.type))] },
   { slot: 'fields', component: AnswerFlow, types: ['open_question'] },
-  { slot: 'fields', component: QuestionnaireItems, types: ['questionnaire'] },
+  { slot: 'main', component: QuestionnaireItems, types: ['questionnaire'] },
   { slot: 'below', component: ProjectTasks, types: ['project'] },
   {
     slot: 'below',

@@ -30,7 +30,8 @@ import { RECORD_FIELDS } from './record-fields'
 
 // A markdown textarea with a rendered view, used for notes and an Open question's answer.
 // `owner` is the Record the text belongs to: the Images added here are its Images.
-const props = defineProps<{ modelValue: string; label: string; owner: RecordRef }>()
+// `compact` (an answer on a Questionnaire): the label is only for screen readers, and the textarea starts small.
+const props = defineProps<{ modelValue: string; label: string; owner: RecordRef; compact?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 // Empty text, or a template nobody filled in yet, opens ready to type; existing text opens rendered.
@@ -222,8 +223,8 @@ function onKeydown(e: KeyboardEvent) {
 
 <template>
   <section class="min-w-0">
-    <div class="flex h-8 items-center justify-between">
-      <h2 class="text-xs font-medium text-muted-foreground">{{ label }}</h2>
+    <div class="flex items-center justify-between" :class="compact ? 'h-6' : 'h-8'">
+      <h2 :class="compact ? 'sr-only' : 'text-xs font-medium text-muted-foreground'">{{ label }}</h2>
       <button
         ref="toggler"
         type="button"
@@ -250,9 +251,10 @@ function onKeydown(e: KeyboardEvent) {
         ref="area"
         :value="modelValue"
         :aria-label="label"
-        rows="8"
+        :rows="compact ? 3 : 8"
         placeholder="Markdown. Type [[ to mention a Record. Paste or drop an image to add it."
-        class="block max-h-[70vh] min-h-40 w-full rounded-md border bg-background p-2 font-mono [field-sizing:content]"
+        :class="compact ? 'min-h-20' : 'min-h-40'"
+        class="block max-h-[70vh] w-full rounded-md border bg-background p-2 font-mono [field-sizing:content]"
         @input="onInput"
         @keydown="onKeydown"
         @paste="onPaste"
