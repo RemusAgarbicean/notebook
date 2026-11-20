@@ -14,6 +14,7 @@ import {
   type Question,
 } from './questionnaires'
 import QuestionEditor from './QuestionEditor.vue'
+import QuestionImportDialog from './QuestionImportDialog.vue'
 
 // The Question bank dialog's Questions tab: every Question grouped by category, with search and a category
 // filter, the editor for one Question, delete, and category rename.
@@ -88,7 +89,7 @@ const icon = 'rounded-md p-1 text-muted-foreground hover:bg-background hover:tex
         <Plus class="size-4" />
         New question
       </button>
-      <!-- Import… (Q4) goes here, next to New question. -->
+      <QuestionImportDialog />
     </div>
 
     <QuestionEditor
