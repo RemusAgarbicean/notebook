@@ -158,3 +158,7 @@ A new Record type, **Questionnaire**, holds an ordered list of **Items**. Each I
 
 - Constraints hold: single user, local-first, one HTML file, SQLite in a Notebook folder, no server, no AI calls.
 - The tickets are in `.scratch/specs/questionnaires-tickets/`.
+
+## Addendum (2026-11-20): Images and Mentions in answers
+
+At the user's request, answers support Images (pasted, dropped or picked screenshots), as Record notes do. The long-text answer and the Yes/No comment use the notes' markdown editor and viewer. Images are owned by the Questionnaire. The image collector counts answer text as references, so the Images are kept. Delete/Undo and removing an Item/Undo keep their Images. Mentions in answers are rewritten on rename and count in "Mentioned in". Export: print shows the Images; Markdown and email text use a placeholder. This is part of Q2, and Q5 handles it in export.
