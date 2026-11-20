@@ -95,6 +95,8 @@ type ItemRow = WordingRow & {
   section: string
   answer: string | null
   follow_up_id: number | null
+  /** 1 once a text Item took its follow-up's answer. */
+  follow_up_taken: number
 }
 
 const WORDING_COLUMNS = ['text', 'help', 'answer_type', 'options', 'allow_other', 'unit', 'scale_low', 'scale_high'] as const
@@ -641,7 +643,7 @@ export function followUp(itemId: number): number {
   const id = transaction(() => {
     const asked = createRecord('open_question', item.text, { notes: [`From [[${title}]]`, item.help].filter(Boolean).join('\n\n') })
     for (const person of slotRecords(respondents, item.questionnaireId)) addRelation(person, LABEL.askAbout, { type: 'open_question', id: asked })
-    run('update questionnaire_item set follow_up_id = ? where id = ?', [asked, itemId])
+    run('update questionnaire_item set follow_up_id = ?, follow_up_taken = 0 where id = ?', [asked, itemId])
     touch(item.questionnaireId)
     return asked
   })
@@ -650,7 +652,7 @@ export function followUp(itemId: number): number {
 }
 
 /**
- * Copies an answered follow-up's answer into a text Item that is still unanswered, and says whether it did.
+ * Copies an answered follow-up's answer into a text Item that is still unanswered, once, and says whether it did.
  * Call it when the Item shows; other types only show the answer as a hint.
  */
 export function takeFollowUpAnswer(itemId: number): boolean {
@@ -658,7 +660,12 @@ export function takeFollowUpAnswer(itemId: number): boolean {
   if (!item || (item.answerType !== 'short_text' && item.answerType !== 'long_text') || isAnswered(item.answer)) return false
   const asked = followUpOf(item)
   if (asked?.status !== 'answered' || !asked.answer?.trim()) return false
-  setAnswer(itemId, { text: asked.answer })
+  if (rows<{ follow_up_taken: number }>('select follow_up_taken from questionnaire_item where id = ?', [itemId])[0].follow_up_taken)
+    return false
+  transaction(() => {
+    run('update questionnaire_item set follow_up_taken = 1 where id = ?', [itemId])
+    setAnswer(itemId, { text: asked.answer! })
+  })
   return true
 }
 

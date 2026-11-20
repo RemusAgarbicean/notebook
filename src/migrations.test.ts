@@ -11,8 +11,8 @@ test('migrating an empty database creates every table, seeds the 9 labels and se
 
   expect(migrate(db)).toBe(true)
 
-  expect(db.exec('pragma user_version')[0].values).toEqual([[3]])
-  expect(schemaVersion(db)).toBe(3)
+  expect(db.exec('pragma user_version')[0].values).toEqual([[4]])
+  expect(schemaVersion(db)).toBe(4)
   const tables = db.exec("select name from sqlite_master where type = 'table' order by name")
   expect(tables[0].values.flat()).toEqual([
     'acronym',
@@ -112,7 +112,7 @@ test('a version-1 Notebook upgrades to hold Images, with its data intact', async
 
   expect(migrate(db)).toBe(true)
 
-  expect(schemaVersion(db)).toBe(3)
+  expect(schemaVersion(db)).toBe(4)
   expect(db.exec('select title, notes from system')[0].values).toEqual([['Coupa', 'Where POs live']])
   expect(db.exec('select count(*) from record_tag')[0].values).toEqual([[1]])
   expect(db.exec('select count(*) from label')[0].values).toEqual([[9]])
@@ -129,7 +129,7 @@ test('opening a version-1 file keeps it as a pre-upgrade Backup before upgrading
   expect(name).toMatch(/pre-upgrade\.sqlite$/)
   expect(bytes).toEqual(old)
   const onDisk = new (await loadSqlite()).Database(folder.file)
-  expect(schemaVersion(onDisk)).toBe(3)
+  expect(schemaVersion(onDisk)).toBe(4)
   expect(onDisk.exec('select title from system')[0].values).toEqual([['Coupa']])
 })
 
@@ -167,7 +167,7 @@ test('a version-2 Notebook upgrades to hold Questionnaires, and its own label th
 
   expect(migrate(db)).toBe(true)
 
-  expect(schemaVersion(db)).toBe(3)
+  expect(schemaVersion(db)).toBe(4)
   expect(db.exec('select forward, reverse, protected from label where id = 9')[0].values).toEqual([
     ['responds to', 'has respondent', 1],
   ])
@@ -175,6 +175,17 @@ test('a version-2 Notebook upgrades to hold Questionnaires, and its own label th
     db.exec('select l.forward from relation r join label l on l.id = r.label_id where r.from_id = 1 and r.to_id = 2')[0].values,
   ).toEqual([['reports to']])
   expect(db.exec('select count(*) from label')[0].values).toEqual([[10]])
+})
+
+test("a version-3 Notebook's Items upgrade with their follow-up answer not yet taken", async () => {
+  const db = await emptyDb()
+  for (const sql of MIGRATIONS.slice(0, 3)) db.exec(sql)
+  db.run('pragma user_version = 3')
+  db.run("insert into questionnaire_item (questionnaire_id, text, follow_up_id) values (1, 'What does success look like?', 7)")
+
+  expect(migrate(db)).toBe(true)
+
+  expect(db.exec('select follow_up_id, follow_up_taken from questionnaire_item')[0].values).toEqual([[7, 0]])
 })
 
 test('the starter Question bank has about 40 Questions in 9 categories, and 3 starter sets of them', async () => {

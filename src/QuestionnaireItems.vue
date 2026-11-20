@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { ArrowDown, ArrowUp, Pencil, Plus, Trash2, Undo2, X } from 'lucide-vue-next'
+import { ArrowDown, ArrowUp, MessageCircleQuestion, Pencil, Plus, Trash2, Undo2, X } from 'lucide-vue-next'
 import { computed, nextTick, ref, watch } from 'vue'
 import { vFocus } from './dialog'
 import ItemAnswer from './ItemAnswer.vue'
 import ItemEditor from './ItemEditor.vue'
 import QuestionPicker from './QuestionPicker.vue'
 import SaveItemsAsSet from './SaveItemsAsSet.vue'
-import { isAnswered, listItems, moveItem, progress, progressText, removeItem, restoreItem, type Item, type RemovedItem } from './questionnaires'
+import { followUp, followUpOf, isAnswered, listItems, moveItem, progress, progressText, removeItem, restoreItem, type Item, type RemovedItem } from './questionnaires'
 import type { RecordType } from './record-types'
 
 // A Questionnaire's Items in order, under their section headings: building the list and answering it.
@@ -52,6 +52,13 @@ async function stopEditing() {
   editing.value = null
   await nextTick()
   document.getElementById(was === 'new' ? `new-question-${props.id}` : `edit-item-${was}`)?.focus()
+}
+
+// Follow up: the button goes away, so the focus moves to the "Following up" link that replaces it.
+async function askFollowUp(item: Item) {
+  followUp(item.id)
+  await nextTick()
+  document.getElementById(`follow-up-${item.id}`)?.focus()
 }
 
 // Remove, with an Undo that puts the Item back in its place, answer included.
@@ -128,7 +135,18 @@ const button =
           <template v-else>
           <div class="flex items-start gap-1">
             <span :id="`item-${item.id}-text`" data-testid="item-text" class="min-w-0 flex-1 pt-0.5 font-medium">{{ item.text }}</span>
-            <!-- Q3's "Save Items as a set" is in the header; per-Item actions (Q6's Follow up) can join this row. -->
+            <!-- Q3's "Save Items as a set" is in the header; per-Item actions join this row. -->
+            <button
+              v-if="!isAnswered(item.answer) && !followUpOf(item)"
+              type="button"
+              data-testid="item-follow-up"
+              :aria-label="`Follow up: ${item.text}`"
+              title="Follow up: ask the Respondents in an Open question"
+              :class="icon"
+              @click="askFollowUp(item)"
+            >
+              <MessageCircleQuestion class="size-4" />
+            </button>
             <button
               :id="`edit-item-${item.id}`"
               type="button"

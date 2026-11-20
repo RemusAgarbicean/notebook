@@ -225,6 +225,10 @@ export const MIGRATIONS: string[] = [
   update label set id = (select max(id) + 1 from label) where id = 9;
   insert into label (id, forward, reverse, protected) values (9, 'responds to', 'has respondent', 1);
   `,
+  // Whether a text Item already took its follow-up's answer, so a cleared answer isn't filled in again.
+  `
+  alter table questionnaire_item add column follow_up_taken integer not null default 0;
+  `,
 ]
 
 export const schemaVersion = (db: Database) =>
