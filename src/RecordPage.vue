@@ -8,7 +8,7 @@ import DuplicateButton from './DuplicateButton.vue'
 import { inDiagrams } from './diagram/links'
 import MarkdownField from './MarkdownField.vue'
 import { current } from './navigation'
-import { PAGE_SECTIONS } from './page-sections'
+import { PAGE_SECTIONS, type PageSection } from './page-sections'
 import PinToggle from './PinToggle.vue'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
@@ -32,7 +32,7 @@ const record = computed(() => getRecord(props.type, props.id))
 const info = computed(() => ({ ...recordType(props.type), ...RECORD_FIELDS[props.type] }))
 const fields = computed(() => info.value.fields.filter((f) => f.kind !== 'hidden'))
 const tags = computed(() => recordTags(props.type, props.id))
-const sections = (slot: 'fields' | 'below') =>
+const sections = (slot: PageSection['slot']) =>
   PAGE_SECTIONS.filter((s) => s.slot === slot && (!s.types || s.types.includes(props.type)))
 
 const error = ref('')
@@ -248,6 +248,16 @@ const input = 'h-8 w-full rounded-md border bg-background px-2 disabled:opacity-
         </div>
       </div>
     </div>
+
+    <component
+      :is="s.component"
+      v-for="(s, i) in sections('main')"
+      :key="i"
+      :type="type"
+      :id="id"
+      :record="record"
+      v-bind="s.props"
+    />
 
     <DiagramCanvas v-if="type === 'diagram'" :id="id" :record="record" />
 

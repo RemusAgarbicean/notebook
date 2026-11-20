@@ -33,7 +33,7 @@ const open = async (r: RecordRef) => {
 }
 const bank = (...texts: string[]) => texts.map((t) => listQuestions().find((q) => q.text === t)!.id)
 
-test('a Questionnaire page shows its status and its Items in order, with their answers, read-only', async () => {
+test('a Questionnaire page shows its status and its Items in order, with their answers', async () => {
   const intake = make('questionnaire', 'Coupa rollout intake')
   const [vpn] = addQuestions(intake.id, bank('Does it need VPN or remote access?', 'How many users?', 'Which environments are involved?'))
   setAnswer(vpn, { yes: true, comment: 'Lyon only' })
@@ -47,11 +47,10 @@ test('a Questionnaire page shows its status and its Items in order, with their a
     'How many users?',
     'Which environments are involved?',
   ])
-  expect(all('questionnaire-item').map((i) => i.get('[data-testid="item-answer"]').text())).toEqual([
-    'Yes, Lyon only',
-    'Not answered',
-    'Not answered',
-  ])
+  const [vpnItem, users] = all('questionnaire-item')
+  expect((vpnItem.get('[data-testid="answer-yes"]').element as HTMLInputElement).checked).toBe(true)
+  expect(vpnItem.get('[data-testid="answer-comment"]').text()).toContain('Lyon only')
+  expect((users.get('[data-testid="answer-number"]').element as HTMLInputElement).value).toBe('')
   expect(all('item-section').map((s) => s.text())).toEqual(['Access', 'Non-functional', 'Dependencies'])
 })
 
