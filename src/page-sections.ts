@@ -30,6 +30,7 @@ export type PageSection = {
 export const PAGE_SECTIONS: PageSection[] = [
   { slot: 'fields', component: RelationSlots, types: [...new Set(RELATION_SLOTS.map((s) => s.type))] },
   { slot: 'fields', component: AnswerFlow, types: ['open_question'] },
+  // Its header holds Save Items as a set (SaveItemsAsSet.vue, from Q3).
   { slot: 'main', component: QuestionnaireItems, types: ['questionnaire'] },
   { slot: 'below', component: ProjectTasks, types: ['project'] },
   {

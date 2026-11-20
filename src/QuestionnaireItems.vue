@@ -5,6 +5,7 @@ import { vFocus } from './dialog'
 import ItemAnswer from './ItemAnswer.vue'
 import ItemEditor from './ItemEditor.vue'
 import QuestionPicker from './QuestionPicker.vue'
+import SaveItemsAsSet from './SaveItemsAsSet.vue'
 import { isAnswered, listItems, moveItem, progress, progressText, removeItem, restoreItem, type Item, type RemovedItem } from './questionnaires'
 import type { RecordType } from './record-types'
 
@@ -88,6 +89,7 @@ const button =
           <Pencil class="size-3.5" />
           New question
         </button>
+        <SaveItemsAsSet :type="type" :id="id" />
         <button type="button" data-testid="add-questions" :class="button" @click="picking = true">
           <Plus class="size-3.5" />
           Add from bank
