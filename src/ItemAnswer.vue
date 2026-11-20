@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
+import ItemFollowUp from './ItemFollowUp.vue'
 import MarkdownField from './MarkdownField.vue'
 import { setAnswer, type Answer, type Item } from './questionnaires'
 
@@ -224,5 +225,6 @@ const choiceRow = 'flex min-h-7 cursor-pointer items-center gap-2'
       </button>
     </div>
     <p v-if="error" role="alert" class="text-xs text-destructive">{{ error }}</p>
+    <ItemFollowUp :item="item" />
   </div>
 </template>

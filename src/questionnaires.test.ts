@@ -38,6 +38,7 @@ import {
   followUp,
   followUpOf,
   takeFollowUpAnswer,
+  clearAnswer,
 } from './questionnaires'
 import { globalSearch } from './global-search'
 import { createRecord, deleteRecord, duplicateRecord, getRecord, updateRecord } from './records'
@@ -406,6 +407,27 @@ test("an answered Open question's answer fills in a text Item once, and only sho
   setAnswer(success, { text: 'Two days, and no paper' })
   expect(takeFollowUpAnswer(success)).toBe(false)
   expect(getItem(success)!.answer).toEqual({ text: 'Two days, and no paper' })
+
+  // Once taken, a cleared answer stays cleared.
+  clearAnswer(success)
+  expect(takeFollowUpAnswer(success)).toBe(false)
+  expect(getItem(success)!.answer).toBeNull()
+})
+
+test('a new follow-up, after the first was deleted, fills in the text Item again', () => {
+  const intake = questionnaire()
+  const [success] = addQuestions(intake, [bankQuestion('What does success look like?').id])
+  const first = followUp(success)
+  updateRecord('open_question', first, { status: 'answered', answer: 'Faster invoices' })
+  expect(takeFollowUpAnswer(success)).toBe(true)
+  clearAnswer(success)
+  deleteRecord('open_question', first)
+
+  const second = followUp(success)
+  updateRecord('open_question', second, { status: 'answered', answer: 'No paper' })
+
+  expect(takeFollowUpAnswer(success)).toBe(true)
+  expect(getItem(success)!.answer).toEqual({ text: 'No paper' })
 })
 
 test('an answered Item, or one whose follow-up was deleted, says so', () => {
