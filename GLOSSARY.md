@@ -5,7 +5,7 @@ A personal, single-user information center for onboarding into a procurement ana
 ## Records
 
 **Record**:
-Any typed entry the user keeps: a System, Acronym, Person, Diagram, Bookmark, Open question, Task, Journal entry, Team, Process or Project.
+Any typed entry the user keeps: a System, Acronym, Person, Diagram, Bookmark, Open question, Task, Journal entry, Team, Process, Project or Questionnaire.
 _Avoid_: Item, entity, object
 
 **System**:
@@ -63,6 +63,40 @@ _Avoid_: Meeting note, log, diary
 **Tag**:
 A free-text label attachable to any Record.
 _Avoid_: Label, category
+
+## Questionnaires
+
+**Questionnaire**:
+A Record holding an ordered list of Items to put to Respondents.
+_Avoid_: Survey, form
+
+**Item**:
+One question on one Questionnaire, with its own copy of the wording, its Answer type and its answer.
+_Avoid_: Field, entry
+
+**Question**:
+A reusable question in the Question bank. Not to be confused with an Open question.
+_Avoid_: Template question
+
+**Question bank**:
+Every Question in the Notebook, grouped by category.
+_Avoid_: Question library, question pool
+
+**Question set**:
+A named, ordered list of Questions that fills a Questionnaire in one step.
+_Avoid_: Template, checklist
+
+**Answer type**:
+What kind of answer an Item takes: short text, long text, yes/no, single choice, multiple choice, number, date or scale 1–5.
+_Avoid_: Field type, question type
+
+**Respondent**:
+A Person a Questionnaire is for.
+_Avoid_: Stakeholder (as a slot name), recipient
+
+**Follow up**:
+Turning an unanswered Item into an Open question asked of the Questionnaire's Respondents.
+_Avoid_: Escalate, chase
 
 ## Connections
 

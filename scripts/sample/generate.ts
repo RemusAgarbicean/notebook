@@ -8,6 +8,7 @@ import { findMentions, resolveMention } from '../../src/mentions'
 import { MIGRATIONS, schemaVersion } from '../../src/migrations'
 import { db, openNotebook } from '../../src/notebook'
 import { setPinned } from '../../src/pins'
+import { addSet, followUp, listItems, listSets, setAnswer, type Answer } from '../../src/questionnaires'
 import type { RecordType } from '../../src/record-types'
 import { addTag, createRecord, getRecord, incompleteRecords, listRecords, transaction, updateRecord, type Patch, type RecordRef } from '../../src/records'
 import { LABEL, RELATION_SLOTS } from '../../src/relation-slots'
@@ -313,6 +314,25 @@ test('builds the sample Notebook', async () => {
       ['tomasz', reportsTo, 'ingrid'], ['priya', reportsTo, 'ingrid'], ['daniel', reportsTo, 'sofia'], ['meiling', reportsTo, 'sofia'],
     ]
     for (const [from, label, to] of relations) addRelation(ids[from], label, ids[to])
+
+    // A Questionnaire for the spend cube from the starter set, half answered, with one gap followed up
+    mk('cubeIntake', 'questionnaire', 'Spend cube intake', { status: 'in progress', notes: 'Went through it with Ingrid and Tomasz.' }, ['reporting'], 10)
+    put('cubeIntake', 'Project', 'cube')
+    put('cubeIntake', 'Respondents', 'ingrid', 'tomasz')
+    addSet(ids.cubeIntake.id, listSets().find((s) => s.name === 'New project intake')!.id)
+    const item = (text: string) => listItems(ids.cubeIntake.id).find((i) => i.text === text)!.id
+    const answers: [string, Answer][] = [
+      ['What problem does this project solve?', { text: 'Three reports disagree on spend by supplier, so nobody trusts the numbers.' }],
+      ['What does success look like?', { text: 'One spend figure per supplier and category, the same in every report.' }],
+      ['Who is the project sponsor?', { text: 'Ingrid' }],
+      ['Which environments are involved?', { choices: ['Dev', 'Production'] }],
+      ['Does it handle personal data (GDPR)?', { yes: false, comment: 'Supplier contacts stay out of the cube' }],
+      ['Target go-live date', { date: day(-30) }],
+      ['How critical is this to the business?', { scale: 4 }],
+      ['How many users?', { number: 60 }],
+    ]
+    for (const [text, answer] of answers) setAnswer(item(text), answer)
+    followUp(item('Which systems does it depend on?'))
 
     // Diagrams
     at(11)

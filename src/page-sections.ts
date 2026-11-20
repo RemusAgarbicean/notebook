@@ -5,7 +5,9 @@ import { mentionedIn } from './mentions'
 import ProjectTasks from './ProjectTasks.vue'
 import RecordLinks from './RecordLinks.vue'
 import type { RecordType } from './record-types'
+import QuestionnaireItems from './QuestionnaireItems.vue'
 import { RELATION_SLOTS } from './relation-slots'
+import { projectQuestionnaires } from './relations'
 import RelationSlots from './RelationSlots.vue'
 import RelationsSection from './RelationsSection.vue'
 
@@ -27,7 +29,14 @@ export type PageSection = {
 export const PAGE_SECTIONS: PageSection[] = [
   { slot: 'fields', component: RelationSlots, types: [...new Set(RELATION_SLOTS.map((s) => s.type))] },
   { slot: 'fields', component: AnswerFlow, types: ['open_question'] },
+  { slot: 'fields', component: QuestionnaireItems, types: ['questionnaire'] },
   { slot: 'below', component: ProjectTasks, types: ['project'] },
+  {
+    slot: 'below',
+    component: RecordLinks,
+    types: ['project'],
+    props: { heading: 'Questionnaires', source: projectQuestionnaires, testId: 'project-questionnaire' },
+  },
   { slot: 'below', component: RelationsSection },
   {
     slot: 'below',

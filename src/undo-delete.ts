@@ -4,6 +4,7 @@ import { linkedNodes, relinkNodes, type NodesInDiagram } from './diagram/links'
 import { keepMentions } from './mentions'
 import { db } from './notebook'
 import { isPinned, setPinned } from './pins'
+import { captureItems, restoreItems, type DeletedItems } from './questionnaires'
 import type { RecordType } from './record-types'
 import { addTag, changed, getRecord, recordTags, rows, transaction, type RecordRef, type Titled, type Value } from './records'
 import { addLabel, deletedLabels, fold, listLabels } from './relations'
@@ -30,6 +31,8 @@ type Deleted = Titled & {
   nodes: NodesInDiagram[]
   pinned: boolean
   images: ImageRow[]
+  /** A Questionnaire's Items. */
+  items: DeletedItems
   /** How long `deletedLabels` was at the delete: a label deleted after that may have lost its id to another. */
   labelMark: number
 }
@@ -64,6 +67,7 @@ export function captureDeleted(target: RecordRef): Deleted | null {
     nodes: linkedNodes(target),
     pinned: isPinned(target),
     images: doomedImages(target),
+    items: target.type === 'questionnaire' ? captureItems(target.id) : [],
     labelMark: deletedLabels.length,
   }
 }
@@ -88,7 +92,7 @@ function labelFor(r: RelationRow, labelMark: number): { id: number; flipped: boo
 }
 
 /**
- * Puts the last deleted Record back under its id, with its Relations, its Tags, its Images,
+ * Puts the last deleted Record back under its id, with its Relations, its Tags, its Images, a Questionnaire's Items,
  * its pin and the Nodes that were linked to it, all or nothing. Returns the Record, or
  * null when there is nothing to undo. Throws, with the delete still undoable, if it can't.
  */
@@ -121,6 +125,7 @@ export function undoDelete(): RecordRef | null {
     relinkNodes(last, last.title, last.nodes)
     if (last.pinned) setPinned(last, true)
     restoreImages(last.images)
+    restoreItems(last.items)
   })
   kept.value = { db: d, stack: stack().slice(0, -1) }
   changed()

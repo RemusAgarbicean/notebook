@@ -12,7 +12,8 @@ import { RECORD_TYPES } from './record-types'
 import { createRecord, getRecord, incompleteRecords, listRecords, listTags, recordCounts, recordTitles, transaction, updateRecord } from './records'
 import { loadSqlite } from './sqlite'
 
-const PER_TYPE = 300 // 3,300 Records
+const PER_TYPE = 300 // 3,600 Records
+const RECORDS = RECORD_TYPES.length * PER_TYPE
 
 beforeEach(async () => {
   const fresh = new (await loadSqlite()).Database()
@@ -87,8 +88,8 @@ test('a notes edit is still read back, and a field edit still refreshes the list
 test('Mentioned in reads each text once, not once per title', async () => {
   let found: unknown[] = []
   const read = await rowsRead(() => (found = mentionedIn({ type: 'system', id: 8 })))
-  // 3,300 notes all hold Mentions; a lookup per title would read millions.
-  expect(read).toBeLessThan(4 * 3300)
+  // 3,600 notes all hold Mentions; a lookup per title would read millions.
+  expect(read).toBeLessThan(4 * RECORDS)
   expect(found.length).toBeGreaterThan(0)
 })
 
@@ -98,7 +99,7 @@ test('importing 1,000 rows reads the Notebook a bounded number of times, not onc
   let result
   const read = await rowsRead(async () => (result = await runImport('system', table, matchColumns('system', table[0]), 'skip')))
   expect(result).toEqual({ created: 1000, filled: 0, skipped: 0 })
-  // Re-reading every title per row would be 1,000 × 3,300.
+  // Re-reading every title per row would be 1,000 × 3,600.
   expect(read).toBeLessThan(100_000)
 })
 
@@ -108,7 +109,7 @@ test('a palette search after an edit re-reads only what changed', async () => {
   let hits: unknown[] = []
   const read = await rowsRead(() => (hits = globalSearch('needle')))
   expect(hits).toMatchObject([{ type: 'task', id: 5, where: 'Notes' }])
-  expect(read).toBeLessThan(3300 + 100)
+  expect(read).toBeLessThan(RECORDS + 100)
   // Typing on in the box reads nothing new.
   expect(await rowsRead(() => globalSearch('needle i'))).toBe(0)
 })

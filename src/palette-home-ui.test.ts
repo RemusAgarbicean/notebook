@@ -97,7 +97,7 @@ test("the palette offers Create <Type> '<text>', which creates the Record and op
   await type('  Vendor onboarding ')
 
   expect(texts('palette-option')).toContain("Create Process 'Vendor onboarding'")
-  expect(texts('palette-option')).toHaveLength(11)
+  expect(texts('palette-option')).toHaveLength(12)
   await app
     .findAll('[data-testid="palette-option"]')
     .find((o) => o.text() === "Create Process 'Vendor onboarding'")!

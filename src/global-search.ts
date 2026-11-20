@@ -1,4 +1,5 @@
 import { db } from './notebook'
+import { searchTexts } from './questionnaires'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, type RecordType } from './record-types'
 import { byTitle, foldTitle, revision, rows, textRevision, textVersion, titlesVersion, type Rec, type RecordRef, type Titled } from './records'
@@ -13,7 +14,9 @@ const fieldsOf = (type: RecordType) => RECORD_FIELDS[type].fields.filter((f) => 
 
 function entry(type: RecordType, r: Rec): Entry {
   const texts = fieldsOf(type).map((f): [string, string] => [f.label, foldTitle(String(r[f.name] ?? ''))])
-  return { type, id: r.id, title: r.title, updated: r.updated_at, folded: foldTitle(r.title), texts: [...texts, ['Notes', foldTitle(r.notes)]] }
+  // A Questionnaire's Items count as its text; every Item write touches its updated_at, so they are read again.
+  const items = type === 'questionnaire' ? searchTexts(r.id).map(([where, text]): [string, string] => [where, foldTitle(text)]) : []
+  return { type, id: r.id, title: r.title, updated: r.updated_at, folded: foldTitle(r.title), texts: [...texts, ['Notes', foldTitle(r.notes)], ...items] }
 }
 
 // The folded Records, brought up to date after a write by re-reading only the rows whose updated_at moved.

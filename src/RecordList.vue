@@ -7,6 +7,7 @@ import ImportDialog from './ImportDialog.vue'
 import { filterList, hideClosed } from './list-filter'
 import { current, list, openRecord } from './navigation'
 import { pinnedRecords } from './pins'
+import { progressById, progressText } from './questionnaires'
 import { useWindowed } from './windowed'
 import QuizDialog from './QuizDialog.vue'
 import { RECORD_FIELDS } from './record-fields'
@@ -46,11 +47,13 @@ const unpinned = computed(() => {
   const t = type.value
   if (t) {
     const { key } = RECORD_FIELDS[t]
+    // A Questionnaire's key line also says how much is answered.
+    const answered = t === 'questionnaire' ? progressById() : null
     return listRecords(t, { texts: false }).map((r) => ({
       type: t,
       id: r.id,
       title: r.title,
-      sub: key ? r[key] : null,
+      sub: answered ? `${r[key!]} · ${progressText(answered.get(r.id) ?? { answered: 0, total: 0 })}` : key ? r[key] : null,
       closed: isClosed(t, r),
     }))
   }

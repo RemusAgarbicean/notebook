@@ -56,6 +56,11 @@ export const RECORD_FIELDS: Record<
       { name: 'summary', label: 'Summary', kind: 'text' },
     ],
   },
+  questionnaire: {
+    singular: 'Questionnaire',
+    key: 'status',
+    fields: [{ name: 'status', label: 'Status', kind: 'choice', options: ['draft', 'in progress', 'done'] }],
+  },
   diagram: { singular: 'Diagram', fields: [{ name: 'canvas', label: 'Canvas', kind: 'hidden' }] },
   bookmark: {
     singular: 'Bookmark',

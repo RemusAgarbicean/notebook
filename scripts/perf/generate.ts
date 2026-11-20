@@ -22,9 +22,10 @@ const SHARE: Partial<Record<RecordType, number>> = {
   team: 0.02,
   process: 0.05,
   project: 0.05,
+  questionnaire: 0.02,
   bookmark: 0.08,
   open_question: 0.05,
-  task: 0.25,
+  task: 0.23,
   journal_entry: 0.15,
 }
 const WORDS =
@@ -74,6 +75,7 @@ async function build(total: number) {
       person: { role: words(2), email: `p${id}@example.invalid`, go_to_for: words(3) },
       project: { status: pick(['active', 'active', 'on hold', 'done']), due: rnd() < 0.5 ? day(Math.floor(rnd() * 400)) : null, summary: words(5) },
       bookmark: { url: `https://example.invalid/b/${id}` },
+      questionnaire: { status: pick(['draft', 'in progress', 'done']) },
       open_question: rnd() < 0.5 ? { status: 'open' } : { status: 'answered', answer: notes(), answered_at: t },
       task: rnd() < 0.4 ? { done: 1, done_at: t } : { done: 0, due: rnd() < 0.6 ? day(Math.floor(rnd() * 400)) : null },
       journal_entry: { date: day(Math.floor(rnd() * 400)), kind: pick(['log', 'meeting']) },
@@ -109,11 +111,27 @@ async function build(total: number) {
   for (const s of byType('system')) relate(pick(rnd() < 0.5 ? people : teams), LABEL.owns, s)
   for (const p of people) relate(p, LABEL.memberOf, pick(teams))
   for (const t of byType('task')) if (rnd() < 0.6) relate(t, LABEL.partOf, pick(projects))
+  for (const q of byType('questionnaire')) {
+    relate(q, LABEL.partOf, pick(projects))
+    relate(pick(people), LABEL.respondent, q)
+  }
   for (const j of byType('journal_entry')) if (rnd() < 0.3) relate(pick(people), LABEL.attended, j)
   for (let i = 0; i < total / 5; i++) {
     const [a, b] = [pick(titles), pick(titles)]
     if (a !== b) relate(a, pick([5, 7]), b)
   }
+
+  // Each Questionnaire gets 5 to 20 Items copied from the starter bank, about half of them answered with text.
+  const bank = d.exec('select id, text, help, category from question')[0].values
+  for (const q of byType('questionnaire'))
+    for (let position = 1, n = 5 + Math.floor(rnd() * 16); position <= n; position++) {
+      const [qid, text, help, category] = pick(bank)
+      d.run(
+        `insert into questionnaire_item (questionnaire_id, position, question_id, section, text, help, answer_type, answer)
+         values (?, ?, ?, ?, ?, ?, 'long_text', ?)`,
+        [q.id, position, qid, category, text, help, rnd() < 0.5 ? JSON.stringify({ text: words(8) }) : null],
+      )
+    }
 
   // Diagrams of 50 to 200 Nodes, about half linked to Records.
   for (let id = 1; id <= diagrams; id++) {
