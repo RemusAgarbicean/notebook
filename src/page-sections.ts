@@ -10,6 +10,7 @@ import { RELATION_SLOTS } from './relation-slots'
 import { projectQuestionnaires } from './relations'
 import RelationSlots from './RelationSlots.vue'
 import RelationsSection from './RelationsSection.vue'
+import SaveItemsAsSet from './SaveItemsAsSet.vue'
 
 /**
  * A part of the Record page added by a feature. The component gets the props
@@ -30,6 +31,7 @@ export const PAGE_SECTIONS: PageSection[] = [
   { slot: 'fields', component: RelationSlots, types: [...new Set(RELATION_SLOTS.map((s) => s.type))] },
   { slot: 'fields', component: AnswerFlow, types: ['open_question'] },
   { slot: 'fields', component: QuestionnaireItems, types: ['questionnaire'] },
+  { slot: 'fields', component: SaveItemsAsSet, types: ['questionnaire'] },
   { slot: 'below', component: ProjectTasks, types: ['project'] },
   {
     slot: 'below',

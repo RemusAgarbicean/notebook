@@ -24,6 +24,7 @@ import type { NotebookStorage } from './storage'
 import { downloadStorage } from './storage-download'
 import { fsaStorage } from './storage-fsa'
 import OtherTabScreen from './OtherTabScreen.vue'
+import QuestionBankDialog from './QuestionBankDialog.vue'
 import SaveGuards from './SaveGuards.vue'
 import Shortcuts from './Shortcuts.vue'
 import { tabLock } from './tab-lock'
@@ -122,6 +123,7 @@ const item =
       <footer class="border-t border-sidebar-border px-2 py-2 text-xs text-muted-foreground">
         <LabelsSettings />
         <BackupsDialog />
+        <QuestionBankDialog />
         <TemplatesDialog />
         <Shortcuts />
         <ThemeSwitch />
