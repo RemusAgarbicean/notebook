@@ -488,3 +488,16 @@ test('every change to the Items touches the Questionnaire', () => {
 
   expect(getRecord('questionnaire', intake)!.updated_at.slice(0, 4)).not.toBe('2020')
 })
+
+test('deleting a follow-up Open question unlinks its Item, and Undo delete links it again', () => {
+  const intake = questionnaire()
+  const [users] = addQuestions(intake, [bankQuestion('How many users?').id])
+  const asked = followUp(users)
+
+  deleteRecord('open_question', asked)
+  expect(getItem(users)!.followUpId).toBeNull()
+
+  expect(undoDelete()).toEqual({ type: 'open_question', id: asked })
+  expect(getItem(users)!.followUpId).toBe(asked)
+  expect(followUpOf(getItem(users)!)).toMatchObject({ id: asked, status: 'open' })
+})

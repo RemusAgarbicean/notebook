@@ -5,7 +5,7 @@ import { keepMentions, renameMentions } from './mentions'
 import { db, markDirty } from './notebook'
 import { RECORD_FIELDS, type Field } from './record-fields'
 import { setPinned } from './pins'
-import { copyItems, deleteItems } from './questionnaires'
+import { copyChildren, freshOnCopy, removeChildren } from './record-children'
 import { RECORD_TYPES, type RecordType } from './record-types'
 import { captureDeleted, rememberDeleted } from './undo-delete'
 
@@ -242,14 +242,13 @@ export function createRecord(type: RecordType, title: string, fields: Patch = {}
  * Creates "<title> copy" with the Record's fields, notes, Tags and its own copies of the Images in its notes, and returns its id.
  * The copy starts open (not done, not answered, no answer) and has no Relations and no pin.
  * A Diagram's canvas is copied as it is: its linked Nodes point at the same Records, which is what a link is.
- * A Questionnaire's copy is a draft with its Items, without their answers or follow-ups.
+ * What another module keeps for the type (a Questionnaire's Items) is copied through `record-children`.
  */
 export function duplicateRecord(type: RecordType, id: number): number {
   const source = getRecord(type, id)
   if (!source) throw new Error('That Record no longer exists')
   const rule = CLOSED[type]
-  // A copied Questionnaire has no answers yet, so it starts as a draft.
-  const skip = [isClosed(type, source) && rule!.field, type === 'open_question' && 'answer', type === 'questionnaire' && 'status']
+  const skip = [isClosed(type, source) && rule!.field, type === 'open_question' && 'answer', ...freshOnCopy(type)]
   const fields: Patch = { notes: source.notes }
   // An empty field stays out: a required one would be refused, and the copy starts as empty anyway.
   for (const f of RECORD_FIELDS[type].fields)
@@ -262,7 +261,7 @@ export function duplicateRecord(type: RecordType, id: number): number {
       if (own !== text) db.value!.run(`update ${table(type)} set ${column} = ? where id = ?`, [own as string, copy])
     }
     for (const tag of recordTags(type, id)) addTag(type, copy, tag.name)
-    if (type === 'questionnaire') copyItems(id, copy)
+    copyChildren(type, id, copy)
     return copy
   })
 }
@@ -340,7 +339,8 @@ const DROP_UNUSED_TAGS = 'delete from tag where id not in (select tag_id from re
 let retired: { db: unknown; top: Partial<Record<RecordType, number>> } | undefined
 
 /**
- * Deletes a Record with its Relations, Tag links, Images and a Questionnaire's Items, which SQLite can't cascade (ADR 0001), and unlinks its Nodes.
+ * Deletes a Record with its Relations, Tag links, Images and its children in `record-children` (a Questionnaire's Items),
+ * which SQLite can't cascade (ADR 0001), and unlinks its Nodes.
  * `undoDelete` can take the last few deletes back.
  */
 export function deleteRecord(type: RecordType, id: number) {
@@ -358,7 +358,7 @@ export function deleteRecord(type: RecordType, id: number) {
     d.run('delete from record_tag where type = ? and id = ?', [type, id])
     d.run(DROP_UNUSED_TAGS)
     setPinned({ type, id }, false)
-    if (type === 'questionnaire') deleteItems(id)
+    removeChildren(type, id)
     d.run(`delete from ${table(type)} where id = ?`, [id])
     return deleted
   })

@@ -1,4 +1,6 @@
 import { portableImages } from './images'
+import { itemsMarkdown } from './questionnaire-export'
+import { listItems } from './questionnaires'
 import { RECORD_FIELDS } from './record-fields'
 import type { RecordType } from './record-types'
 import { getRecord, recordTags } from './records'
@@ -40,9 +42,12 @@ export function recordMarkdown(type: RecordType, id: number): string {
       '## Tasks',
       tasks.map((t) => `- [${getRecord('task', t.other.id)?.done ? 'x' : ' '}] ${t.other.title}`).join('\n'),
     )
+  // A Questionnaire's Items with their answers, as its answered Markdown export writes them.
+  const items = type === 'questionnaire' ? itemsMarkdown(listItems(id), { answers: true, level: 3 }) : ''
+  if (items) parts.push('## Items', items)
   // Notes need a heading of their own only next to another text, e.g. an Open question's answer.
   const texts = fields.filter((f) => f.kind === 'markdown' && String(record[f.name] ?? '').trim())
   for (const f of texts) parts.push(`## ${f.label}`, String(record[f.name]).trim())
-  if (record.notes.trim()) parts.push(...(texts.length || tasks.length ? ['## Notes'] : []), record.notes.trim())
+  if (record.notes.trim()) parts.push(...(texts.length || tasks.length || items ? ['## Notes'] : []), record.notes.trim())
   return portableImages(parts.join('\n\n')) + '\n'
 }

@@ -1,6 +1,7 @@
 import { beforeEach, expect, test } from 'vitest'
 import { migrate } from './migrations'
 import { db } from './notebook'
+import { addNewItem, setAnswer, updateItem } from './questionnaires'
 import { recordMarkdown } from './record-markdown'
 import { addTag, createRecord } from './records'
 import { LABEL, slotsOf } from './relation-slots'
@@ -74,6 +75,45 @@ test("a Project's Tasks are a checklist", () => {
 
   expect(recordMarkdown('project', project.id)).toBe(
     '# Invoice migration\n\n- **Type:** Project\n- **Status:** active\n\n## Tasks\n\n- [ ] Book workshop\n- [x] Map fields\n',
+  )
+})
+
+test("a Questionnaire's Items come with their answers, as its answered export has them", () => {
+  const q = createRecord('questionnaire', 'Coupa rollout intake', { notes: 'Kick-off on Monday.' })
+  const sponsor = addNewItem(q, { text: 'Project sponsor' })
+  updateItem(sponsor, { section: 'Scope' })
+  setAnswer(sponsor, { text: 'Ana' })
+  setAnswer(addNewItem(q, { text: 'How many users?', answerType: 'number', unit: 'users' }), { number: 250 })
+  addNewItem(q, { text: 'Target go-live date', answerType: 'date' })
+
+  expect(recordMarkdown('questionnaire', q)).toBe(
+    [
+      '# Coupa rollout intake',
+      '',
+      '- **Type:** Questionnaire',
+      '- **Status:** draft',
+      '',
+      '## Items',
+      '',
+      '### Scope',
+      '',
+      '**1. Project sponsor**',
+      '',
+      'Ana',
+      '',
+      '**2. How many users?**',
+      '',
+      '250 users',
+      '',
+      '**3. Target go-live date**',
+      '',
+      '_______ (date)',
+      '',
+      '## Notes',
+      '',
+      'Kick-off on Monday.',
+      '',
+    ].join('\n'),
   )
 })
 

@@ -7,7 +7,20 @@ import ItemEditor from './ItemEditor.vue'
 import QuestionnaireExport from './QuestionnaireExport.vue'
 import QuestionPicker from './QuestionPicker.vue'
 import SaveItemsAsSet from './SaveItemsAsSet.vue'
-import { followUp, followUpOf, isAnswered, listItems, moveItem, progress, progressText, removeItem, restoreItem, type Item, type RemovedItem } from './questionnaires'
+import {
+  followUp,
+  followUpOf,
+  isAnswered,
+  listItems,
+  moveItem,
+  progress,
+  progressText,
+  removeItem,
+  respondents,
+  restoreItem,
+  type Item,
+  type RemovedItem,
+} from './questionnaires'
 import type { RecordType } from './record-types'
 
 // A Questionnaire's Items in order, under their section headings: building the list and answering it.
@@ -54,6 +67,14 @@ async function stopEditing() {
   await nextTick()
   document.getElementById(was === 'new' ? `new-question-${props.id}` : `edit-item-${was}`)?.focus()
 }
+
+// Follow up asks the Respondents; with none, the Open question goes under "No one to ask" in the Today strip.
+const followUpTitle = computed(() => {
+  const names = respondents(props.id).map((r) => r.title)
+  return names.length
+    ? `Follow up: ask ${names.join(', ')} in an Open question`
+    : 'Follow up: an Open question for No one to ask (add Respondents to ask them)'
+})
 
 // Follow up: the button goes away, so the focus moves to the "Following up" link that replaces it.
 async function askFollowUp(item: Item) {
@@ -143,7 +164,7 @@ const button =
               type="button"
               data-testid="item-follow-up"
               :aria-label="`Follow up: ${item.text}`"
-              title="Follow up: ask the Respondents in an Open question"
+              :title="followUpTitle"
               :class="icon"
               @click="askFollowUp(item)"
             >

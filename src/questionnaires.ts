@@ -1,5 +1,7 @@
 import { db } from './notebook'
-import { changed, createRecord, foldTitle, getRecord, rows, textRows, transaction, type Value } from './records'
+import { registerChildren, type ChildText } from './record-children'
+import type { RecordType } from './record-types'
+import { changed, createRecord, foldTitle, getRecord, rows, textRows, transaction, type Titled, type Value } from './records'
 import { LABEL, slotsOf } from './relation-slots'
 import { addRelation, slotRecords } from './relations'
 
@@ -623,11 +625,20 @@ function insertRows(items: ItemRow[]) {
 
 // ---- Follow up
 
-/** An Item's follow-up as it stands: the Open question's title, status and answer. Null when there is none, or it was deleted. Reactive. */
-export function followUpOf(item: Item): { id: number; title: string; status: 'open' | 'answered'; answer: string | null } | null {
+const slot = (type: RecordType, labelId: number) => slotsOf(type).find((s) => s.labelId === labelId)!
+
+/** A Questionnaire's Respondents, by title. Reactive. */
+export const respondents = (questionnaireId: number): Titled[] => slotRecords(slot('questionnaire', LABEL.respondent), questionnaireId)
+
+/** An Item's follow-up as it stands: the Open question's title, status, answer and whom it asks. Null when there is none, or it was deleted. Reactive. */
+export function followUpOf(
+  item: Item,
+): { id: number; title: string; status: 'open' | 'answered'; answer: string | null; askedOf: string[] } | null {
   if (item.followUpId === null) return null
   const q = getRecord('open_question', item.followUpId)
-  return q ? { id: q.id, title: q.title, status: q.status as 'open' | 'answered', answer: (q.answer as string | null) || null } : null
+  if (!q) return null
+  const askedOf = slotRecords(slot('open_question', LABEL.askAbout), q.id).map((r) => r.title)
+  return { id: q.id, title: q.title, status: q.status as 'open' | 'answered', answer: (q.answer as string | null) || null, askedOf }
 }
 
 /**
@@ -639,10 +650,9 @@ export function followUp(itemId: number): number {
   if (isAnswered(item.answer)) throw new Error('This Item is already answered')
   if (followUpOf(item)) throw new Error('This Item is already followed up')
   const title = getRecord('questionnaire', item.questionnaireId)!.title
-  const respondents = slotsOf('questionnaire').find((s) => s.labelId === LABEL.respondent)!
   const id = transaction(() => {
     const asked = createRecord('open_question', item.text, { notes: [`From [[${title}]]`, item.help].filter(Boolean).join('\n\n') })
-    for (const person of slotRecords(respondents, item.questionnaireId)) addRelation(person, LABEL.askAbout, { type: 'open_question', id: asked })
+    for (const person of respondents(item.questionnaireId)) addRelation(person, LABEL.askAbout, { type: 'open_question', id: asked })
     run('update questionnaire_item set follow_up_id = ?, follow_up_taken = 0 where id = ?', [asked, itemId])
     touch(item.questionnaireId)
     return asked
@@ -683,38 +693,80 @@ export function answerText(answer: Answer | null): string {
   return String(answer.scale)
 }
 
-/** What global search reads of a Questionnaire besides its fields: each Item's question and answer. Not reactive. */
-export function searchTexts(questionnaireId: number): [where: 'Question' | 'Answer', text: string][] {
-  const items = db
-    .value!.exec('select text, answer from questionnaire_item where questionnaire_id = ? order by position', [questionnaireId])[0]
-    ?.values ?? []
-  return items.flatMap(([text, answer]) => [
-    ['Question', String(text)],
-    ['Answer', answerText(answer === null ? null : JSON.parse(String(answer)))],
+/** What global search reads of a Questionnaire besides its fields: each Item's question and answer. */
+export const searchTexts = (questionnaireId: number): [where: 'Question' | 'Answer', text: string][] =>
+  rows<{ text: string; answer: string | null }>('select text, answer from questionnaire_item where questionnaire_id = ? order by position', [
+    questionnaireId,
+  ]).flatMap(({ text, answer }) => [
+    ['Question', text],
+    ['Answer', answerText(answer === null ? null : JSON.parse(answer))],
   ])
-}
 
-// ---- With the Questionnaire Record: Duplicate and Delete
+// The markdown fields of an answer: a long text, or a Yes/No comment.
+const MARKDOWN_FIELDS = ['text', 'comment'] as const
 
-/** Copies a Questionnaire's Items onto another, without answers or follow-ups. Joins the caller's transaction. */
-export function copyItems(fromId: number, toId: number) {
-  for (const r of rows<ItemRow>('select * from questionnaire_item where questionnaire_id = ? order by position, id', [fromId]))
-    run(
-      `insert into questionnaire_item (questionnaire_id, position, question_id, section, ${WORDING_COLUMNS.join(', ')})
-       values (?, ?, ?, ?, ${WORDING_COLUMNS.map(() => '?').join(', ')})`,
-      [toId, r.position, r.question_id, r.section, ...WORDING_COLUMNS.map((c) => r[c])],
-    )
-}
+/**
+ * The markdown in the answers that holds a Mention, with its Questionnaire, each with how to write it back.
+ * The answers are JSON: the texts in them are read and written field by field, never as raw JSON. Joins the caller's transaction.
+ */
+export const answerMarkdownTexts = (): ChildText[] =>
+  rows<{ item: number; id: number; title: string; answer: string }>(
+    `select i.id as item, q.id, q.title, i.answer from questionnaire_item i join questionnaire q on q.id = i.questionnaire_id
+     where i.answer like '%[[%' order by q.id, i.position`,
+  ).flatMap((row) => {
+    const answer = JSON.parse(row.answer) as Record<string, unknown>
+    return MARKDOWN_FIELDS.filter((key) => typeof answer[key] === 'string').map((key) => ({
+      id: row.id,
+      title: row.title,
+      text: answer[key] as string,
+      write: (next: string) => {
+        // Re-read: the other text of the same answer may have been rewritten already.
+        const [now] = rows<{ answer: string }>('select answer from questionnaire_item where id = ?', [row.item])
+        run('update questionnaire_item set answer = ? where id = ?', [JSON.stringify({ ...JSON.parse(now.answer), [key]: next }), row.item])
+      },
+    }))
+  })
 
-/** A Questionnaire's Items as stored, as Undo delete keeps them for `restoreItems`. */
-export type DeletedItems = ItemRow[]
+// ---- With the Records: Duplicate, Delete, Undo delete, search and Mentions, through record-children
 
-/** A Questionnaire's Items as stored, for Undo delete to keep before `deleteItems`. */
-export const captureItems = (questionnaireId: number): DeletedItems =>
-  rows<ItemRow>('select * from questionnaire_item where questionnaire_id = ?', [questionnaireId])
+registerChildren('questionnaire', {
+  // A copy has no answers yet, so it starts as a draft.
+  freshOnCopy: ['status'],
+  // The Items, without answers or follow-ups.
+  copy: (fromId, toId) => {
+    for (const r of rows<ItemRow>('select * from questionnaire_item where questionnaire_id = ? order by position, id', [fromId]))
+      run(
+        `insert into questionnaire_item (questionnaire_id, position, question_id, section, ${WORDING_COLUMNS.join(', ')})
+         values (?, ?, ?, ?, ${WORDING_COLUMNS.map(() => '?').join(', ')})`,
+        [toId, r.position, r.question_id, r.section, ...WORDING_COLUMNS.map((c) => r[c])],
+      )
+  },
+  capture: (id) => {
+    const items = rows<ItemRow>('select * from questionnaire_item where questionnaire_id = ?', [id])
+    return () => insertRows(items)
+  },
+  remove: (id) => run('delete from questionnaire_item where questionnaire_id = ?', [id]),
+  searchTexts,
+  markdownTexts: () => answerMarkdownTexts(),
+})
 
-/** Deletes a Questionnaire's Items. Joins the caller's transaction. */
-export const deleteItems = (questionnaireId: number) => run('delete from questionnaire_item where questionnaire_id = ?', [questionnaireId])
+// An Item's follow-up goes with its Open question: deleting it unlinks the Items, and Undo delete links them again.
+const followingUp = (openQuestionId: number) =>
+  rows<{ id: number; questionnaire_id: number }>('select id, questionnaire_id from questionnaire_item where follow_up_id = ?', [openQuestionId])
 
-/** Puts deleted Items back under their ids. Joins the caller's transaction. */
-export const restoreItems = (items: DeletedItems) => insertRows(items)
+registerChildren('open_question', {
+  capture: (id) => {
+    const items = followingUp(id)
+    return () => {
+      for (const item of items) {
+        // Unless the Item is gone, or was followed up again since.
+        run('update questionnaire_item set follow_up_id = ? where id = ? and follow_up_id is null', [id, item.id])
+        touch(item.questionnaire_id)
+      }
+    }
+  },
+  remove: (id) => {
+    for (const item of followingUp(id)) touch(item.questionnaire_id)
+    run('update questionnaire_item set follow_up_id = null where follow_up_id = ?', [id])
+  },
+})

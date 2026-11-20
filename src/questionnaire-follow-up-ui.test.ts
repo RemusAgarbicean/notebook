@@ -85,6 +85,13 @@ test('Follow up asks the Respondents in the Ask column, and the answer fills in 
   )
   expect(listItems(q.id).find((i) => i.text === SUCCESS)!.answer).toEqual({ text: 'Invoices approved in two days' })
   expect(in_(item(SUCCESS), 'item-following-up').exists()).toBe(false)
+  // The taken answer still links to its Open question.
+  expect(in_(item(SUCCESS), 'item-follow-up-from').text()).toBe(`From follow-up: ${SUCCESS}`)
+  await in_(item(SUCCESS), 'item-follow-up-from').get('button').trigger('click')
+  await flushPromises()
+  expect(current.value).toMatchObject({ type: 'open_question' })
+  expect(getRecord('open_question', current.value!.id)!.title).toBe(SUCCESS)
+  await open(q)
 
   // Taken once: a cleared answer stays cleared, and the follow-up's answer shows as a hint.
   await in_(item(SUCCESS), 'answer-clear').trigger('click')
@@ -104,6 +111,31 @@ test('a Yes/No Item shows its follow-up answer as a hint and stays unanswered', 
   await open(q)
   expect(in_(item(VPN), 'item-follow-up-answer').text()).toContain('Only for the Lyon office')
   expect(listItems(q.id).find((i) => i.text === VPN)!.answer).toBeNull()
+})
+
+test('with no Respondents, Follow up says the question goes to No one to ask, and notes it once created', async () => {
+  const id = createRecord('questionnaire', 'Supplier intake')
+  addQuestions(id, bank(SUCCESS))
+  await open({ type: 'questionnaire', id })
+
+  expect(in_(item(SUCCESS), 'item-follow-up').attributes('title')).toContain('No one to ask')
+  expect(in_(item(SUCCESS), 'item-asked-of-no-one').exists()).toBe(false)
+
+  await in_(item(SUCCESS), 'item-follow-up').trigger('click')
+  await flushPromises()
+
+  expect(in_(item(SUCCESS), 'item-following-up').text()).toBe(`Following up: ${SUCCESS}`)
+  expect(in_(item(SUCCESS), 'item-asked-of-no-one').text()).toBe('Asked of no one; add Respondents to group it under a Person.')
+})
+
+test('with Respondents, Follow up names them and adds no note', async () => {
+  const q = intake()
+  await open(q)
+
+  expect(in_(item(SUCCESS), 'item-follow-up').attributes('title')).toContain('Maria Lopez')
+  await in_(item(SUCCESS), 'item-follow-up').trigger('click')
+  await flushPromises()
+  expect(in_(item(SUCCESS), 'item-asked-of-no-one').exists()).toBe(false)
 })
 
 test('an answered Item has no Follow up button', async () => {

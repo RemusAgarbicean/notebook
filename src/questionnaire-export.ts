@@ -105,8 +105,14 @@ export function markdown(s: Snapshot, { answers }: { answers: boolean }): string
   const parts = [`# ${s.title}`]
   const known = facts(s)
   if (known.length) parts.push(known.map(([label, value]) => `- **${label}:** ${value}`).join('\n'))
-  for (const { item, n, heading } of numbered(s.items)) {
-    if (heading) parts.push(`## ${heading}`)
+  return [...parts, itemsMarkdown(s.items, { answers })].filter(Boolean).join('\n\n') + '\n'
+}
+
+/** The Items alone as Markdown, as `markdown` writes them; section headings at `level` (2 is `##`). '' for none. */
+export function itemsMarkdown(items: ExportItem[], { answers, level = 2 }: { answers: boolean; level?: number }): string {
+  const parts: string[] = []
+  for (const { item, n, heading } of numbered(items)) {
+    if (heading) parts.push(`${'#'.repeat(level)} ${heading}`)
     parts.push(`**${n}. ${item.text}**` + (item.help ? `\n_${item.help}_` : ''))
     const { boxes, line, lines, suffix = '', markdown: text } = area(item, answers)
     if (boxes) parts.push(boxes.map((b) => `- [${b.ticked ? 'x' : ' '}] ${b.text}`).join('\n'))
@@ -114,7 +120,7 @@ export function markdown(s: Snapshot, { answers }: { answers: boolean }): string
     if (lines) parts.push(Array(lines).fill(LINE).join('\n') + suffix)
     if (text) parts.push(portableImages(text))
   }
-  return parts.join('\n\n') + '\n'
+  return parts.join('\n\n')
 }
 
 // What an email question asks for, after the question.
