@@ -8,7 +8,7 @@ import { findMentions, resolveMention } from '../../src/mentions'
 import { MIGRATIONS, schemaVersion } from '../../src/migrations'
 import { db, openNotebook } from '../../src/notebook'
 import { setPinned } from '../../src/pins'
-import { addSet, followUp, listItems, listSets, setAnswer, type Answer } from '../../src/questionnaires'
+import { addNewItem, addSet, followUp, listItems, listSets, saveItemsAsSet, setAnswer, takeFollowUpAnswer, type Answer } from '../../src/questionnaires'
 import type { RecordType } from '../../src/record-types'
 import { addTag, createRecord, getRecord, incompleteRecords, listRecords, transaction, updateRecord, type Patch, type RecordRef } from '../../src/records'
 import { LABEL, RELATION_SLOTS } from '../../src/relation-slots'
@@ -333,6 +333,50 @@ test('builds the sample Notebook', async () => {
     ]
     for (const [text, answer] of answers) setAnswer(item(text), answer)
     followUp(item('Which systems does it depend on?'))
+
+    const set = (name: string) => listSets().find((s) => s.name === name)!.id
+    const itemOf = (key: string, text: string) => listItems(ids[key].id).find((i) => i.text === text)!.id
+
+    // A finished access request, every answer type of the set filled in
+    mk('cubeAccess', 'questionnaire', 'Snowflake access for the cube', { status: 'done', notes: 'Approved by [[Ingrid Halvorsen]]; Arjun set it up the same day.' }, ['data'], 8)
+    put('cubeAccess', 'Project', 'cube')
+    put('cubeAccess', 'Respondents', 'arjun')
+    addSet(ids.cubeAccess.id, set('Access request'))
+    const access: [string, Answer][] = [
+      ['Who needs access, and to which systems?', { text: 'Me and [[Tomasz Wieczorek]]: read access to the `SPEND` schema in [[Snowflake]], and a Power BI gateway account.' }],
+      ['Which access level is needed?', { choice: 'Read only' }],
+      ['Does it need VPN or remote access?', { yes: true, comment: 'Only when working from home' }],
+      ['Are service accounts or API keys needed?', { yes: true, comment: 'One service account for the nightly refresh' }],
+      ['Who approves the access?', { text: 'Ingrid Halvorsen' }],
+      ['Until when is the access needed?', { date: day(-180) }],
+    ]
+    for (const [text, answer] of access) setAnswer(itemOf('cubeAccess', text), answer)
+
+    // A draft for the SRM switch-off: the integration set, a question of my own saved to the bank,
+    // and a gap followed up and already answered, so its answer flowed back into the Item
+    mk('srmCheck', 'questionnaire', 'SRM history load check', { status: 'draft', notes: 'To go through with Arjun and Ruth before SRM can be switched off.' }, ['data'], 5)
+    put('srmCheck', 'Project', 'decom')
+    put('srmCheck', 'Respondents', 'arjun', 'ruth')
+    addSet(ids.srmCheck.id, set('Integration / dependency check'))
+    addNewItem(
+      ids.srmCheck.id,
+      { text: 'How many years of history must be kept?', answerType: 'number', unit: 'years', category: 'Data', help: 'Ask AP about audit rules.' },
+      { saveToBank: true },
+    )
+    addNewItem(
+      ids.srmCheck.id,
+      { text: 'How confident are we the totals reconcile?', answerType: 'scale', scaleLow: 'Not at all', scaleHigh: 'Fully', category: 'Risks' },
+      { saveToBank: true },
+    )
+    setAnswer(itemOf('srmCheck', 'How do the systems connect?'), { choices: ['File transfer'], other: 'Monthly CSV export from SRM' })
+    setAnswer(itemOf('srmCheck', 'How sensitive is the data?'), { choice: 'Confidential' })
+    setAnswer(itemOf('srmCheck', 'How many years of history must be kept?'), { number: 7 })
+    const whereStored = itemOf('srmCheck', 'Where is the data stored?')
+    const asked = followUp(whereStored)
+    at(2)
+    updateRecord('open_question', asked, { status: 'answered', answer: 'In the `SRM_ARCHIVE` schema in [[Snowflake]], loaded once and read only.' })
+    takeFollowUpAnswer(whereStored)
+    saveItemsAsSet(ids.srmCheck.id, 'System switch-off check')
 
     // Diagrams
     at(11)
