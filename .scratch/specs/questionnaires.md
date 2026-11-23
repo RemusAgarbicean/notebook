@@ -1,7 +1,7 @@
 # Spec: Questionnaires, the Question bank and Question sets
 
 Labels: `ready-for-agent`
-Status: open (local; becomes a GitHub issue once `gh` is set up)
+Status: implemented and merged to main (2026-11-23)
 Decided with the user on 2026-11-20. The answers are filled in by the user in the app; export is Markdown, Copy as email text, and Print / Save as PDF. Reuse covers single Questions and saved Question sets. Answer types: short/long text, yes/no, single/multi choice, number, date, scale 1–5. An unanswered item can become an Open question.
 
 ## Problem Statement
