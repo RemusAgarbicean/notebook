@@ -108,7 +108,7 @@ test('an opened file shows its Records, and upgrading an old one downloads nothi
   expect(db.value!.exec('select title from team')[0].values).toEqual([['Payments']])
 
   await openNotebook(downloadFolder(fileOf(new SQL.Database().export()), save))
-  expect(db.value!.exec('select count(*) from label')[0].values).toEqual([[8]])
+  expect(db.value!.exec('select count(*) from label')[0].values).toEqual([[9]])
   expect(files).toEqual([])
 })
 

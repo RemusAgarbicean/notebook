@@ -1,3 +1,4 @@
+import { progressById } from './questionnaires'
 import { RECORD_FIELDS } from './record-fields'
 import { recordType, type RecordType } from './record-types'
 import { listRecords, recordTags, today } from './records'
@@ -17,18 +18,21 @@ const cell = (value: string) => quote(guard(value))
 
 /**
  * Every Record of a type as CSV text: title, the type's fields, its Relation
- * slots (titles joined by commas), Tags and notes. Starts with a byte order
+ * slots (titles joined by commas), Tags and notes. A Questionnaire also says how
+ * many of its Items are answered ("n of m"), which the import ignores. Starts with a byte order
  * mark, without which Excel on Windows misreads UTF-8.
  * shortcut: a title or Tag holding a comma splits in two when imported again; the import format has no escape for it.
  */
 export function exportCsv(type: RecordType): string {
   const fields = RECORD_FIELDS[type].fields.filter((f) => f.kind !== 'hidden')
   const slots = slotsOf(type)
+  const progress = type === 'questionnaire' ? progressById() : null
   const table = [
-    ['Title', ...fields.map((f) => f.label), ...slots.map((s) => s.name), 'Tags', 'Notes'],
+    ['Title', ...fields.map((f) => f.label), ...(progress ? ['Answered'] : []), ...slots.map((s) => s.name), 'Tags', 'Notes'],
     ...listRecords(type).map((r) => [
       r.title,
       ...fields.map((f) => (f.kind === 'checkbox' ? (r[f.name] ? 'yes' : 'no') : String(r[f.name] ?? ''))),
+      ...(progress ? [answered(progress.get(r.id))] : []),
       ...slots.map((s) =>
         slotRecords(s, r.id)
           .map((o) => o.title)
@@ -42,6 +46,8 @@ export function exportCsv(type: RecordType): string {
   ]
   return '﻿' + table.map((row) => row.map(cell).join(',')).join('\r\n') + '\r\n'
 }
+
+const answered = ({ answered, total } = { answered: 0, total: 0 }) => `${answered} of ${total}`
 
 /** The download's name: `systems-2026-11-11.csv`. */
 export const exportFileName = (type: RecordType) =>

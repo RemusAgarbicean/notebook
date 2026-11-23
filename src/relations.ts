@@ -174,14 +174,24 @@ export const FIRST_PROJECT_SQL = `(select p.title from relation r join project p
 export const isProjectTask = (e: RelationEntry) =>
   e.labelId === LABEL.partOf && !e.forward && e.other.type === 'task'
 
-/** The Relations section: every Relation not shown in one of the Record's slots or the Tasks checklist, grouped by reading. */
+/** Seen from a Project: a Questionnaire that is part of it. These show in the Project's Questionnaires section. */
+export const isProjectQuestionnaire = (e: RelationEntry) =>
+  e.labelId === LABEL.partOf && !e.forward && e.other.type === 'questionnaire'
+
+/** A Project's Questionnaires, by title. */
+export const projectQuestionnaires = (project: RecordRef): Titled[] =>
+  recordRelations(project)
+    .filter(isProjectQuestionnaire)
+    .map((e) => e.other)
+
+/** The Relations section: every Relation not shown in one of the Record's slots, the Tasks checklist or the Questionnaires section, grouped by reading. */
 export function groupRelations(record: RecordRef): { reading: string; entries: RelationEntry[] }[] {
   const slots = slotsOf(record.type)
   // Keyed by label and reading, so a label that reads the same both ways makes one group.
   const groups = new Map<string, { reading: string; entries: RelationEntry[] }>()
   for (const e of recordRelations(record)) {
     if (slots.some((s) => inSlot(s, e))) continue
-    if (record.type === 'project' && isProjectTask(e)) continue
+    if (record.type === 'project' && (isProjectTask(e) || isProjectQuestionnaire(e))) continue
     const key = `${e.labelId}:${e.reading}`
     if (!groups.has(key)) groups.set(key, { reading: e.reading, entries: [] })
     groups.get(key)!.entries.push(e)

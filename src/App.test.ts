@@ -112,7 +112,7 @@ test('the sidebar footer follows the save status', async () => {
   expect(status.text()).toBe('Saved')
 })
 
-test('the sidebar shows search, Home, all 11 Record types with icons and Tags', async () => {
+test('the sidebar shows search, Home, all 12 Record types with icons and Tags', async () => {
   const sidebar = (await openApp()).app.get('[data-testid="sidebar"]')
 
   expect(sidebar.text()).toContain('Notebook')
@@ -128,6 +128,7 @@ test('the sidebar shows search, Home, all 11 Record types with icons and Tags', 
     'Teams',
     'Processes',
     'Projects',
+    'Questionnaires',
     'Diagrams',
     'Bookmarks',
     'Open questions',

@@ -35,7 +35,7 @@ beforeEach(async () => {
 const count = (sql: string) => db.value!.exec(sql)[0].values[0][0]
 const today = new Date().toLocaleDateString('sv')
 
-test('every one of the 11 types can be created, read, listed and deleted', () => {
+test('every one of the 12 types can be created, read, listed and deleted', () => {
   for (const { type } of RECORD_TYPES) {
     const id = createRecord(type, 'Coupa')
 
@@ -59,6 +59,7 @@ test('each type has the fixed fields from the decisions', () => {
     team: [],
     process: [],
     project: ['status', 'due', 'summary'],
+    questionnaire: ['status'],
     diagram: ['canvas'],
     bookmark: ['url'],
     open_question: ['status', 'answer'],

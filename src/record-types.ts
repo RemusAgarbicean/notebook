@@ -1,6 +1,7 @@
 import {
   Bookmark,
   CaseUpper,
+  ClipboardList,
   CircleQuestionMark,
   FolderKanban,
   Network,
@@ -21,6 +22,7 @@ export const RECORD_TYPES = [
   { type: 'team', label: 'Teams', icon: Users },
   { type: 'process', label: 'Processes', icon: Workflow },
   { type: 'project', label: 'Projects', icon: FolderKanban },
+  { type: 'questionnaire', label: 'Questionnaires', icon: ClipboardList },
   { type: 'diagram', label: 'Diagrams', icon: Network },
   { type: 'bookmark', label: 'Bookmarks', icon: Bookmark },
   { type: 'open_question', label: 'Open questions', icon: CircleQuestionMark },

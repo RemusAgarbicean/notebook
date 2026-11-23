@@ -2,6 +2,7 @@ import { beforeEach, expect, test } from 'vitest'
 import { matchColumns, parseTable, runImport } from './bulk-import'
 import { exportCsv, exportFileName } from './csv-export'
 import { migrate } from './migrations'
+import { addNewItem, setAnswer } from './questionnaires'
 import { db } from './notebook'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, type RecordType } from './record-types'
@@ -57,6 +58,7 @@ function seed() {
   addToSlot(slotsOf('journal_entry')[0], sync, { type: 'person', id: maria })
   addToSlot(slotsOf('journal_entry')[0], sync, { type: 'person', id: stefan })
   createRecord('journal_entry', '', { date: '2026-11-03' })
+  setAnswer(addNewItem(createRecord('questionnaire', 'ERP intake', { status: 'in progress' }), { text: 'Sponsor' }), { text: 'Ana' })
 }
 
 test('exporting every type and importing the files into an empty Notebook gives the same Records, Tags and slot Relations', async () => {
@@ -108,6 +110,19 @@ test('the import drops one apostrophe in front of a formula character, and only 
 
 test('an empty type exports just the column names', () => {
   expect(exportCsv('task')).toBe('﻿Title,Done,Due,Project,Tags,Notes\r\n')
+})
+
+test('Questionnaires get an Answered column, "n of m"', () => {
+  const intake = createRecord('questionnaire', 'Coupa rollout intake', { status: 'in progress' })
+  setAnswer(addNewItem(intake, { text: 'Project sponsor' }), { text: 'Ana' })
+  addNewItem(intake, { text: 'Target go-live date', answerType: 'date' })
+  createRecord('questionnaire', 'Supplier intake')
+
+  expect(exportCsv('questionnaire')).toBe(
+    '﻿Title,Status,Answered,Project,Respondents,Tags,Notes\r\n' +
+      'Coupa rollout intake,in progress,1 of 2,,,,\r\n' +
+      'Supplier intake,draft,0 of 0,,,,\r\n',
+  )
 })
 
 test('the file is named after the list and the day', () => {

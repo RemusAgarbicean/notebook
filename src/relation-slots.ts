@@ -12,6 +12,7 @@ export const LABEL = {
   attended: 4,
   partOf: 6,
   answeredBy: 8,
+  respondent: 9,
 } as const
 
 export type RelationSlot = {
@@ -36,6 +37,8 @@ export const RELATION_SLOTS: readonly RelationSlot[] = [
   { type: 'journal_entry', name: 'Attendees', labelId: LABEL.attended, end: 'to', offers: ['person'] },
   { type: 'task', name: 'Project', labelId: LABEL.partOf, end: 'from', offers: ['project'] },
   { type: 'project', name: 'Owner', labelId: LABEL.owns, end: 'to', offers: ['person', 'team'], creates: 'team' },
+  { type: 'questionnaire', name: 'Project', labelId: LABEL.partOf, end: 'from', offers: ['project'] },
+  { type: 'questionnaire', name: 'Respondents', labelId: LABEL.respondent, end: 'to', offers: ['person'] },
 ]
 
 export const slotsOf = (type: RecordType) => RELATION_SLOTS.filter((s) => s.type === type)

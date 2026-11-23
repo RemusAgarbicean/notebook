@@ -1,6 +1,7 @@
 import { markdown } from './markdown'
 import { openRecord } from './navigation'
 import { db } from './notebook'
+import { childMarkdownTexts } from './record-children'
 import { RECORD_FIELDS } from './record-fields'
 import { RECORD_TYPES, type RecordType } from './record-types'
 import { foldTitle, recordTitles, revision, rows, sameRecord, sameTitle, textVersion, titled, type RecordRef, type Titled } from './records'
@@ -54,24 +55,31 @@ function rewrite(text: string, target: RecordRef | null, newTitle: string): stri
   })
 }
 
-// Every markdown text that holds a Mention: all notes, and an Open question's answer.
-const mentionTexts = () =>
-  RECORD_TYPES.flatMap(({ type }) =>
-    ['notes', ...RECORD_FIELDS[type].fields.filter((f) => f.kind === 'markdown').map((f) => f.name)].flatMap(
-      (column) =>
-        rows<{ id: number; title: string; text: string }>(
-          `select id, title, ${column} as text from ${type} where ${column} like '%[[%' order by id`,
-        ).map((row) => ({ ...row, type, column })),
+// Every markdown text that holds a Mention: all notes, an Open question's answer, and the texts a Record's
+// children keep (the text and comment in a Questionnaire's answers). Each comes with how to write it back.
+type MentionText = { type: RecordType; id: number; title: string; text: string; write: (next: string) => void }
+const mentionTexts = (): MentionText[] => [
+  ...RECORD_TYPES.flatMap(({ type }) =>
+    ['notes', ...RECORD_FIELDS[type].fields.filter((f) => f.kind === 'markdown').map((f) => f.name)].flatMap((column) =>
+      rows<{ id: number; title: string; text: string }>(
+        `select id, title, ${column} as text from ${type} where ${column} like '%[[%' order by id`,
+      ).map((row) => ({
+        ...row,
+        type,
+        write: (next: string) => db.value!.run(`update ${type} set ${column} = ? where id = ?`, [next, row.id]),
+      })),
     ),
-  )
+  ),
+  ...childMarkdownTexts(),
+]
 
 // Returns whether any text changed.
 function retitle(target: RecordRef | null, newTitle: string): boolean {
   let rewrote = false
-  for (const { type, id, column, text } of mentionTexts()) {
+  for (const { text, write } of mentionTexts()) {
     const next = rewrite(text, target, newTitle)
     if (next === text) continue
-    db.value!.run(`update ${type} set ${column} = ? where id = ?`, [next, id])
+    write(next)
     rewrote = true
   }
   return rewrote
@@ -98,7 +106,7 @@ export function keepMentions(title: string): boolean {
 // kept until the next write, so opening pages reads the notes once, not once per page.
 let mentions: { db: unknown; revision: number; text: number; to: Map<string, Titled[]> } | undefined
 
-/** The other Records whose notes or answer Mention this one. Reactive, but not on text edits: a Record's own text never changes what it is mentioned in. */
+/** The other Records whose notes or answers Mention this one. Reactive, but not on text edits: a Record's own text never changes what it is mentioned in. */
 export function mentionedIn(target: RecordRef): Titled[] {
   if (mentions?.db !== db.value || mentions.revision !== revision.value || mentions.text !== textVersion()) {
     const to = new Map<string, Titled[]>()

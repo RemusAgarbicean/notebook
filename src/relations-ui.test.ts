@@ -177,6 +177,7 @@ test('the Labels screen lists each label with its readings, its use count and wh
     ['part of', 'contains', '0', true],
     ['related to', 'related to', '0', false],
     ['answered by', 'answers', '0', true],
+    ['responds to', 'has respondent', '0', true],
   ])
 })
 
@@ -207,7 +208,7 @@ test('a label can be added and an unused one deleted from the Labels screen', as
 
   await all('label-row').at(-1)!.get('[data-testid="label-delete"]').trigger('click')
   expect(listLabels().map((l) => l.forward)).not.toContain('reports to')
-  expect(labelRows()).toHaveLength(8)
+  expect(labelRows()).toHaveLength(9)
 
   await get('close-labels').trigger('click')
   expect(app.find('[data-testid="labels-dialog"]').exists()).toBe(false)
@@ -222,7 +223,7 @@ test('the Labels screen refuses a reading another label has, says which, and kee
   await get('add-label').trigger('submit')
 
   expect(alert()).toBe('"Owns" is already a reading of the label "owns / owned by"')
-  expect(labelRows()).toHaveLength(8)
+  expect(labelRows()).toHaveLength(9)
   expect((get('new-label-forward').element as HTMLInputElement).value).toBe('reports to')
 
   await all('label-row')[4].get('[data-testid="label-reverse"]').setValue('has member')

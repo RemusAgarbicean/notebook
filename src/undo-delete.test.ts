@@ -178,7 +178,7 @@ test('a label renamed since the delete keeps its new readings: Undo does not bri
   undoDelete()
 
   expect(relationsOf('system', coupa)).toEqual(['depends on SAP'])
-  expect(listLabels()).toHaveLength(8)
+  expect(listLabels()).toHaveLength(9)
 })
 
 test("a new label that took a deleted label's id does not take its Relations", () => {

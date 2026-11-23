@@ -13,6 +13,90 @@ const record = (table: string, fields = '') => `
     updated_at text not null default ${NOW}
   );`
 
+// The columns a bank Question and a Questionnaire Item share: the wording and how it is answered.
+const QUESTION_COLUMNS = `
+    text text not null,
+    help text not null default '',
+    answer_type text not null default 'short_text'
+      check (answer_type in ('short_text', 'long_text', 'yes_no', 'single_choice', 'multi_choice', 'number', 'date', 'scale')),
+    options text not null default '[]',
+    allow_other integer not null default 0,
+    unit text,
+    scale_low text,
+    scale_high text,`
+
+// Part of migration 3, so as frozen as it is: the starter Question bank and Question sets.
+// [category, text, answer type, extras]; a Question's id is its place in this list, from 1.
+type Starter = [string, string, string, { help?: string; options?: string[]; other?: true; unit?: string; scale?: [string, string] }?]
+const STARTER_QUESTIONS: Starter[] = [
+  ['Goals and scope', 'What problem does this project solve?', 'long_text'],
+  ['Goals and scope', 'What does success look like?', 'long_text', { help: 'How will we know the project worked?' }],
+  ['Goals and scope', 'What is in scope?', 'long_text'],
+  ['Goals and scope', 'What is explicitly out of scope?', 'long_text'],
+  ['Goals and scope', 'Who asked for this project?', 'short_text'],
+  ['Stakeholders', 'Who is the project sponsor?', 'short_text'],
+  ['Stakeholders', 'Who makes the final decisions?', 'short_text'],
+  ['Stakeholders', 'Who else needs to be kept informed?', 'long_text'],
+  ['Stakeholders', 'Who are the end users?', 'long_text'],
+  ['Requirements', 'What must the solution do?', 'long_text', { help: 'The must-haves first.' }],
+  ['Requirements', 'What would be nice to have?', 'long_text'],
+  ['Requirements', 'Is there a solution or workaround today?', 'yes_no'],
+  ['Requirements', 'What kind of change is this?', 'single_choice', {
+    options: ['New system', 'Change to an existing system', 'Process change', 'Report or data request'],
+    other: true,
+  }],
+  ['Access', 'Who needs access, and to which systems?', 'long_text'],
+  ['Access', 'Which access level is needed?', 'single_choice', { options: ['Read only', 'Read and write', 'Admin'], other: true }],
+  ['Access', 'Does it need VPN or remote access?', 'yes_no'],
+  ['Access', 'Are service accounts or API keys needed?', 'yes_no'],
+  ['Access', 'Who approves the access?', 'short_text'],
+  ['Access', 'Until when is the access needed?', 'date'],
+  ['Dependencies', 'Which systems does it depend on?', 'long_text'],
+  ['Dependencies', 'Which systems or teams depend on it?', 'long_text'],
+  ['Dependencies', 'How do the systems connect?', 'multi_choice', { options: ['API', 'File transfer', 'Database link', 'Manual'], other: true }],
+  ['Dependencies', 'Does it depend on another project?', 'yes_no'],
+  ['Dependencies', 'Which environments are involved?', 'multi_choice', { options: ['Dev', 'Test', 'Acceptance', 'Production'] }],
+  ['Data', 'Which data does it use or produce?', 'long_text'],
+  ['Data', 'Does it handle personal data (GDPR)?', 'yes_no'],
+  ['Data', 'Where is the data stored?', 'short_text'],
+  ['Data', 'How much data is involved?', 'number', { unit: 'GB' }],
+  ['Data', 'How sensitive is the data?', 'single_choice', { options: ['Public', 'Internal', 'Confidential', 'Secret'] }],
+  ['Timeline and budget', 'Target go-live date', 'date'],
+  ['Timeline and budget', 'Is there a hard deadline?', 'yes_no', { help: 'If so, what happens when it is missed?' }],
+  ['Timeline and budget', 'What is the budget?', 'number', { unit: '€' }],
+  ['Timeline and budget', 'Which milestones should we know about?', 'long_text'],
+  ['Risks', 'How critical is this to the business?', 'scale', { scale: ['Low', 'High'] }],
+  ['Risks', 'What are the biggest risks you see?', 'long_text'],
+  ['Risks', 'What happens if it is late or does not happen?', 'long_text'],
+  ['Risks', 'How sure are you of the requirements so far?', 'scale', { scale: ['Not sure', 'Very sure'] }],
+  ['Non-functional', 'How many users?', 'number', { unit: 'users' }],
+  ['Non-functional', 'When must it be available?', 'single_choice', { options: ['Office hours', 'Extended hours', '24/7'] }],
+  ['Non-functional', 'Are there performance expectations?', 'long_text'],
+  ['Non-functional', 'Are there security or compliance requirements?', 'long_text'],
+  ['Non-functional', 'Which languages must it support?', 'multi_choice', { options: ['English', 'German', 'French', 'Dutch'], other: true }],
+]
+// [name, the Questions' ids in order]
+const STARTER_SETS: [string, number[]][] = [
+  ['New project intake', [1, 2, 3, 4, 6, 7, 10, 14, 20, 24, 26, 30, 31, 34, 35, 38]],
+  ['Access request', [14, 15, 16, 17, 18, 19]],
+  ['Integration / dependency check', [20, 21, 22, 23, 24, 25, 27, 29]],
+]
+
+function starterContent() {
+  const q = (s: string | null | undefined) => (s == null ? 'null' : `'${s.replaceAll("'", "''")}'`)
+  const questions = STARTER_QUESTIONS.map(
+    ([category, text, type, x = {}], i) =>
+      `(${i + 1}, ${q(text)}, ${q(x.help ?? '')}, '${type}', ${q(JSON.stringify(x.options ?? []))}, ${x.other ? 1 : 0}, ${q(x.unit)}, ${q(x.scale?.[0])}, ${q(x.scale?.[1])}, ${q(category)}, ${i + 1})`,
+  )
+  const sets = STARTER_SETS.map(([name], i) => `(${i + 1}, ${q(name)}, ${i + 1})`)
+  const members = STARTER_SETS.flatMap(([, ids], s) => ids.map((id, i) => `(${s + 1}, ${id}, ${i + 1})`))
+  return `
+  insert into question (id, text, help, answer_type, options, allow_other, unit, scale_low, scale_high, category, position) values
+    ${questions.join(',\n    ')};
+  insert into question_set (id, name, position) values ${sets.join(', ')};
+  insert into question_set_item (set_id, question_id, position) values ${members.join(', ')};`
+}
+
 // Ordered and append-only: a migration that has shipped is never edited, and
 // new ones only add columns or tables. Entry n upgrades user_version n to n + 1.
 export const MIGRATIONS: string[] = [
@@ -93,6 +177,57 @@ export const MIGRATIONS: string[] = [
     data blob not null,
     created_at text not null default ${NOW}
   );
+  `,
+  // Questionnaires, the Question bank and Question sets, seeded with the starter content. An Item keeps
+  // its own copy of a Question's wording; question_id only remembers where it came from.
+  // autoincrement: a deleted Question's id never comes back, so an Item can't seem to come from a newer one.
+  `
+  ${record('questionnaire', `status text not null default 'draft' check (status in ('draft', 'in progress', 'done')),`)}
+
+  create table question (
+    id integer primary key autoincrement,
+    ${QUESTION_COLUMNS}
+    category text not null default '',
+    position integer not null default 0,
+    created_at text not null default ${NOW},
+    updated_at text not null default ${NOW}
+  );
+
+  create table question_set (
+    id integer primary key autoincrement,
+    name text not null,
+    position integer not null default 0
+  );
+
+  create table question_set_item (
+    set_id integer not null references question_set (id),
+    question_id integer not null references question (id),
+    position integer not null default 0,
+    primary key (set_id, question_id)
+  );
+
+  create table questionnaire_item (
+    id integer primary key autoincrement,
+    questionnaire_id integer not null,
+    position integer not null default 0,
+    question_id integer,
+    section text not null default '',
+    ${QUESTION_COLUMNS}
+    answer text,
+    follow_up_id integer
+  );
+  create index questionnaire_item_of on questionnaire_item (questionnaire_id, position);
+
+  ${starterContent()}
+
+  -- The Respondents label takes id 9. A label the user added there moves to a free id, with its Relations.
+  update relation set label_id = (select max(id) + 1 from label) where label_id = 9;
+  update label set id = (select max(id) + 1 from label) where id = 9;
+  insert into label (id, forward, reverse, protected) values (9, 'responds to', 'has respondent', 1);
+  `,
+  // Whether a text Item already took its follow-up's answer, so a cleared answer isn't filled in again.
+  `
+  alter table questionnaire_item add column follow_up_taken integer not null default 0;
   `,
 ]
 
