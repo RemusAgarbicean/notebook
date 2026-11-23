@@ -1,3 +1,4 @@
+import { answerText, answerType, fitted, isAnswered, isChoice, isText, type Answer, type AnswerType, type Wording } from './answer-types'
 import { db } from './notebook'
 import { registerChildren, type ChildText } from './record-children'
 import type { RecordType } from './record-types'
@@ -9,49 +10,9 @@ import { addRelation, slotRecords } from './relations'
 // Components never write these tables themselves. An Item keeps its own copy of a Question's wording,
 // so editing or deleting a bank Question never changes a Questionnaire; `questionId` only remembers the origin.
 
-export type AnswerType = 'short_text' | 'long_text' | 'yes_no' | 'single_choice' | 'multi_choice' | 'number' | 'date' | 'scale'
-
-/** Every Answer type, in the order a type picker offers them, with its name for the user. */
-export const ANSWER_TYPES: readonly { type: AnswerType; label: string }[] = [
-  { type: 'short_text', label: 'Short text' },
-  { type: 'long_text', label: 'Long text' },
-  { type: 'yes_no', label: 'Yes/No' },
-  { type: 'single_choice', label: 'Single choice' },
-  { type: 'multi_choice', label: 'Multiple choice' },
-  { type: 'number', label: 'Number' },
-  { type: 'date', label: 'Date' },
-  { type: 'scale', label: 'Scale 1–5' },
-]
-
-/** Whether an Answer type picks from options. */
-export const isChoice = (type: AnswerType) => type === 'single_choice' || type === 'multi_choice'
-
-/** An Item's answer. Its shape follows the Item's Answer type; "Other" on a single choice is `choice: ''` plus `other`. */
-export type Answer =
-  | { text: string } // short_text, long_text
-  | { yes: boolean; comment?: string } // yes_no
-  | { choice: string; other?: string } // single_choice
-  | { choices: readonly string[]; other?: string } // multi_choice
-  | { number: number } // number
-  | { date: string } // date, YYYY-MM-DD
-  | { scale: 1 | 2 | 3 | 4 | 5 } // scale
-
-/** What a bank Question and an Item share: the wording and how it is answered. */
-export type Wording = {
-  text: string
-  /** Help text under the question; '' for none. */
-  help: string
-  answerType: AnswerType
-  /** The choices of a single or multiple choice; empty for the other types. */
-  options: string[]
-  /** Whether a choice also takes a free-text "Other". */
-  allowOther: boolean
-  /** Shown next to a number answer (users, €, GB). */
-  unit: string | null
-  /** The labels at the ends of a scale. */
-  scaleLow: string | null
-  scaleHigh: string | null
-}
+// The Answer types, their answers and the wording live in answer-types.ts; re-exported for the callers of this module.
+export { ANSWER_TYPES, answerText, answerTypeLabel, isAnswered, isChoice, isText } from './answer-types'
+export type { Answer, AnswerType, Wording } from './answer-types'
 
 /** A Question for `createQuestion` or a new Item: only the text is needed; the type defaults to short text. */
 export type QuestionDraft = Partial<Wording> & { text: string; category?: string }
@@ -141,7 +102,7 @@ const blank = (s: string | null | undefined) => (s ?? '').trim() || null
 function clean(w: Wording): Wording {
   const text = w.text.trim()
   if (!text) throw new Error('The question needs a text')
-  if (!ANSWER_TYPES.some((t) => t.type === w.answerType)) throw new Error(`Unknown Answer type: ${w.answerType}`)
+  answerType(w.answerType) // throws for an unknown type
   const choice = isChoice(w.answerType)
   const options = choice ? [...new Set(w.options.map((o) => o.trim()).filter(Boolean))] : []
   if (choice && !options.length) throw new Error('A choice question needs at least one option')
@@ -467,56 +428,6 @@ export function updateItem(itemId: number, patch: ItemPatch) {
 
 // ---- Answers
 
-/** Whether an answer counts as given: not null, and not an empty text or an empty choice. */
-export function isAnswered(answer: Answer | null): boolean {
-  if (!answer) return false
-  if ('text' in answer) return !!answer.text.trim()
-  if ('choice' in answer) return !!answer.choice || !!answer.other?.trim()
-  if ('choices' in answer) return answer.choices.length > 0 || !!answer.other?.trim()
-  return true
-}
-
-const isDate = (s: unknown) => typeof s === 'string' && /^\d{4}-\d\d-\d\d$/.test(s) && !Number.isNaN(Date.parse(s))
-
-// The answer, tidied, if it has the shape the Item's type takes; throws with a message fit for the user otherwise.
-function fitted(item: Wording, a: Answer): Answer {
-  const shape = new Error(`That is not a ${ANSWER_TYPES.find((t) => t.type === item.answerType)!.label} answer`)
-  const other = (o: string | undefined) => {
-    if (o === undefined || o === '') return {}
-    if (!item.allowOther) throw new Error('This question has no "Other"')
-    return { other: String(o) }
-  }
-  const option = (o: string) => {
-    if (!item.options.includes(o)) throw new Error(`"${o}" is not one of the options`)
-    return o
-  }
-  switch (item.answerType) {
-    case 'short_text':
-    case 'long_text':
-      if (!('text' in a) || typeof a.text !== 'string') throw shape
-      return { text: a.text }
-    case 'yes_no':
-      if (!('yes' in a) || typeof a.yes !== 'boolean') throw shape
-      return { yes: a.yes, ...(a.comment ? { comment: String(a.comment) } : {}) }
-    case 'single_choice':
-      if (!('choice' in a) || typeof a.choice !== 'string') throw shape
-      return { choice: a.choice && option(a.choice), ...other(a.other) }
-    case 'multi_choice':
-      if (!('choices' in a) || !Array.isArray(a.choices)) throw shape
-      // In the options' order, each once.
-      return { choices: item.options.filter((o) => a.choices.map(option).includes(o)), ...other(a.other) }
-    case 'number':
-      if (!('number' in a) || typeof a.number !== 'number' || !Number.isFinite(a.number)) throw shape
-      return { number: a.number }
-    case 'date':
-      if (!('date' in a) || !isDate(a.date)) throw shape
-      return { date: a.date }
-    case 'scale':
-      if (!('scale' in a) || ![1, 2, 3, 4, 5].includes(a.scale)) throw shape
-      return { scale: a.scale }
-  }
-}
-
 const fits = (item: Wording, a: Answer) => {
   try {
     fitted(item, a)
@@ -667,7 +578,7 @@ export function followUp(itemId: number): number {
  */
 export function takeFollowUpAnswer(itemId: number): boolean {
   const item = getItem(itemId)
-  if (!item || (item.answerType !== 'short_text' && item.answerType !== 'long_text') || isAnswered(item.answer)) return false
+  if (!item || !isText(item.answerType) || isAnswered(item.answer)) return false
   const asked = followUpOf(item)
   if (asked?.status !== 'answered' || !asked.answer?.trim()) return false
   if (rows<{ follow_up_taken: number }>('select follow_up_taken from questionnaire_item where id = ?', [itemId])[0].follow_up_taken)
@@ -680,18 +591,6 @@ export function takeFollowUpAnswer(itemId: number): boolean {
 }
 
 // ---- Reading answers
-
-/** An answer as plain text, for search and export: "Yes, <comment>", choices joined with commas, '' for none. */
-export function answerText(answer: Answer | null): string {
-  if (!answer) return ''
-  if ('text' in answer) return answer.text
-  if ('yes' in answer) return [answer.yes ? 'Yes' : 'No', answer.comment].filter(Boolean).join(', ')
-  if ('choice' in answer) return [answer.choice, answer.other].filter(Boolean).join(', ')
-  if ('choices' in answer) return [...answer.choices, answer.other].filter(Boolean).join(', ')
-  if ('number' in answer) return String(answer.number)
-  if ('date' in answer) return answer.date
-  return String(answer.scale)
-}
 
 /** What global search reads of a Questionnaire besides its fields: each Item's question and answer. */
 export const searchTexts = (questionnaireId: number): [where: 'Question' | 'Answer', text: string][] =>

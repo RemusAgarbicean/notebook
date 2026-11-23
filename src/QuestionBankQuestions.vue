@@ -4,13 +4,12 @@ import { computed, ref } from 'vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import { vFocus } from './dialog'
 import {
-  ANSWER_TYPES,
+  answerTypeLabel,
   deleteQuestion,
   getQuestion,
   listQuestions,
   questionCategories,
   renameCategory,
-  type AnswerType,
   type Question,
 } from './questionnaires'
 import QuestionEditor from './QuestionEditor.vue'
@@ -63,7 +62,6 @@ function rename() {
   }
 }
 
-const typeLabel = (type: AnswerType) => ANSWER_TYPES.find((t) => t.type === type)?.label ?? type
 const categoryName = (c: string) => c || 'No category'
 const field = 'h-7 rounded-md border bg-background px-2'
 const button = 'flex h-7 shrink-0 items-center gap-1 rounded-md border px-2 font-medium hover:bg-accent'
@@ -134,7 +132,7 @@ const icon = 'rounded-md p-1 text-muted-foreground hover:bg-background hover:tex
         <ul>
           <li v-for="q in g.questions" :key="q.id" data-testid="bank-question" class="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent">
             <span data-testid="bank-question-text" class="flex-1">{{ q.text }}</span>
-            <span data-testid="bank-question-type" class="text-xs text-muted-foreground">{{ typeLabel(q.answerType) }}</span>
+            <span data-testid="bank-question-type" class="text-xs text-muted-foreground">{{ answerTypeLabel(q.answerType) }}</span>
             <button type="button" data-testid="bank-question-edit" :aria-label="`Edit ${q.text}`" :class="icon" @click="edit(q.id)">
               <Pencil class="size-4" />
             </button>

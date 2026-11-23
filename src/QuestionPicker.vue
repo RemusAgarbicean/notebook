@@ -2,7 +2,7 @@
 import { Check, Plus, X } from 'lucide-vue-next'
 import { computed, ref } from 'vue'
 import { vDialog, vFocus } from './dialog'
-import { ANSWER_TYPES, addCategory, addedQuestionIds, addQuestions, addSet, listQuestions, listSets, questionCategories } from './questionnaires'
+import { addCategory, addedQuestionIds, addQuestions, addSet, answerTypeLabel, listQuestions, listSets, questionCategories } from './questionnaires'
 
 // The dialog that adds bank Questions to a Questionnaire: one by one, a whole category, or a Question set.
 // It stays open, so several can be added in a row; Questions already on the Questionnaire are marked and can't be added twice.
@@ -19,7 +19,6 @@ const categoryLeft = computed(() => listQuestions({ category: category.value }).
 const sets = computed(() =>
   listSets().map((s) => ({ ...s, left: s.questionIds.filter((id) => !added.value.has(id)).length })),
 )
-const typeLabel = (type: string) => ANSWER_TYPES.find((t) => t.type === type)?.label ?? type
 
 function attempt(add: () => unknown) {
   try {
@@ -115,7 +114,7 @@ const input = 'h-8 rounded-md border bg-background px-2'
           <div class="flex min-w-0 flex-1 flex-col">
             <span data-testid="picker-question-text">{{ q.text }}</span>
             <span class="text-xs text-muted-foreground">
-              <template v-if="!category">{{ q.category }} · </template>{{ typeLabel(q.answerType) }}
+              <template v-if="!category">{{ q.category }} · </template>{{ answerTypeLabel(q.answerType) }}
             </span>
           </div>
           <button

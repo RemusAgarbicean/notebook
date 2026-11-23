@@ -33,6 +33,7 @@ const comment = computed(() => String(a.value?.comment ?? ''))
 const saveYes = (y: boolean, c = comment.value) => save({ yes: y, ...(c ? { comment: c } : {}) })
 
 // Choices. "Other" on a single choice is picked by its radio or by typing in it; until its text is typed nothing is saved.
+// On a multiple choice, Other is saved with the options ticked.
 const otherPicked = ref(false)
 const other = computed(() => String(a.value?.other ?? ''))
 const choice = computed(() => String(a.value?.choice ?? ''))
@@ -43,10 +44,8 @@ function pickOption(o: string) {
   save({ choice: o })
 }
 function saveOther(text: string) {
-  if (props.item.answerType === 'single_choice') {
-    otherPicked.value = true
-    save(text ? { choice: '', other: text } : null)
-  } else saveChoices(choices.value, text)
+  otherPicked.value = true
+  save(text ? { choice: '', other: text } : null)
 }
 function toggleOption(o: string, on: boolean) {
   saveChoices(
@@ -167,7 +166,7 @@ const choiceRow = 'flex min-h-7 cursor-pointer items-center gap-2'
               :aria-label="`Other answer to ${item.text}`"
               :value="other"
               :class="[input, 'h-7 min-w-0 flex-1']"
-              @input="saveOther(value($event))"
+              @input="saveChoices(choices, value($event))"
             />
           </label>
         </div>

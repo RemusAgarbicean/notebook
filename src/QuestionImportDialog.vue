@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { parseTable } from './bulk-import'
 import { vDialog, vFocus } from './dialog'
 import { exampleCsv, planQuestionImport, runQuestionImport, type QuestionImportRow } from './question-import'
-import { ANSWER_TYPES, listQuestions, listSets, questionCategories } from './questionnaires'
+import { answerTypeLabel, listQuestions, listSets, questionCategories } from './questionnaires'
 import { manualSave } from './save-status'
 import { download } from './storage-download'
 
@@ -40,7 +40,6 @@ const ready = computed(
     plan.value.rows.some((r) => !r.error && (!r.duplicate || set.value)),
 )
 
-const typeLabel = (r: QuestionImportRow) => ANSWER_TYPES.find((t) => t.type === r.answerType)?.label ?? r.answerType
 const status = (r: QuestionImportRow) => (r.error ? `Skipped: ${r.error}` : r.duplicate ? 'Duplicate: skipped' : 'New')
 
 function start() {
@@ -195,7 +194,7 @@ const field = 'h-7 rounded-md border bg-background px-2'
           >
             <td class="py-1 pr-2">{{ status(r) }}</td>
             <td class="py-1 pr-2">{{ r.text }}</td>
-            <td class="py-1 pr-2">{{ typeLabel(r) }}</td>
+            <td class="py-1 pr-2">{{ answerTypeLabel(r.answerType) }}</td>
             <td class="py-1 pr-2">{{ r.options.join(', ') }}</td>
             <td class="py-1 pr-2">{{ r.category }}</td>
           </tr>

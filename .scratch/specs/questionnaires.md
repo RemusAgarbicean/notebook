@@ -91,6 +91,8 @@ A new Record type, **Questionnaire**, holds an ordered list of **Items**. Each I
   - `questionnaire_item`: id, questionnaire_id, position, question_id (nullable origin, used only for "already added"; never followed for wording), section, text, help, answer_type, options, allow_other, unit, scale_low, scale_high, answer (JSON or null), follow_up_id (nullable `open_question` id).
   - Seed the starter bank and starter sets in this same migration, so existing Notebooks get them on upgrade (a pre-upgrade Backup already happens).
   - New protected Relation label for Respondents, added by insert with an id that `LABEL` names (`respondent`, forward "responds to", reverse "has respondent"). The Project slot reuses `LABEL.partOf`, with the questionnaire as the `from` end, as Task → Project does.
+  - Accepted decision (Q6): a second migration (4) adds `questionnaire_item.follow_up_taken integer not null default 0`, so a text Item takes its follow-up's answer only once and a cleared answer stays cleared. Deleting the Open question clears `follow_up_id` (the app cascades, ADR 0001), and Undo delete links it again.
+  - Accepted decision: Duplicate resets the copy's status to draft, since the copy has no answers.
 - **Answer values** are stored as JSON in `answer`. The shapes come from a prototype-free decision:
   ```ts
   type AnswerType = 'short_text' | 'long_text' | 'yes_no' | 'single_choice' | 'multi_choice' | 'number' | 'date' | 'scale'

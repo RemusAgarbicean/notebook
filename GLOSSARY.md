@@ -6,7 +6,7 @@ A personal, single-user information center for onboarding into a procurement ana
 
 **Record**:
 Any typed entry the user keeps: a System, Acronym, Person, Diagram, Bookmark, Open question, Task, Journal entry, Team, Process, Project or Questionnaire.
-_Avoid_: Item, entity, object
+_Avoid_: entity, object
 
 **System**:
 A software tool or platform used at work (e.g. Coupa, SAP, Tableau), with what it does and who owns it.

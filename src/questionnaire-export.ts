@@ -1,9 +1,10 @@
+import { answerArea, answerType, LINE } from './answer-types'
 import { portableImages } from './images'
 import { renderMarkdown } from './markdown'
+import { listItems, respondents, type Item } from './questionnaires'
 import { getRecord, today } from './records'
-import { slotsOf } from './relation-slots'
+import { LABEL, slotsOf } from './relation-slots'
 import { slotRecords } from './relations'
-import { listItems, type Item } from './questionnaires'
 
 // Export a Questionnaire: pure renderers from a snapshot to Markdown, email text and the print view's HTML.
 // Long text answers and Yes/No comments are markdown: the Markdown keeps them as written, with Images as a
@@ -20,20 +21,17 @@ export type Snapshot = { title: string; project: string; respondents: string[]; 
 
 /** The Questionnaire as it is now, for the renderers. */
 export function snapshot(id: number): Snapshot {
-  const titles = (name: string) => {
-    const slot = slotsOf('questionnaire').find((s) => s.name === name)
-    return slot ? slotRecords(slot, id).map((r) => r.title) : []
-  }
+  const project = slotsOf('questionnaire').find((s) => s.labelId === LABEL.partOf)!
   return {
     title: getRecord('questionnaire', id)?.title ?? '',
-    project: titles('Project').join(', '),
-    respondents: titles('Respondents'),
+    project: slotRecords(project, id)
+      .map((r) => r.title)
+      .join(', '),
+    respondents: respondents(id).map((r) => r.title),
     date: today(),
     items: listItems(id),
   }
 }
-
-const LINE = '_______'
 
 // The facts under the title, those with something in them.
 const facts = (s: Snapshot): [string, string][] =>
@@ -49,57 +47,6 @@ const facts = (s: Snapshot): [string, string][] =>
 const numbered = (items: ExportItem[]) =>
   items.map((item, i) => ({ item, n: i + 1, heading: item.section && item.section !== items[i - 1]?.section ? item.section : '' }))
 
-// A scale's five steps, the ends labelled.
-const steps = (item: ExportItem) =>
-  ([1, 2, 3, 4, 5] as const).map((n) => {
-    const label = n === 1 ? item.scaleLow : n === 5 ? item.scaleHigh : null
-    return { n, text: label ? `${n} (${label})` : String(n) }
-  })
-
-// What an answer area shows: boxes (ticked or not), a line or a text, and the markdown under the boxes.
-// `lines` blank lines to write on, the last followed by `suffix` (a unit, or what to write).
-type Area = { boxes?: { text: string; ticked: boolean }[]; line?: string; lines?: number; suffix?: string; markdown?: string }
-
-function area(item: ExportItem, answered: boolean): Area {
-  const a = answered ? item.answer : null
-  const unit = item.unit ? ` ${item.unit}` : ''
-  switch (item.answerType) {
-    case 'short_text':
-    case 'long_text': {
-      const text = a && 'text' in a ? a.text.trim() : ''
-      if (!text) return { lines: item.answerType === 'long_text' ? 3 : 1 }
-      return item.answerType === 'long_text' ? { markdown: text } : { line: text }
-    }
-    case 'yes_no': {
-      const yes = a && 'yes' in a ? a.yes : null
-      const comment = a && 'yes' in a ? (a.comment ?? '').trim() : ''
-      return {
-        boxes: [
-          { text: 'Yes', ticked: yes === true },
-          { text: 'No', ticked: yes === false },
-        ],
-        ...(comment ? { markdown: comment } : {}),
-      }
-    }
-    case 'single_choice':
-    case 'multi_choice': {
-      const chosen = !a ? [] : 'choices' in a ? a.choices : 'choice' in a ? [a.choice] : []
-      const other = a && ('choice' in a || 'choices' in a) ? (a.other ?? '').trim() : ''
-      const boxes = item.options.map((o) => ({ text: o, ticked: chosen.includes(o) }))
-      if (item.allowOther) boxes.push({ text: `Other: ${other || LINE}`, ticked: !!other })
-      return { boxes }
-    }
-    case 'number':
-      return a && 'number' in a ? { line: `${a.number}${unit}` } : { lines: 1, suffix: unit }
-    case 'date':
-      return a && 'date' in a ? { line: a.date } : { lines: 1, suffix: ' (date)' }
-    case 'scale': {
-      const at = a && 'scale' in a ? a.scale : null
-      return { boxes: steps(item).map((s) => ({ text: s.text, ticked: s.n === at })) }
-    }
-  }
-}
-
 /** The Questionnaire as Markdown: blank, with `- [ ]` boxes and `_______` lines, or with its answers filled in. */
 export function markdown(s: Snapshot, { answers }: { answers: boolean }): string {
   const parts = [`# ${s.title}`]
@@ -114,31 +61,13 @@ export function itemsMarkdown(items: ExportItem[], { answers, level = 2 }: { ans
   for (const { item, n, heading } of numbered(items)) {
     if (heading) parts.push(`${'#'.repeat(level)} ${heading}`)
     parts.push(`**${n}. ${item.text}**` + (item.help ? `\n_${item.help}_` : ''))
-    const { boxes, line, lines, suffix = '', markdown: text } = area(item, answers)
+    const { boxes, line, lines, suffix = '', markdown: text } = answerArea(item, answers)
     if (boxes) parts.push(boxes.map((b) => `- [${b.ticked ? 'x' : ' '}] ${b.text}`).join('\n'))
     if (line) parts.push(line)
     if (lines) parts.push(Array(lines).fill(LINE).join('\n') + suffix)
     if (text) parts.push(portableImages(text))
   }
   return parts.join('\n\n')
-}
-
-// What an email question asks for, after the question.
-function hint(item: ExportItem): string {
-  switch (item.answerType) {
-    case 'single_choice':
-      return ' (pick one)'
-    case 'multi_choice':
-      return ' (pick any)'
-    case 'number':
-      return item.unit ? ` (${item.unit})` : ' (a number)'
-    case 'date':
-      return ' (date)'
-    case 'scale':
-      return ` (1 = ${item.scaleLow || 'lowest'}, 5 = ${item.scaleHigh || 'highest'})`
-    default:
-      return ''
-  }
 }
 
 /**
@@ -149,15 +78,10 @@ export function emailText(s: Snapshot): string {
   const lines = [s.title, ...facts(s).map(([label, value]) => `${label}: ${value}`), '']
   for (const { item, n, heading } of numbered(s.items)) {
     if (heading) lines.push(heading.toUpperCase(), '')
-    lines.push(`${n}. ${item.text}${hint(item)}`)
+    const info = answerType(item.answerType)
+    lines.push(`${n}. ${item.text}${info.hint(item)}`)
     if (item.help) lines.push(`   ${item.help}`)
-    const options =
-      item.answerType === 'yes_no'
-        ? ['Yes', 'No']
-        : item.answerType === 'single_choice' || item.answerType === 'multi_choice'
-          ? [...item.options, ...(item.allowOther ? ['Other: ...'] : [])]
-          : []
-    lines.push(...options.map((o) => `   - ${o}`), '')
+    lines.push(...info.emailOptions(item).map((o) => `   - ${o}`), '')
   }
   lines.push('Please reply inline: write your answer under each question.', '')
   return lines.join('\n')
@@ -178,7 +102,7 @@ export function printHtml(s: Snapshot, { answers }: { answers: boolean }): strin
     out.push(`<dl class="print-facts">${known.map(([l, v]) => `<div><dt>${l}</dt><dd>${escape(v)}</dd></div>`).join('')}</dl>`)
   for (const { item, n, heading } of numbered(s.items)) {
     if (heading) out.push(`<h2>${escape(heading)}</h2>`)
-    const { boxes, line, lines, suffix = '', markdown: text } = area(item, answers)
+    const { boxes, line, lines, suffix = '', markdown: text } = answerArea(item, answers)
     const body = [`<p class="print-question"><span>${n}.</span> ${escape(item.text)}</p>`]
     if (item.help) body.push(`<p class="print-help">${escape(item.help)}</p>`)
     if (boxes)
