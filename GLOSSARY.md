@@ -124,8 +124,12 @@ _Avoid_: Reference field, foreign key
 A canvas of Nodes and Edges, used for mind maps and system diagrams.
 _Avoid_: Mind map, chart, canvas
 
+**Attached Diagram**:
+A Diagram in a Process's or Project's Diagrams slot (a "shows" Relation); the Process or Project page draws it as a picture that opens the Diagram.
+_Avoid_: Embedded diagram, linked diagram
+
 **Node**:
-A box on a Diagram; free text, or linked to a Record of any type (another Diagram included), in which case it shows that Record's title.
+A box on a Diagram; free text, or linked to a Record of any type (another Diagram included), in which case it shows that Record's title. It has a fill, a shape and a border style (solid, dashed, dotted or none).
 _Avoid_: Shape, box
 
 **Edge**:

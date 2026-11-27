@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 import AnswerFlow from './AnswerFlow.vue'
+import AttachedDiagrams from './AttachedDiagrams.vue'
 import { inDiagrams } from './diagram/links'
 import { mentionedIn } from './mentions'
 import ProjectTasks from './ProjectTasks.vue'
@@ -32,6 +33,8 @@ export const PAGE_SECTIONS: PageSection[] = [
   { slot: 'fields', component: AnswerFlow, types: ['open_question'] },
   // Its header holds Save Items as a set (SaveItemsAsSet.vue, from Q3).
   { slot: 'main', component: QuestionnaireItems, types: ['questionnaire'] },
+  // Pictures of the Diagrams in the Diagrams slot.
+  { slot: 'main', component: AttachedDiagrams, types: ['process', 'project'] },
   { slot: 'below', component: ProjectTasks, types: ['project'] },
   {
     slot: 'below',

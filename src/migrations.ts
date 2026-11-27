@@ -229,6 +229,12 @@ export const MIGRATIONS: string[] = [
   `
   alter table questionnaire_item add column follow_up_taken integer not null default 0;
   `,
+  // Diagrams attached to a Process or Project: "Diagram shows Process" takes id 10. A label the user added there moves to a free id, with its Relations.
+  `
+  update relation set label_id = (select max(id) + 1 from label) where label_id = 10;
+  update label set id = (select max(id) + 1 from label) where id = 10;
+  insert into label (id, forward, reverse, protected) values (10, 'shows', 'shown in', 1);
+  `,
 ]
 
 export const schemaVersion = (db: Database) =>

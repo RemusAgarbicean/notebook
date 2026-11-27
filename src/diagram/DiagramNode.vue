@@ -5,6 +5,7 @@ import { computed, useTemplateRef } from 'vue'
 import { openRecord } from '../navigation'
 import { recordType } from '../record-types'
 import { getRecord } from '../records'
+import { borderClass } from './borders'
 import type { NodeData } from './canvas'
 import { fillVars } from './fills'
 import { useLabelEdit } from './label-edit'
@@ -69,7 +70,7 @@ const open = () => (link.value ? openRecord(link.value.type, link.value.id) : ed
     data-testid="diagram-node"
     data-edit
     class="diagram-node"
-    :class="[name, { linked: link, shaped: fit, open: drawing && !drawing.fill.length }]"
+    :class="[name, borderClass(data.border), { linked: link, shaped: fit, open: drawing && !drawing.fill.length }]"
     :style="[fillVars(data.fill), size, fitStyle]"
     @dblclick="open"
   >
@@ -126,6 +127,8 @@ const open = () => (link.value ? openRecord(link.value.type, link.value.id) : ed
   fill: var(--node-bg);
   stroke: var(--node-line);
   stroke-width: var(--node-line-width);
+  stroke-dasharray: var(--node-dash);
+  stroke-linecap: round;
 }
 .shape-line {
   fill: none;

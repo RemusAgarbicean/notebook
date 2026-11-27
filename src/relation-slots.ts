@@ -13,6 +13,7 @@ export const LABEL = {
   partOf: 6,
   answeredBy: 8,
   respondent: 9,
+  shows: 10,
 } as const
 
 export type RelationSlot = {
@@ -37,6 +38,8 @@ export const RELATION_SLOTS: readonly RelationSlot[] = [
   { type: 'journal_entry', name: 'Attendees', labelId: LABEL.attended, end: 'to', offers: ['person'] },
   { type: 'task', name: 'Project', labelId: LABEL.partOf, end: 'from', offers: ['project'] },
   { type: 'project', name: 'Owner', labelId: LABEL.owns, end: 'to', offers: ['person', 'team'], creates: 'team' },
+  { type: 'process', name: 'Diagrams', labelId: LABEL.shows, end: 'to', offers: ['diagram'] },
+  { type: 'project', name: 'Diagrams', labelId: LABEL.shows, end: 'to', offers: ['diagram'] },
   { type: 'questionnaire', name: 'Project', labelId: LABEL.partOf, end: 'from', offers: ['project'] },
   { type: 'questionnaire', name: 'Respondents', labelId: LABEL.respondent, end: 'to', offers: ['person'] },
 ]

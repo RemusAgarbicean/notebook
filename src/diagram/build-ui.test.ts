@@ -90,6 +90,44 @@ test('the Undo and Redo buttons do the same, and a fill is one step', async () =
   expect(flow().findNode('1')!.data.fill).toBe('green')
 })
 
+test('a border style is set from the toolbar and the Node menu, saved, and undone in one step', async () => {
+  await open()
+  await select('1', '2')
+  await app.get('[data-testid="diagram-toolbar"] [aria-label="Border dashed"]').trigger('click')
+  await flushPromises()
+  expect(flow().findNode('1')!.data.border).toBe('dashed')
+  expect(flow().findNode('2')!.data.border).toBe('dashed')
+  expect(app.findAll('[data-testid="diagram-node"]').every((n) => n.classes('border-dashed-line'))).toBe(true)
+  await expect.poll(() => saved().nodes[0].data!.border).toBe('dashed')
+
+  await button('Undo').trigger('click')
+  await flushPromises()
+  expect(flow().findNode('1')!.data.border).toBeUndefined()
+
+  await select('1')
+  await app.get('[data-testid="node-menu-button"]').trigger('click')
+  await flushPromises()
+  await app.get('[role="menu"] [aria-label="Border none"]').trigger('click')
+  await flushPromises()
+  expect(flow().findNode('1')!.data.border).toBe('none')
+  if (!app.find('[role="menu"]').exists()) await app.get('[data-testid="node-menu-button"]').trigger('click')
+  await flushPromises()
+  await app.get('[role="menu"] [aria-label="Border solid"]').trigger('click')
+  await flushPromises()
+  // Solid is the default, so it is left out of the saved Diagram.
+  expect(flow().findNode('1')!.data.border).toBeUndefined()
+  await expect.poll(() => 'border' in saved().nodes[0].data!).toBe(false)
+})
+
+test('a Frame takes a border style too', async () => {
+  await open([node('1', 10), frame('3', -50, -50, 200, 200)])
+  await select('3')
+  await app.get('[data-testid="diagram-toolbar"] [aria-label="Border dotted"]').trigger('click')
+  await flushPromises()
+  expect(flow().findNode('3')!.data.border).toBe('dotted')
+  expect(app.get('[data-testid="diagram-frame"]').classes()).toContain('border-dotted-line')
+})
+
 test('Ctrl+Z while typing a Node\'s text is left to the text box', async () => {
   await open()
   await select('2')

@@ -136,7 +136,7 @@ test('a slot label between types the slot does not offer shows in the Relations 
   expect(shown(coupa)).toEqual([['owned by', ['Source-to-Pay']]])
 })
 
-test('the slots are the eight from the decisions', () => {
+test('the slots are the ten from the decisions', () => {
   expect(RELATION_SLOTS.map((s) => [s.type, s.name, s.labelId, s.end, s.offers])).toEqual([
     ['system', 'Owner', LABEL.owns, 'to', ['person', 'team']],
     ['person', 'Team', LABEL.memberOf, 'from', ['team']],
@@ -144,6 +144,8 @@ test('the slots are the eight from the decisions', () => {
     ['journal_entry', 'Attendees', LABEL.attended, 'to', ['person']],
     ['task', 'Project', LABEL.partOf, 'from', ['project']],
     ['project', 'Owner', LABEL.owns, 'to', ['person', 'team']],
+    ['process', 'Diagrams', LABEL.shows, 'to', ['diagram']],
+    ['project', 'Diagrams', LABEL.shows, 'to', ['diagram']],
     ['questionnaire', 'Project', LABEL.partOf, 'from', ['project']],
     ['questionnaire', 'Respondents', LABEL.respondent, 'to', ['person']],
   ])
@@ -156,6 +158,7 @@ test('the slots are the eight from the decisions', () => {
     ['part of', 1],
     ['answered by', 1],
     ['responds to', 1],
+    ['shows', 1],
   ])
 })
 
@@ -164,7 +167,7 @@ test('labels list their readings and how many Relations use them', () => {
 
   expect(label(USES)).toMatchObject({ forward: 'uses', reverse: 'used by', uses: 1 })
   expect(label(7)).toMatchObject({ forward: 'related to', reverse: 'related to', uses: 0 })
-  expect(listLabels()).toHaveLength(9)
+  expect(listLabels()).toHaveLength(10)
 })
 
 test('a label can be added and renamed, and the rename shows on every Record', () => {
@@ -195,7 +198,7 @@ test('a label can be deleted only when it is unused and not protected', () => {
   removeRelation(maria, USES, coupa)
   deleteLabel(USES)
   expect(listLabels().map((l) => l.forward)).not.toContain('uses')
-  expect(listLabels()).toHaveLength(8)
+  expect(listLabels()).toHaveLength(9)
 })
 
 test('searching Records matches titles ignoring case, within the offered types', () => {
@@ -216,7 +219,7 @@ test('a reading that another label already has is refused, whichever side and wh
   expect(() => addLabel('Owned by', 'possesses')).toThrow('"Owned by" is already a reading of the label "owns / owned by"')
   expect(() => addLabel('reports to', ' USES ')).toThrow('"USES" is already a reading of the label "uses / used by"')
   expect(() => addLabel('near', 'related to')).toThrow('"related to" is already a reading of the label "related to"')
-  expect(listLabels()).toHaveLength(9)
+  expect(listLabels()).toHaveLength(10)
 
   expect(() => renameLabel(USES, 'uses', 'contains')).toThrow('"contains" is already a reading of the label "part of / contains"')
   expect(label(USES)).toMatchObject({ forward: 'uses', reverse: 'used by' })

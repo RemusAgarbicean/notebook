@@ -6,13 +6,13 @@ import { loadSqlite } from './sqlite'
 
 const emptyDb = async () => new (await loadSqlite()).Database()
 
-test('migrating an empty database creates every table, seeds the 9 labels and sets user_version to the latest', async () => {
+test('migrating an empty database creates every table, seeds the 10 labels and sets user_version to the latest', async () => {
   const db = await emptyDb()
 
   expect(migrate(db)).toBe(true)
 
-  expect(db.exec('pragma user_version')[0].values).toEqual([[4]])
-  expect(schemaVersion(db)).toBe(4)
+  expect(db.exec('pragma user_version')[0].values).toEqual([[5]])
+  expect(schemaVersion(db)).toBe(5)
   const tables = db.exec("select name from sqlite_master where type = 'table' order by name")
   expect(tables[0].values.flat()).toEqual([
     'acronym',
@@ -49,6 +49,7 @@ test('migrating an empty database creates every table, seeds the 9 labels and se
     ['related to', 'related to', 0],
     ['answered by', 'answers', 1],
     ['responds to', 'has respondent', 1],
+    ['shows', 'shown in', 1],
   ])
 })
 
@@ -86,7 +87,7 @@ test('migrating an up-to-date database changes nothing', async () => {
   migrate(db)
 
   expect(migrate(db)).toBe(false)
-  expect(db.exec('select count(*) from label')[0].values).toEqual([[9]])
+  expect(db.exec('select count(*) from label')[0].values).toEqual([[10]])
 })
 
 test('a Notebook written by a newer app is refused', async () => {
@@ -112,10 +113,10 @@ test('a version-1 Notebook upgrades to hold Images, with its data intact', async
 
   expect(migrate(db)).toBe(true)
 
-  expect(schemaVersion(db)).toBe(4)
+  expect(schemaVersion(db)).toBe(5)
   expect(db.exec('select title, notes from system')[0].values).toEqual([['Coupa', 'Where POs live']])
   expect(db.exec('select count(*) from record_tag')[0].values).toEqual([[1]])
-  expect(db.exec('select count(*) from label')[0].values).toEqual([[9]])
+  expect(db.exec('select count(*) from label')[0].values).toEqual([[10]])
   expect(db.exec('select count(*) from image')[0].values).toEqual([[0]])
 })
 
@@ -129,7 +130,7 @@ test('opening a version-1 file keeps it as a pre-upgrade Backup before upgrading
   expect(name).toMatch(/pre-upgrade\.sqlite$/)
   expect(bytes).toEqual(old)
   const onDisk = new (await loadSqlite()).Database(folder.file)
-  expect(schemaVersion(onDisk)).toBe(4)
+  expect(schemaVersion(onDisk)).toBe(5)
   expect(onDisk.exec('select title from system')[0].values).toEqual([['Coupa']])
 })
 
@@ -167,14 +168,14 @@ test('a version-2 Notebook upgrades to hold Questionnaires, and its own label th
 
   expect(migrate(db)).toBe(true)
 
-  expect(schemaVersion(db)).toBe(4)
+  expect(schemaVersion(db)).toBe(5)
   expect(db.exec('select forward, reverse, protected from label where id = 9')[0].values).toEqual([
     ['responds to', 'has respondent', 1],
   ])
   expect(
     db.exec('select l.forward from relation r join label l on l.id = r.label_id where r.from_id = 1 and r.to_id = 2')[0].values,
   ).toEqual([['reports to']])
-  expect(db.exec('select count(*) from label')[0].values).toEqual([[10]])
+  expect(db.exec('select count(*) from label')[0].values).toEqual([[11]])
 })
 
 test("a version-3 Notebook's Items upgrade with their follow-up answer not yet taken", async () => {
@@ -232,4 +233,21 @@ test('a Questionnaire starts as a draft and takes only its three statuses', asyn
 
   expect(db.exec('select status from questionnaire')[0].values).toEqual([['draft']])
   expect(() => db.run("update questionnaire set status = 'closed'")).toThrow()
+})
+
+test("a version-4 Notebook gets the Diagram label 'shows', and its own label that had id 10 keeps its Relations", async () => {
+  const db = await emptyDb()
+  for (const sql of MIGRATIONS.slice(0, 4)) db.exec(sql)
+  db.run('pragma user_version = 4')
+  db.run("insert into label (forward, reverse) values ('reports to', 'manages')")
+  db.run("insert into person (title) values ('Maria'), ('Stefan')")
+  db.run("insert into relation (from_type, from_id, label_id, to_type, to_id) values ('person', 1, 10, 'person', 2)")
+
+  expect(migrate(db)).toBe(true)
+
+  expect(schemaVersion(db)).toBe(5)
+  expect(db.exec('select forward, reverse, protected from label where id = 10')[0].values).toEqual([['shows', 'shown in', 1]])
+  expect(
+    db.exec('select l.forward from relation r join label l on l.id = r.label_id where r.from_id = 1 and r.to_id = 2')[0].values,
+  ).toEqual([['reports to']])
 })
