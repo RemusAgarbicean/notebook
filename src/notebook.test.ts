@@ -21,8 +21,8 @@ test('creating a Notebook in an empty folder writes a migrated notebook.sqlite',
 
   expect(await openNotebook(folder, true)).toBe(true)
 
-  expect(await onDisk(folder.file, 'pragma user_version')).toEqual([[4]])
-  expect(await onDisk(folder.file, 'select count(*) from label')).toEqual([[9]])
+  expect(await onDisk(folder.file, 'pragma user_version')).toEqual([[5]])
+  expect(await onDisk(folder.file, 'select count(*) from label')).toEqual([[10]])
   expect(saveStatus.value).toBe('saved')
 })
 

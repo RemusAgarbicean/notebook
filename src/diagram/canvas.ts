@@ -1,4 +1,5 @@
 import { Position, type Edge, type Node, type ViewportTransform } from '@vue-flow/core'
+import type { StoredBorder } from './borders'
 import type { FillName } from './fills'
 import type { ShapeName } from './shapes'
 
@@ -12,6 +13,8 @@ export type NodeData = {
   fill?: FillName
   recordType?: string
   recordId?: number
+  /** The border style; absent for a solid line. */
+  border?: StoredBorder
   /** A shape name; absent for the rectangle. */
   shape?: ShapeName
   /** The size a resize gave it, in canvas pixels; absent while its text decides. */

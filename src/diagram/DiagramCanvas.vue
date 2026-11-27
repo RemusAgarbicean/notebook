@@ -52,6 +52,8 @@ import {
 import DiagramEdge from './DiagramEdge.vue'
 import DiagramFrame, { FRAME_SIZE } from './DiagramFrame.vue'
 import DiagramNode from './DiagramNode.vue'
+import BorderPicker from './BorderPicker.vue'
+import { storedBorder, type BorderName } from './borders'
 import FillPicker from './FillPicker.vue'
 import type { FillName } from './fills'
 import { fullScreen } from './full-screen'
@@ -467,6 +469,10 @@ function setFill(ids: string[], fill: FillName | null) {
   // An undefined fill is left out of the saved JSON.
   for (const id of ids) updateNodeData(id, { fill: fill ?? undefined })
 }
+// A solid border is the default, so it is left out of the saved JSON. Frames take one too.
+function setBorder(ids: string[], border: BorderName) {
+  for (const id of ids) updateNodeData(id, { border: storedBorder(border) })
+}
 // The rectangle is the shape of a Node that names none.
 function setShape(ids: string[], shape: ShapeName) {
   for (const n of ids.map((id) => findNode(id)!)) if (!isFrame(n)) n.data = { ...n.data, shape: shape === 'rectangle' ? undefined : shape }
@@ -662,8 +668,8 @@ async function renderPng(): Promise<Blob> {
     // html-to-image loses what CSS gives SVG, so the label parts get it inline for the capture.
     for (const el of labelParts()) Object.assign(el.style, { fill: getComputedStyle(el).fill, fontSize: getComputedStyle(el).fontSize })
     for (const el of shapeParts()) {
-      const { fill, stroke, strokeWidth } = getComputedStyle(el)
-      Object.assign(el.style, { fill, stroke, strokeWidth })
+      const { fill, stroke, strokeWidth, strokeDasharray } = getComputedStyle(el)
+      Object.assign(el.style, { fill, stroke, strokeWidth, strokeDasharray })
     }
     const png = await toBlob(flow, {
       backgroundColor: '#ffffff',
@@ -677,7 +683,7 @@ async function renderPng(): Promise<Blob> {
   } finally {
     window.fetch = realFetch
     for (const el of labelParts()) Object.assign(el.style, { fill: '', fontSize: '' })
-    for (const el of shapeParts()) Object.assign(el.style, { fill: '', stroke: '', strokeWidth: '' })
+    for (const el of shapeParts()) Object.assign(el.style, { fill: '', stroke: '', strokeWidth: '', strokeDasharray: '' })
     exporting.value = false
     setViewport(before)
   }
@@ -748,6 +754,7 @@ const tool =
       </div>
       <div role="group" aria-label="Selected Nodes" :class="group">
         <FillPicker class="px-1" :disabled="!getSelectedNodes.length" @pick="setFill(selectedIds(), $event)" />
+        <BorderPicker class="px-1" :disabled="!getSelectedNodes.length" @pick="setBorder(selectedIds(), $event)" />
         <ShapePicker :disabled="!getSelectedNodes.length" @pick="setShape(selectedIds(), $event)" />
         <!-- click.stop: the click that opens the menu must not close it the way one elsewhere does. -->
         <button
@@ -757,7 +764,7 @@ const tool =
           aria-haspopup="menu"
           aria-label="Node menu"
           :disabled="!getSelectedNodes.length"
-          title="Node menu: fill, shape, Link, Make Record (Shift F10 or right-click)"
+          title="Node menu: fill, border, shape, Link, Make Record (Shift F10 or right-click)"
           @click.stop="openSelectionMenu"
         >
           <SquareMenu />
@@ -855,6 +862,8 @@ const tool =
     >
       <span class="text-xs text-muted-foreground">Fill</span>
       <FillPicker @pick="setFill(menu.ids, $event)" />
+      <span class="text-xs text-muted-foreground">Border</span>
+      <BorderPicker @pick="setBorder(menu.ids, $event)" />
       <template v-if="menuHasNodes()">
         <span class="text-xs text-muted-foreground">Shape</span>
         <ShapePicker :current="menuShape()" @pick="setShape(menu.ids, $event), (menu = null)" />
@@ -947,6 +956,8 @@ const tool =
   --node-bg: var(--fill-light, var(--dg-node));
   --node-line: var(--dg-border);
   --node-line-width: 1px;
+  --node-line-style: solid;
+  --node-dash: none;
   position: relative;
   isolation: isolate;
   display: flex;
@@ -955,7 +966,7 @@ const tool =
   min-width: 4rem;
   max-width: 14rem;
   padding: 0.5rem 0.75rem;
-  border: var(--node-line-width) solid var(--node-line);
+  border: var(--node-line-width) var(--node-line-style) var(--node-line);
   border-radius: 0.375rem;
   background: var(--node-bg);
   color: var(--dg-text);
@@ -1001,6 +1012,26 @@ const tool =
   border-color: transparent;
 }
 /* The other shapes are drawn in SVG: see DiagramNode. */
+/* A chosen border style; on a text note it brings back the border the note otherwise hides. */
+.diagram-node.border-dashed-line {
+  --node-line-style: dashed;
+  --node-dash: 6 4;
+}
+.diagram-node.border-dotted-line {
+  --node-line-style: dotted;
+  --node-dash: 1.5 3;
+}
+.diagram-node.note.border-dashed-line,
+.diagram-node.note.border-dotted-line {
+  border-color: var(--node-line);
+}
+.diagram-node.border-none-line {
+  --node-line: transparent;
+}
+.diagram-node.shaped.border-none-line .shape-line,
+.diagram-node.shaped.border-none-line .shape-fill {
+  stroke: none;
+}
 .diagram-canvas:not(.exporting) .vue-flow__node.selected .diagram-node {
   box-shadow: 0 0 0 2px var(--ring);
 }

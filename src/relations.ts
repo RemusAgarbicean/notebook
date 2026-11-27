@@ -207,6 +207,12 @@ export const slotRecords = (slot: RelationSlot, id: number): Titled[] =>
     .filter((e) => inSlot(slot, e))
     .map((e) => e.other)
 
+/** The Diagrams attached to a Process or Project through its Diagrams slot, by title; none for another type. */
+export function attachedDiagrams(record: RecordRef): Titled[] {
+  const slot = slotsOf(record.type).find((s) => s.labelId === LABEL.shows)
+  return slot ? slotRecords(slot, record.id) : []
+}
+
 /** Puts a Record in a slot, which saves an ordinary Relation with the slot's label. */
 export const addToSlot = (slot: RelationSlot, id: number, other: RecordRef) =>
   relate({ type: slot.type, id }, { labelId: slot.labelId, forward: slot.end === 'from' }, other)

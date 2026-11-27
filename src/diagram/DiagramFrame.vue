@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, useTemplateRef } from 'vue'
+import { borderClass } from './borders'
 import type { NodeData } from './canvas'
 import { fillVars } from './fills'
 import { useLabelEdit } from './label-edit'
@@ -24,7 +25,7 @@ const MIN_SIZE = { width: 96, height: 64 }
 </script>
 
 <template>
-  <div ref="root" data-testid="diagram-frame" class="diagram-frame" :class="{ filled: data.fill }" :style="[fillVars(data.fill), size]">
+  <div ref="root" data-testid="diagram-frame" class="diagram-frame" :class="[borderClass(data.border), { filled: data.fill }]" :style="[fillVars(data.fill), size]">
     <div data-edit class="diagram-frame-title" @dblclick="edit()">
       <input
         v-if="editing"
@@ -57,6 +58,15 @@ const MIN_SIZE = { width: 96, height: 64 }
 }
 .dark .diagram-canvas:not(.exporting) .diagram-frame {
   background: color-mix(in srgb, var(--fill-dark, transparent) 30%, transparent);
+}
+.diagram-frame.border-dashed-line {
+  border-style: dashed;
+}
+.diagram-frame.border-dotted-line {
+  border-style: dotted;
+}
+.diagram-frame.border-none-line {
+  border-color: transparent;
 }
 .diagram-frame-title {
   height: 1.75rem;
